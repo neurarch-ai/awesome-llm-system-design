@@ -177,6 +177,22 @@ is exactly the signal.
 
 ---
 
+## Seen in production
+
+Real systems that ship the patterns above. Each is a first-party engineering
+writeup; read them for what an interview answer skips: who the system serves,
+the product design, the eval bar, and the deployment shape.
+
+- **vLLM (UC Berkeley)** [Efficient Memory Management for LLM Serving with PagedAttention](https://arxiv.org/abs/2309.06180): OS-style KV-cache paging cuts fragmentation, boosting throughput 2x to 4x. *(deployment)*
+- **Character.AI** [Optimizing AI Inference at Character.AI](https://blog.character.ai/optimizing-ai-inference-at-character-ai-2/): MQA, hybrid local/global attention, and cross-layer KV-sharing cut cost 33x. *(deployment)*
+- **DeepSeek** [DeepSeek-V2: a strong, economical, efficient MoE language model](https://arxiv.org/abs/2405.04434): Multi-head Latent Attention compresses the KV cache into a latent vector, shrinking it 93%. *(product design)*
+- **Google Research** [GQA: Training Generalized Multi-Query Transformer Models](https://arxiv.org/abs/2305.13245): Grouped-query attention trades KV heads for speed at near-MHA quality. *(product design)*
+
+More production case studies: the [Evidently AI ML system design database](https://www.evidentlyai.com/ml-system-design) (800 case studies from 150+
+companies) is the broadest curated index; this section pulls the few that map
+directly onto this topic.
+
+---
 ## Trace the architectures
 
 This topic is most of why the diagrams in this repo are validated graphs and not

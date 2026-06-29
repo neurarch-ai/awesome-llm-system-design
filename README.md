@@ -61,6 +61,14 @@ numbers change. More on why that matters [below](#about-the-diagrams).
 See [topics/README.md](topics/README.md) for the full roadmap and how to
 contribute a topic.
 
+Every topic ends with a **Seen in production** section: real first-party
+engineering writeups (Anthropic, DoorDash, Uber, Character.AI, LinkedIn, and
+more) tagged by what they illustrate, so the framework is grounded in shipped
+systems rather than whiteboard theory. For the broadest index of production ML
+and LLM systems, see the
+[Evidently AI ML system design database](https://www.evidentlyai.com/ml-system-design)
+(800 case studies from 150+ companies).
+
 > A companion [**ML System Design Interview**](https://github.com/neurarch-ai/awesome-ml-system-design)
 > repo (recommenders, ranking, feature pipelines, the classic non-LLM stack) is
 > also available. This one covers the LLM-era stack; the companion covers the
