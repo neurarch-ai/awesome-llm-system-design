@@ -1,0 +1,180 @@
+# 09 - Multimodal serving
+
+> **Interviewer:** "Design a service that answers questions about images: the user
+> uploads a photo and asks something about it, and a vision-language model
+> responds. Serve it efficiently at scale."
+
+Multimodal looks like "just add images," but the serving economics are different
+in a way that catches people out: an image does not cost one token, it costs many,
+and those tokens land in the most expensive part of the pipeline. The signal here
+is whether you understand the vision-language architecture and can reason about
+the image-token budget and the heterogeneous workload.
+
+## 1. Clarify and scope
+
+- **Which modalities?** Images only, or also documents, video, audio? Each adds a
+  preprocessing path. Start with images.
+- **Image properties?** Resolution and count per request. High-resolution and
+  multi-image requests cost far more tokens, which drives the whole cost model.
+- **Task?** Visual question answering, captioning, OCR-heavy document
+  understanding? OCR-style tasks need high resolution, which is expensive.
+- **Latency and scale?** Interactive (first token fast) vs batch enrichment.
+- **Quality bar?** How much detail must the model recover from the image? This
+  decides resolution and therefore cost.
+
+## 2. Requirements
+
+**Functional**
+- Accept an image plus a text prompt, return a grounded text answer
+- Preprocess and encode images
+- Combine image and text in one model call
+- Stream the response
+
+**Non-functional**
+- Bounded cost per request despite the image-token blowup
+- p99 first-token latency target for interactive use
+- Throughput that handles a mixed stream of text-only and image requests
+- Graceful handling of oversized or malformed images
+
+## 3. The architecture (say this clearly)
+
+A vision-language model is three parts wired in sequence:
+
+```
+image ──▶ vision encoder ──▶ image features ──▶ projector ──┐
+                                                            ▼
+text prompt ──▶ tokenizer ──▶ text tokens ──────────▶ [text tokens + image tokens] ──▶ LLM decoder ──▶ answer
+```
+
+1. **Vision encoder** (a ViT-style model) turns the image into a grid of feature
+   vectors.
+2. **Projector / connector** maps those features into the language model's token
+   embedding space, producing a block of "image tokens."
+3. **LLM decoder** consumes the image tokens and the text tokens together as one
+   sequence and generates the answer.
+
+The key realization: from the decoder's point of view, an image is just a chunk of
+tokens prepended to the prompt. That is why image cost is token cost.
+
+## 4. Deep dives
+
+### The image-token budget is the whole cost story
+
+A single image expands into many tokens (often hundreds, sometimes over a
+thousand for high resolution). Those tokens go into **prefill** and into the
+**KV cache** ([topic 02](02-long-context-and-kv-cache.md)), which means:
+
+- First-token latency rises because prefill is larger.
+- Memory pressure rises because the KV cache now holds the image tokens too.
+- Multi-image requests multiply this.
+
+So the central serving lever in multimodal is **controlling the image-token
+count**, not anything exotic. Everything below is a way to do that.
+
+### Resolution vs token count
+
+More resolution means more image tokens means more cost. The standard approach for
+high-resolution input is **tiling**: split the image into patches, encode each,
+and concatenate. It recovers fine detail (good for OCR and dense scenes) but
+multiplies the token count. So expose resolution as a quality-cost knob:
+
+- Low resolution / single view for "what is in this picture."
+- Tiled high resolution only when the task needs fine detail (reading text,
+  inspecting small regions).
+
+Picking resolution per task, instead of always maxing it, is the senior move.
+
+### Heterogeneous serving
+
+The pipeline has two very different workloads, and stapling them into one server
+wastes hardware:
+
+- **Image preprocessing and the vision encoder:** a bounded, parallel,
+  compute-heavy pass over the image. Batches well, runs once per image.
+- **LLM decode:** the autoregressive, memory-bandwidth-bound generation loop
+  ([topic 02](02-long-context-and-kv-cache.md)).
+
+Run them as **separate, independently scaled stages**. The vision encoder can
+batch images on its own tier while the decoder pool does continuous batching for
+generation. A purely text request skips the vision tier entirely, so do not make
+every request pay for image infrastructure.
+
+### Caching image embeddings
+
+The same image often appears across requests (a product photo, a re-asked
+question about one upload). Cache the **vision encoder output** keyed by an image
+hash so a repeated image skips encoding entirely. This is a clean win for
+catalogs and multi-turn conversations about one image.
+
+### Other modalities
+
+Audio fits the same shape: an audio encoder turns sound into features that feed
+the decoder. The pattern (modality encoder, projector, shared decoder) generalizes,
+and the serving lesson is the same: the encoder is a separate batched workload, and
+the encoded tokens land in the decoder's prefill and KV cache.
+
+## 5. Bottlenecks and scaling
+
+| Bottleneck | Cause | Fix | Tradeoff |
+|---|---|---|---|
+| First-token latency | Large prefill from image tokens | Lower resolution; fewer tiles | Less image detail |
+| KV-cache memory | Image tokens inflate the cache | Cap resolution; quantize KV cache | Quality / detail |
+| Vision encoder throughput | Encoding every image inline | Separate batched encoder tier; cache by image hash | More infra |
+| Mixed traffic | Text requests stuck behind image work | Route text-only past the vision tier | Routing complexity |
+| Multi-image blowup | Token count multiplies | Limit images per request; downscale | Capability limit |
+
+## 6. Failure modes, safety, eval
+
+- **Oversized / malformed images:** validate, downscale, and cap dimensions
+  before encoding so one huge upload cannot blow the token budget or OOM the
+  encoder.
+- **Image-borne prompt injection:** text rendered inside an image (a sign saying
+  "ignore your instructions") can act as an injection vector. Treat image-derived
+  content as untrusted, same as retrieved text ([topic 07](07-safety-and-guardrails.md)).
+- **Hallucinated detail:** the model describes things not in the image,
+  especially at low resolution. Evaluate grounding, and raise resolution for
+  detail-sensitive tasks.
+- **Eval:** task-specific (VQA accuracy, captioning quality, OCR exactness) plus
+  latency and cost per request. Track cost, because the image-token budget makes
+  it easy to ship something correct but unaffordable.
+
+## 7. Likely follow-ups
+
+- "Why is an image so expensive?" It becomes hundreds of tokens that hit prefill
+  and the KV cache, the priciest part of serving.
+- "Cut the cost in half." Lower resolution / fewer tiles, cache vision encoder
+  output, route text-only requests away from the vision tier.
+- "Support high-resolution document OCR." Tiling for detail, accept the higher
+  token count, consider a model trained for dense text.
+- "How do you scale the vision encoder and the decoder independently?" Separate
+  tiers, each batched for its own workload.
+
+---
+
+## Trace the architectures
+
+Multimodal is the clearest case for reading a real graph instead of a box diagram:
+the projector that bridges the vision encoder and the language model is exactly the
+piece casual diagrams hand-wave, and it is where the design lives. Open these and
+trace the wiring.
+
+- **A full vision-language model (LLaVA-1.5 7B):**
+  [open it live](https://www.neurarch.com/?import=https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/llava-1.5-7b/model.json)
+  to trace the vision encoder, the projector that maps image features into the
+  token space, and the point where image tokens join the text tokens in the
+  decoder.
+
+  ![LLaVA-1.5 7B](https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/llava-1.5-7b/assets/diagram.png)
+
+- **The vision encoder family (CLIP ViT-B/32):**
+  [open it live](https://www.neurarch.com/?import=https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/clip-vit-b32/model.json)
+  to see how an image becomes a grid of feature vectors. Audio follows the same
+  encoder-then-decoder pattern (see whisper-small in the zoo).
+
+  ![CLIP ViT-B/32](https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/clip-vit-b32/assets/diagram.png)
+
+These are validated reference graphs at real dimensions, shape-checked end to end,
+not screenshots. All 87 architectures live in the
+[Model Zoo](https://github.com/neurarch-ai/awesome-llm-model-zoo)
+([gallery](https://neurarch-ai.github.io/awesome-llm-model-zoo)). Built by
+[Neurarch](https://www.neurarch.com).
