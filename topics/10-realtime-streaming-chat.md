@@ -40,12 +40,13 @@ problem, because the transcript grows every turn and someone has to pay for it.
 
 ## 3. High-level data flow
 
-```
-client ──(SSE / websocket)──▶ gateway / streaming layer ──▶ inference pool
-   ▲                               │   │                        │ (continuous batching)
-   │                               │   ▼                        │
-   └──────── token stream ─────────┘  session store ◀───────────┘
-                                       (transcript, summary, routing key)
+```mermaid
+flowchart LR
+  C["client"] -->|"SSE / websocket"| G["gateway /<br/>streaming layer"]
+  G --> P["inference pool<br/>(continuous batching)"]
+  G -->|"token stream"| C
+  G --> S["session store<br/>(transcript, summary,<br/>routing key)"]
+  P --> S
 ```
 
 ## 4. Deep dives

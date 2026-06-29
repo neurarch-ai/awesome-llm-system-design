@@ -47,31 +47,21 @@ good" into something you can measure, repeat, and gate a deploy on.
 Two loops. An offline loop that gates the deploy, and an online loop that checks
 the offline loop was telling the truth.
 
-```
-  OFFLINE (runs on every prompt/model change, before deploy)
-
-   golden dataset ──▶ run candidate ──▶ score each output
-   (inputs +            (prompt +          │
-    labels/refs)         model)            ├─ task metric (exact/F1/...)
-                                           └─ LLM-as-judge (open-ended)
-                                                   │
-                                                   ▼
-                                        aggregate + slice by segment
-                                                   │
-                                                   ▼
-                                   regression gate: score >= baseline - epsilon?
-                                            │                 │
-                                          pass               fail
-                                            │                 │
-                                            ▼                 ▼
-                                      ship to canary       block deploy
-                                            │
-   ONLINE (after ship)                      ▼
-   A/B test: candidate vs control ──▶ guardrail + outcome metrics
-                                            │
-                                            ▼
-                          correlate online result with offline score
-                          (does the suite predict reality? recalibrate)
+```mermaid
+flowchart TD
+  A["golden dataset<br/>(inputs + labels/refs)"] --> B["run candidate<br/>(prompt + model)"]
+  B --> C["score each output"]
+  C --> M1["task metric<br/>(exact / F1 / ...)"]
+  C --> M2["LLM-as-judge<br/>(open-ended)"]
+  M1 --> D["aggregate + slice by segment"]
+  M2 --> D
+  D --> G{"regression gate<br/>score >= baseline - epsilon?"}
+  G -->|"pass"| H["ship to canary"]
+  G -->|"fail"| I["block deploy"]
+  H --> J["A/B test<br/>candidate vs control"]
+  J --> K["guardrail + outcome metrics"]
+  K --> L["correlate online with offline score<br/>(does the suite predict reality? recalibrate)"]
+  L -.->|"recalibrate"| D
 ```
 
 The two things an interviewer probes: **how you score open-ended outputs without

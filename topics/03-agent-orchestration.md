@@ -42,21 +42,14 @@ only built single-shot prompts struggle here, which is exactly why it is asked.
 
 An agent is a controlled loop around a model that can call tools:
 
-```
-  ┌──────────────────────────────────────────────┐
-  │  observe (ticket + tool results so far)       │
-  │      │                                        │
-  │      ▼                                        │
-  │  model: think + choose next tool (or finish)  │
-  │      │                                        │
-  │      ▼                                        │
-  │  validate the proposed call (policy, schema)  │
-  │      │                                        │
-  │      ▼                                        │
-  │  execute tool ──▶ append result to state ─────┘
-  │      │
-  │      ▼ (when model says done, or limits hit)
-  │  finalize: reply / escalate
+```mermaid
+flowchart TD
+  A["observe<br/>(ticket + tool results so far)"] --> B["model: think + choose next tool<br/>(or finish)"]
+  B --> C["validate the proposed call<br/>(policy, schema)"]
+  C --> D["execute tool"]
+  D --> E["append result to state"]
+  E --> A
+  D -->|"model says done, or limits hit"| F["finalize: reply / escalate"]
 ```
 
 The two things interviewers probe: **how you bound the loop** and **how you stop

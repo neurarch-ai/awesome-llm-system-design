@@ -45,18 +45,25 @@ Two paths, as always.
 
 ### Offline / write path
 
-```
-items ──▶ embedding model (batched) ──▶ vectors ──▶ build / upsert vector index
-                                            │
-                                            └──▶ lexical index (BM25)
+```mermaid
+flowchart LR
+  I["items"] --> E["embedding model<br/>(batched)"]
+  E --> V["vectors"]
+  V --> X["build / upsert<br/>vector index"]
+  I --> L["lexical index<br/>(BM25)"]
 ```
 
 ### Online / read path
 
-```
-query ──┬──▶ embed query ──▶ ANN search (dense) ──┐
-        │                                         ├──▶ merge / fuse ──▶ re-rank ──▶ top-k
-        └──▶ lexical search (BM25) ───────────────┘     (cross-encoder, optional)
+```mermaid
+flowchart LR
+  Q["query"] --> E["embed query"]
+  E --> A["ANN search<br/>(dense)"]
+  Q --> L["lexical search<br/>(BM25)"]
+  A --> M["merge / fuse"]
+  L --> M
+  M --> R["re-rank<br/>(cross-encoder, optional)"]
+  R --> T["top-k"]
 ```
 
 ## 4. Deep dives

@@ -41,37 +41,17 @@ goals pull against each other.
 
 ## 3. The serving stack
 
-```
-        incoming requests (high QPS)
-                  │
-                  ▼
-        ┌───────────────────────┐
-        │  admission / SLO gate │  reject or queue when over capacity
-        └───────────────────────┘
-                  │
-                  ▼
-        ┌───────────────────────┐
-        │  router / scheduler   │  pick replica, order the queue
-        └───────────────────────┘
-            │               │
-            ▼               ▼
-     ┌────────────┐   ┌────────────┐
-     │ prefill    │   │ decode     │   (may be one pool or disaggregated)
-     │ pool       │──▶│ pool       │   KV cache handed off prefill → decode
-     └────────────┘   └────────────┘
-            │               │
-            │   continuous batching inside each engine
-            │   paged KV cache, optional offload to CPU/NVMe
-            ▼               ▼
-        ┌───────────────────────┐
-        │  tensor / pipeline    │  one model sharded across GPUs when too big
-        │  parallel engine      │
-        └───────────────────────┘
-                  │
-                  ▼
-           streamed tokens out
-
-   autoscaler watches queue depth + SLO, adds/removes replicas
+```mermaid
+flowchart TD
+  REQ["incoming requests<br/>(high QPS)"] --> GATE{"admission / SLO gate<br/>reject or queue when over capacity"}
+  GATE --> SCHED["router / scheduler<br/>pick replica, order the queue"]
+  SCHED --> PRE["prefill pool"]
+  SCHED --> DEC["decode pool<br/>(may be one pool or disaggregated)"]
+  PRE -->|"KV cache handed off prefill to decode"| DEC
+  PRE --> ENG["tensor / pipeline parallel engine<br/>one model sharded across GPUs when too big"]
+  DEC --> ENG
+  ENG --> OUT["streamed tokens out"]
+  AUTO["autoscaler<br/>watches queue depth + SLO, adds/removes replicas"] -.-> SCHED
 ```
 
 The interesting decisions are all about which requests run together, where prefill

@@ -72,34 +72,14 @@ behavior, retrieve for knowledge, on the same base.
 
 ## 4. The pipeline
 
-```
-  ┌──────────────────────────────────────────────────────────┐
-  │  DATA CURATION                                            │
-  │  production logs + human labels + synthetic               │
-  │  → dedup, filter, decontaminate, version                  │
-  └───────────────────────────┬──────────────────────────────┘
-                              ▼
-  ┌──────────────────────────────────────────────────────────┐
-  │  SFT (supervised fine-tuning)                            │
-  │  base weights + LoRA/QLoRA adapter on (prompt, response)  │
-  └───────────────────────────┬──────────────────────────────┘
-                              ▼
-  ┌──────────────────────────────────────────────────────────┐
-  │  PREFERENCE TUNING (optional)                            │
-  │  DPO on (chosen, rejected) pairs, or RLHF with a reward   │
-  └───────────────────────────┬──────────────────────────────┘
-                              ▼
-  ┌──────────────────────────────────────────────────────────┐
-  │  EVAL GATE  (topic 06)                                   │
-  │  offline eval + safety + regression vs current prod      │
-  │     pass → promote        fail → back to data            │
-  └───────────────────────────┬──────────────────────────────┘
-                              ▼
-  ┌──────────────────────────────────────────────────────────┐
-  │  SERVING  (base + hot-swappable adapters, multi-LoRA)    │
-  │     │                                                    │
-  │     └──▶ production logs ──▶ back to DATA CURATION (loop) │
-  └──────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+  DATA["DATA CURATION<br/>production logs + human labels + synthetic<br/>dedup, filter, decontaminate, version"] --> SFT["SFT (supervised fine-tuning)<br/>base weights + LoRA/QLoRA adapter on (prompt, response)"]
+  SFT --> PREF["PREFERENCE TUNING (optional)<br/>DPO on (chosen, rejected) pairs, or RLHF with a reward"]
+  PREF --> GATE{"EVAL GATE (topic 06)<br/>offline eval + safety + regression vs current prod"}
+  GATE -->|"pass"| SERVE["SERVING<br/>base + hot-swappable adapters, multi-LoRA"]
+  GATE -->|"fail"| DATA
+  SERVE -->|"production logs"| DATA
 ```
 
 The loop at the bottom is the part most candidates forget and the part that

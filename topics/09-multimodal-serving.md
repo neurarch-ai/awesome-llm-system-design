@@ -40,10 +40,17 @@ the image-token budget and the heterogeneous workload.
 
 A vision-language model is three parts wired in sequence:
 
-```
-image ──▶ vision encoder ──▶ image features ──▶ projector ──┐
-                                                            ▼
-text prompt ──▶ tokenizer ──▶ text tokens ──────────▶ [text tokens + image tokens] ──▶ LLM decoder ──▶ answer
+```mermaid
+flowchart LR
+  IMG["image"] --> VE["vision encoder"]
+  VE --> IF["image features"]
+  IF --> P["projector"]
+  TXT["text prompt"] --> TOK["tokenizer"]
+  TOK --> TT["text tokens"]
+  P --> J["[text tokens<br/>+ image tokens]"]
+  TT --> J
+  J --> D["LLM decoder"]
+  D --> ANS["answer"]
 ```
 
 1. **Vision encoder** (a ViT-style model) turns the image into a grid of feature

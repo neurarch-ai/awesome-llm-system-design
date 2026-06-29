@@ -45,16 +45,17 @@ respect the latency budget instead of bolting on five model calls.
 
 Defense in layers. No single check is trusted.
 
-```
-user input ──▶ input guards ──▶ prompt assembly ──▶ LLM ──▶ output guards ──▶ response
-                  │   (cheap filters first,            │           │
-                  │    then a classifier model)        │       (moderation +
-                  │                                     │        PII + grounding)
-                  ▼                                     ▼
-              block / redact                       block / safe-complete
-                  │                                     │
-                  └──────────▶ policy router ◀──────────┘
-                              (refuse | escalate | log)
+```mermaid
+flowchart LR
+  U["user input"] --> IG["input guards<br/>(cheap filters first,<br/>then a classifier model)"]
+  IG --> PA["prompt assembly"]
+  PA --> L["LLM"]
+  L --> OG["output guards<br/>(moderation + PII + grounding)"]
+  OG --> R["response"]
+  IG --> BR["block / redact"]
+  OG --> BS["block / safe-complete"]
+  BR --> PR{"policy router<br/>(refuse | escalate | log)"}
+  BS --> PR
 ```
 
 The ordering matters: cheap deterministic checks run first so the expensive

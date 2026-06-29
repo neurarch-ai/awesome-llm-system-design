@@ -47,11 +47,14 @@ Two paths. Keep them separate.
 
 ### Offline (write) path
 
-```
-documents ──▶ parse/clean ──▶ chunk ──▶ embed ──▶ vector index
-                                  │                     ▲
-                                  └──▶ metadata store ──┘
-                                       (acl, source, timestamp)
+```mermaid
+flowchart LR
+  A["documents"] --> B["parse/clean"]
+  B --> C["chunk"]
+  C --> D["embed"]
+  D --> E["vector index"]
+  C --> F["metadata store<br/>(acl, source, timestamp)"]
+  F --> E
 ```
 
 Runs on ingest and on change. A document update re-chunks and re-embeds only the
@@ -59,12 +62,16 @@ changed document, and upserts into the index. This is what buys you freshness.
 
 ### Online (read) path
 
-```
-query ──▶ embed query ──▶ vector search (filtered by ACL) ──▶ top-k chunks
-                                                                   │
-                                                            re-rank (optional)
-                                                                   │
-                                          assemble prompt (query + chunks) ──▶ LLM ──▶ answer + citations ──▶ stream
+```mermaid
+flowchart TD
+  A["query"] --> B["embed query"]
+  B --> C["vector search<br/>(filtered by ACL)"]
+  C -->|"top-k"| D["top-k chunks"]
+  D --> E["re-rank (optional)"]
+  E --> F["assemble prompt<br/>(query + chunks)"]
+  F --> G["LLM"]
+  G --> H["answer + citations"]
+  H --> I["stream"]
 ```
 
 ## 4. Deep dives
