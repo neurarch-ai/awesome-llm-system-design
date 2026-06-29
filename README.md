@@ -36,6 +36,11 @@ numbers change. More on why that matters [below](#about-the-diagrams).
    graph so you can trace the data flow yourself instead of trusting a static
    picture.
 
+> **Interviews ask end-to-end questions, not "explain RAG."** The
+> [**question bank**](questions.md) maps the questions you actually get ("design a
+> support agent", "make our serving cheaper") to the component topics below.
+> Start there if you are practicing for a specific loop.
+
 ---
 
 ## Topics
