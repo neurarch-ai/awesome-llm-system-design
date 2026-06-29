@@ -138,10 +138,11 @@ one-token-per-pass limit.
 A small, cheap **draft model** generates several candidate tokens fast. The large
 **target model** then verifies all of them in a single parallel forward pass
 (verification is one pass over k tokens, which is cheap because the model read is
-amortized across k positions). It accepts the longest prefix of draft tokens that
-matches what it would have produced and discards the rest. When the draft is
-usually right, you get several tokens per expensive target-model step instead of
-one.
+amortized across k positions). It accepts draft tokens through a verification rule
+(rejection sampling) that is provably equivalent to sampling from the target model
+itself, and falls back to a target-model token at the first rejection. When the
+draft is usually right, you get several tokens per expensive target-model step
+instead of one.
 
 Key properties to state:
 
@@ -339,11 +340,14 @@ trusting a blog's recollection.
 
   ![Llama-3 8B](https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/llama3-8b/assets/diagram.png)
 
-- **Large MoE that forces sharding (gpt-oss-120b):**
+- **Large MoE, the case for expert parallelism (gpt-oss-120b):**
   [open it live](https://www.neurarch.com/?import=https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/gpt-oss-120b/model.json).
-  Trace the expert routing and the layer widths: this is the model that does not
-  fit on one GPU, so it is the concrete case for tensor parallelism on the dense
-  matrices and expert parallelism on the feed-forward experts.
+  Trace the expert routing and the layer widths: this is the concrete case for
+  expert parallelism on the feed-forward experts and tensor parallelism on the
+  dense matrices. (It is a sparse MoE, so its active parameters per token are a
+  fraction of the 120B total, which is how it can run on a single high-memory GPU;
+  the genuinely-cannot-fit case is a dense or very large model like the 671B
+  DeepSeek-V3 in topic 02.)
 
   ![gpt-oss-120b](https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/gpt-oss-120b/assets/diagram.png)
 

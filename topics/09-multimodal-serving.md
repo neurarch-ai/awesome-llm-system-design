@@ -53,8 +53,9 @@ text prompt ──▶ tokenizer ──▶ text tokens ────────�
 3. **LLM decoder** consumes the image tokens and the text tokens together as one
    sequence and generates the answer.
 
-The key realization: from the decoder's point of view, an image is just a chunk of
-tokens prepended to the prompt. That is why image cost is token cost.
+The key realization: from the decoder's point of view, an image becomes a chunk of
+tokens spliced into the sequence at the image's placeholder position (alongside the
+text tokens, not necessarily at the front). That is why image cost is token cost.
 
 ## 4. Deep dives
 
@@ -168,8 +169,11 @@ trace the wiring.
 
 - **The vision encoder family (CLIP ViT-B/32):**
   [open it live](https://www.neurarch.com/?import=https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/clip-vit-b32/model.json)
-  to see how an image becomes a grid of feature vectors. Audio follows the same
-  encoder-then-decoder pattern (see whisper-small in the zoo).
+  to see how an image becomes a grid of feature vectors. This B/32 graph is
+  illustrative of the CLIP-ViT family; LLaVA-1.5 itself uses a larger, higher-
+  resolution variant (ViT-L/14 at 336px), which is exactly why its image-token
+  count is high. Audio follows the same encoder-then-decoder pattern (see
+  whisper-small in the zoo).
 
   ![CLIP ViT-B/32](https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/clip-vit-b32/assets/diagram.png)
 

@@ -169,8 +169,10 @@ stream is carrying.
 - **The decoder behind the stream (Llama-3 8B):**
   [open it live](https://www.neurarch.com/?import=https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/llama3-8b/model.json).
   Find the attention block: that is what builds the KV cache whose reuse (prefix
-  caching) and growth (summarization) this whole topic is about. The grouped-query
-  attention is why its per-turn cost stays manageable as the transcript grows.
+  caching) and growth (summarization) this whole topic is about. Its grouped-query
+  attention keeps the KV cache *memory* small as context grows; the per-turn
+  prefill cost (re-reading the transcript each turn) is bounded by prefix caching
+  and summarization, not by GQA. Keep the two distinct.
 
   ![Llama-3 8B](https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/llama3-8b/assets/diagram.png)
 

@@ -87,8 +87,10 @@ specifically is a clean win for long-context memory pressure.
 ### Lever 5: the attention architecture itself
 
 This is the deep dive that wins the interview, because it is about *why* models
-like Llama-3 and DeepSeek-V3 are shaped the way they are. They all shrink the
-`kv_heads × head_dim` term in the formula above.
+like Llama-3 and DeepSeek-V3 are shaped the way they are. They all attack the
+cache term in the formula above, but in different ways: GQA shrinks `kv_heads`
+directly, while MLA does not shrink that term at all, it replaces the cached keys
+and values with a single low-rank latent (more below).
 
 **Multi-head attention (MHA):** every query head has its own key and value head.
 Maximum quality, maximum cache. This is the baseline the others optimize against.

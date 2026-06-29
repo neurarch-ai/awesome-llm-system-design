@@ -185,29 +185,37 @@ here than in short-prompt chat.
 
 ## Trace the architectures
 
-RAG is not one model. It wires together at least two **separate** models: a
-retrieval **embedding model** (typically an encoder-only transformer that maps
-text to a single vector) and a **generator** (a decoder-only LLM that writes the
-grounded answer), with a cross-encoder re-ranker often added as a third. They are
-distinct models with different shapes, not the encoder and decoder halves of one
-seq2seq network, and conflating them is exactly where interview answers get
-fuzzy. Open both and trace the data flow:
+RAG is retrieval plus generation, and the retrieval half is a **search problem**,
+not a model. You embed your documents into vectors, store them in a vector index,
+and at query time run an approximate **k-nearest-neighbor (KNN / ANN)** lookup to
+pull the most similar chunks out of the knowledge base. Nothing "reasons" during
+retrieval; it is vector search over an index (the HNSW / IVF-PQ index from the
+"Vector index at 50M scale" section above).
 
-- **The embedding model (encoder-only, produces one pooled vector):**
+Two **separate** neural models bracket that search, and the only architecture
+worth opening lives in those two:
+
+- **The embedding model** turns each chunk and each query into the vectors that
+  KNN searches over. It is usually an **encoder-only** transformer (the
+  sentence-transformers lineage); its whole job is text in, one vector out. This
+  is the only place an "encoder" enters RAG.
   [open MiniLM-L6 live](https://www.neurarch.com/?import=https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/all-minilm-l6/model.json).
-  This is the kind of small sentence-embedding model a retrieval service actually
-  runs. Trace how the stack pools its final hidden states into a single vector,
-  and note the embedding dimension: that number drives your whole index memory
-  budget.
+  Trace how the stack pools its hidden states into a single vector, and note the
+  embedding dimension: that number drives your whole index memory budget.
 
   ![MiniLM-L6](https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/all-minilm-l6/assets/diagram.png)
 
-- **The generator (decoder-only, GQA attention):**
+- **The generator (a separate, decoder-only LLM with GQA attention):**
   [open Llama-3 8B live](https://www.neurarch.com/?import=https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/llama3-8b/model.json).
   Note the grouped-query attention; that is what keeps its KV cache affordable
   when you feed it long retrieved contexts. Topic 02 picks this apart.
 
   ![Llama-3 8B](https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/llama3-8b/assets/diagram.png)
+
+The full pipeline, then: the embedding model builds the vectors, KNN / ANN search
+over the index retrieves the relevant chunks from the knowledge base, and the
+generator writes the grounded answer. The two diagrams above are the two models;
+the retrieval between them is the vector-search layer, not a model.
 
 These are validated reference graphs, not screenshots: real dimensions,
 shape-checked end to end. Browse all 87 in the
