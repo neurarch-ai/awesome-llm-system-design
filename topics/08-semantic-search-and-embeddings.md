@@ -162,12 +162,14 @@ Semantic search lives or dies on the encoder that produces the vectors, and the
 encoder is exactly where interview discussions get vague (a box labeled
 "embedder"). Open the real thing and read its dimensions.
 
-- **An encoder stack (T5-small):**
-  [open it live](https://www.neurarch.com/?import=https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/t5-small/model.json)
-  to trace how the encoder builds a pooled representation and where the embedding
-  dimension is set, the number that drives your whole index memory budget.
+- **A text embedding model (MiniLM-L6, encoder-only):**
+  [open it live](https://www.neurarch.com/?import=https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/all-minilm-l6/model.json)
+  to trace how an encoder-only stack pools its hidden states into a single vector
+  and where the embedding dimension is set, the number that drives your whole
+  index memory budget. This is the kind of small sentence-embedding model a real
+  search service runs.
 
-  ![T5-small](https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/t5-small/assets/diagram.png)
+  ![MiniLM-L6](https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/all-minilm-l6/assets/diagram.png)
 
 - **Shared text-and-image embedding space (CLIP ViT-B/32):**
   [open it live](https://www.neurarch.com/?import=https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/clip-vit-b32/model.json)

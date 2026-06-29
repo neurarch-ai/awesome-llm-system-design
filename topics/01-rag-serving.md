@@ -185,18 +185,24 @@ here than in short-prompt chat.
 
 ## Trace the architectures
 
-RAG is two models working together: an **encoder** that produces embeddings and
-a **decoder** that generates the grounded answer. Both are transformer stacks,
-and the difference is exactly where interview discussions get fuzzy. Open them
-and trace the data flow:
+RAG is not one model. It wires together at least two **separate** models: a
+retrieval **embedding model** (typically an encoder-only transformer that maps
+text to a single vector) and a **generator** (a decoder-only LLM that writes the
+grounded answer), with a cross-encoder re-ranker often added as a third. They are
+distinct models with different shapes, not the encoder and decoder halves of one
+seq2seq network, and conflating them is exactly where interview answers get
+fuzzy. Open both and trace the data flow:
 
-- **Encoder-decoder stack (the embedding / encoder side):**
-  [open T5-small live](https://www.neurarch.com/?import=https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/t5-small/model.json)
-  to see how the encoder builds a pooled representation.
+- **The embedding model (encoder-only, produces one pooled vector):**
+  [open MiniLM-L6 live](https://www.neurarch.com/?import=https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/all-minilm-l6/model.json).
+  This is the kind of small sentence-embedding model a retrieval service actually
+  runs. Trace how the stack pools its final hidden states into a single vector,
+  and note the embedding dimension: that number drives your whole index memory
+  budget.
 
-  ![T5-small](https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/t5-small/assets/diagram.png)
+  ![MiniLM-L6](https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/all-minilm-l6/assets/diagram.png)
 
-- **The generator (decoder, GQA attention):**
+- **The generator (decoder-only, GQA attention):**
   [open Llama-3 8B live](https://www.neurarch.com/?import=https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/llama3-8b/model.json).
   Note the grouped-query attention; that is what keeps its KV cache affordable
   when you feed it long retrieved contexts. Topic 02 picks this apart.
