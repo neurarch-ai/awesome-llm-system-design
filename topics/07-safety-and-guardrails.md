@@ -215,7 +215,7 @@ you would fine-tune into a lightweight safety classifier and see what it costs.
   ![Llama-3 8B](https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/llama3-8b/assets/diagram.png)
 
 This is a validated reference graph at real dimensions, shape-checked end to end,
-not a screenshot. All 87 architectures live in the
+not a screenshot. All 92 architectures live in the
 [Model Zoo](https://github.com/neurarch-ai/awesome-llm-model-zoo)
 ([gallery](https://neurarch-ai.github.io/awesome-llm-model-zoo)). Built by
 [Neurarch](https://www.neurarch.com).

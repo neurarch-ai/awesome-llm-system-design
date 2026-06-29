@@ -323,6 +323,12 @@ the product design, the eval bar, and the deployment shape.
 - **Google** [Fast inference from transformers via speculative decoding](https://arxiv.org/abs/2211.17192): Draft-then-verify decoding: 2-3x speedup with identical outputs. *(product design)*
 - **Baseten** [The Baseten inference stack](https://www.baseten.co/resources/guide/the-baseten-inference-stack/): Multi-cloud autoscaling, routing, custom kernels, and speculation. *(deployment)*
 
+- **Moonshot AI** [Mooncake: a KVCache-centric disaggregated architecture](https://arxiv.org/abs/2407.00079): Kimi's prefill/decode-disaggregated serving with a pooled CPU/DRAM/SSD KV cache. *(deployment)*
+- **Microsoft** [Splitwise: efficient generative LLM inference using phase splitting](https://arxiv.org/abs/2311.18677): Splits prefill and decode onto separate machines for cost and throughput. *(deployment)*
+- **Peking University / UCSD** [DistServe: disaggregating prefill and decoding](https://arxiv.org/abs/2401.09670): Disaggregates prefill and decode across GPUs to optimize goodput under SLOs. *(deployment)*
+- **Microsoft Research** [Sarathi-Serve: taming the throughput-latency tradeoff](https://arxiv.org/abs/2403.02310): Chunked-prefills and stall-free scheduling balance throughput against latency. *(deployment)*
+- **Snowflake** [Arctic Inference with Shift Parallelism](https://www.snowflake.com/en/blog/engineering/arctic-inference-shift-parallelism/): A vLLM plugin with dynamic shift parallelism adapting to real traffic. *(deployment)*
+
 More production case studies: the [Evidently AI ML system design database](https://www.evidentlyai.com/ml-system-design) (800 case studies from 150+
 companies) is the broadest curated index; this section pulls the ones that map
 directly onto this topic.
@@ -358,7 +364,7 @@ trusting a blog's recollection.
 A useful pre-interview exercise: open gpt-oss-120b, count the experts and the
 hidden width, and work out how you would split it across, say, 8 GPUs (which axis
 shards what, where the communication lands). The graphs are validated reference
-graphs at real dimensions, shape-checked end to end, not screenshots. All 87 are
+graphs at real dimensions, shape-checked end to end, not screenshots. All 92 are
 in the
 [Model Zoo](https://github.com/neurarch-ai/awesome-llm-model-zoo)
 ([gallery](https://neurarch-ai.github.io/awesome-llm-model-zoo)). Built by

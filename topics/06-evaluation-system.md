@@ -300,7 +300,7 @@ per judgment.
   ![Qwen3-8B](https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/qwen3-8b/assets/diagram.png)
 
 These are validated reference graphs at real dimensions, shape-checked end to
-end, not screenshots. All 87 architectures live in the
+end, not screenshots. All 92 architectures live in the
 [Model Zoo](https://github.com/neurarch-ai/awesome-llm-model-zoo)
 ([gallery](https://neurarch-ai.github.io/awesome-llm-model-zoo)). Built by
 [Neurarch](https://www.neurarch.com).

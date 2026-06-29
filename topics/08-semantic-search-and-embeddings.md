@@ -212,7 +212,7 @@ encoder is exactly where interview discussions get vague (a box labeled
   ![CLIP ViT-B/32](https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/clip-vit-b32/assets/diagram.png)
 
 These are validated reference graphs at real dimensions, shape-checked end to end,
-not screenshots. All 87 architectures live in the
+not screenshots. All 92 architectures live in the
 [Model Zoo](https://github.com/neurarch-ai/awesome-llm-model-zoo)
 ([gallery](https://neurarch-ai.github.io/awesome-llm-model-zoo)). Built by
 [Neurarch](https://www.neurarch.com).
