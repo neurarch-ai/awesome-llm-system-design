@@ -45,18 +45,53 @@ numbers change. More on why that matters [below](#about-the-diagrams).
 
 ## Topics
 
-| # | Topic | What it teaches | Status |
-|---|-------|-----------------|--------|
-| 01 | [RAG serving](topics/01-rag-serving.md) | Retrieval, chunking, embedding service, the read path, freshness, eval | Ready |
-| 02 | [Long-context inference and the KV cache](topics/02-long-context-and-kv-cache.md) | The real cost of serving, GQA vs MLA, paged attention, prefix caching, batching | Ready |
-| 03 | [Agent orchestration](topics/03-agent-orchestration.md) | Tool-calling loops, planning, state, multi-agent, cost and latency control | Ready |
-| 04 | [LLM inference serving at scale](topics/04-inference-serving-at-scale.md) | Continuous batching, speculative decoding, tensor parallelism, autoscaling | Ready |
-| 05 | [Fine-tuning and post-training pipeline](topics/05-post-training-pipeline.md) | LoRA, SFT, DPO/RLHF, data curation, eval gates | Ready |
-| 06 | [LLM evaluation system](topics/06-evaluation-system.md) | Offline suites, LLM-as-judge, online A/B, regression gates | Ready |
-| 07 | [Safety, moderation, and guardrails](topics/07-safety-and-guardrails.md) | Input/output filtering, jailbreak defense, PII, policy routing | Ready |
-| 08 | [Semantic search and embedding service](topics/08-semantic-search-and-embeddings.md) | Vector index choice, recall vs latency, re-ranking, hybrid search | Ready |
-| 09 | [Multimodal serving](topics/09-multimodal-serving.md) | Vision-language models, the projector, image token budget | Ready |
-| 10 | [Realtime streaming chat](topics/10-realtime-streaming-chat.md) | Token streaming, session memory, websockets, backpressure | Ready |
+Two ways in. **By use case** (how interviews are actually posed): start with the
+[**question bank**](questions.md), which maps prompts like "design a customer
+support agent" or "make our LLM serving cheaper" to the topics below. **By
+pipeline stage** (to study the stack end to end): the topics are grouped below by
+where they sit in a production LLM system.
+
+### Retrieval and knowledge
+*Get the right context in front of the model.*
+
+| # | Topic | What it teaches |
+|---|-------|-----------------|
+| 01 | [RAG serving](topics/01-rag-serving.md) | Retrieval, chunking, embedding service, the read path, freshness, eval |
+| 08 | [Semantic search and embedding service](topics/08-semantic-search-and-embeddings.md) | Vector index choice, recall vs latency, re-ranking, hybrid search |
+
+### Inference and serving (the cost layer)
+*What an LLM actually costs to run, and how to serve it at scale.*
+
+| # | Topic | What it teaches |
+|---|-------|-----------------|
+| 02 | [Long-context inference and the KV cache](topics/02-long-context-and-kv-cache.md) | The real cost of serving, GQA vs MLA, paged attention, prefix caching, batching |
+| 04 | [LLM inference serving at scale](topics/04-inference-serving-at-scale.md) | Continuous batching, speculative decoding, tensor parallelism, autoscaling |
+| 10 | [Realtime streaming chat](topics/10-realtime-streaming-chat.md) | Token streaming, session memory, websockets, backpressure |
+
+### Building applications on top
+*Compose the model into a product capability.*
+
+| # | Topic | What it teaches |
+|---|-------|-----------------|
+| 03 | [Agent orchestration](topics/03-agent-orchestration.md) | Tool-calling loops, planning, state, multi-agent, cost and latency control |
+| 09 | [Multimodal serving](topics/09-multimodal-serving.md) | Vision-language models, the projector, image token budget |
+
+### Adapting the model
+*Change the model's behavior when prompting and retrieval are not enough.*
+
+| # | Topic | What it teaches |
+|---|-------|-----------------|
+| 05 | [Fine-tuning and post-training pipeline](topics/05-post-training-pipeline.md) | LoRA, SFT, DPO/RLHF, data curation, eval gates |
+
+### Quality and safety
+*Know it works, and keep it from misbehaving.*
+
+| # | Topic | What it teaches |
+|---|-------|-----------------|
+| 06 | [LLM evaluation system](topics/06-evaluation-system.md) | Offline suites, LLM-as-judge, online A/B, regression gates |
+| 07 | [Safety, moderation, and guardrails](topics/07-safety-and-guardrails.md) | Input/output filtering, jailbreak defense, PII, policy routing |
+
+All ten topics are written and ready.
 
 See [topics/README.md](topics/README.md) for the full roadmap and how to
 contribute a topic.

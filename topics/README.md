@@ -13,18 +13,31 @@ shape, mirroring the [answer framework](../framework/answer-framework.md):
 8. Likely follow-up questions
 9. The relevant architecture, opened live
 
-## Ready
+## Topics by pipeline stage
 
+All ten topics are written. They are grouped by where they sit in a production LLM
+system. To navigate by use case instead, start from the
+[question bank](../questions.md).
+
+**Retrieval and knowledge**
 - [01 - RAG serving](01-rag-serving.md)
+- [08 - Semantic search and embedding service](08-semantic-search-and-embeddings.md)
+
+**Inference and serving (the cost layer)**
 - [02 - Long-context inference and the KV cache](02-long-context-and-kv-cache.md)
-- [03 - Agent orchestration](03-agent-orchestration.md)
 - [04 - LLM inference serving at scale](04-inference-serving-at-scale.md)
+- [10 - Realtime streaming chat](10-realtime-streaming-chat.md)
+
+**Building applications on top**
+- [03 - Agent orchestration](03-agent-orchestration.md)
+- [09 - Multimodal serving](09-multimodal-serving.md)
+
+**Adapting the model**
 - [05 - Fine-tuning and post-training pipeline](05-post-training-pipeline.md)
+
+**Quality and safety**
 - [06 - LLM evaluation system](06-evaluation-system.md)
 - [07 - Safety, moderation, and guardrails](07-safety-and-guardrails.md)
-- [08 - Semantic search and embedding service](08-semantic-search-and-embeddings.md)
-- [09 - Multimodal serving](09-multimodal-serving.md)
-- [10 - Realtime streaming chat](10-realtime-streaming-chat.md)
 
 ## Planned
 

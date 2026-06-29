@@ -24,6 +24,10 @@ then reading the linked topics to find your gaps.
 | Design the safety / moderation layer for an LLM product | Layered defense, classifiers, injection, PII, latency budget | [07 safety](topics/07-safety-and-guardrails.md), [06 eval](topics/06-evaluation-system.md) |
 | Design a visual assistant that answers questions about images | Vision encoder + projector, image-token budget, serving | [09 multimodal](topics/09-multimodal-serving.md), [02 KV cache](topics/02-long-context-and-kv-cache.md) |
 | Design an AI summarization / writing feature | Long-context cost, grounding, eval of open-ended output | [01 RAG](topics/01-rag-serving.md), [02 KV cache](topics/02-long-context-and-kv-cache.md), [06 eval](topics/06-evaluation-system.md) |
+| Reduce hallucinations in our LLM product | Grounding via retrieval, abstention, eval of faithfulness, output guards | [01 RAG](topics/01-rag-serving.md), [06 eval](topics/06-evaluation-system.md), [07 safety](topics/07-safety-and-guardrails.md) |
+| Make our agent cheaper and safer to run | Step/token budgets, model tiering, code-side action gates, injection defense | [03 agents](topics/03-agent-orchestration.md), [02 KV cache](topics/02-long-context-and-kv-cache.md), [07 safety](topics/07-safety-and-guardrails.md) |
+| Design a chat product that remembers across sessions | Session state, transcript growth, summarization, prefix caching | [10 streaming](topics/10-realtime-streaming-chat.md), [01 RAG](topics/01-rag-serving.md), [02 KV cache](topics/02-long-context-and-kv-cache.md) |
+| Design an LLM gateway / model routing layer | Routing across models and providers, fallback, cost and latency control, eval | [04 serving](topics/04-inference-serving-at-scale.md), [06 eval](topics/06-evaluation-system.md), [07 safety](topics/07-safety-and-guardrails.md) |
 
 ## How to use a question
 
