@@ -98,6 +98,10 @@ repo groups the classic-ML half by use case, mirroring the same
 
 All ten topics are written and ready.
 
+**Going deeper than the whiteboard?** [**deep-dives.md**](deep-dives.md) is a
+bank of ~90 rapid-fire, depth-probing questions: the follow-ups an interviewer
+pulls once the design is on the board (normalization and attention variants, where KL divergence shows up, distributed-training failure modes, and quantization tradeoffs). Each answer leads with the mechanism, then the tradeoff.
+
 See [topics/README.md](topics/README.md) for the full roadmap and how to
 contribute a topic.
 
