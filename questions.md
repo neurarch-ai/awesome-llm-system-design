@@ -12,8 +12,8 @@ then reading the linked topics to find your gaps.
 
 | Question | What it is really testing | Topics to draw on |
 |---|---|---|
-| Make our LLM feature cheaper without tanking quality | Right-sizing and routing, cascades, semantic caching, prompt compression, quantization | [04 inference serving](topics/04-inference-serving-at-scale.md), [02 KV cache](topics/02-long-context-and-kv-cache.md) |
-| How do you know a live LLM app still works, and catch a hallucination spike? | Online eval without ground truth, LLM-as-judge, grounding checks, regression detection | [06 evaluation](topics/06-evaluation-system.md) |
+| Make our LLM feature cheaper without tanking quality | Right-sizing and routing, cascades, semantic caching, prompt compression, quantization | [11 cost and routing](topics/11-cost-optimization-and-model-routing.md), [04 inference serving](topics/04-inference-serving-at-scale.md) |
+| How do you know a live LLM app still works, and catch a hallucination spike? | Online eval without ground truth, LLM-as-judge, grounding checks, regression detection | [12 production monitoring](topics/12-production-monitoring-and-observability.md), [06 evaluation](topics/06-evaluation-system.md) |
 | Design a coding / support / research assistant (agent) | Tool-calling loops, planning, retrieval, cost and latency control, verification | [03 agents](topics/03-agent-orchestration.md), [01 RAG](topics/01-rag-serving.md), [06 evaluation](topics/06-evaluation-system.md) |
 | Add images or audio to our assistant | The projector, image-token budget, multimodal serving cost | [09 multimodal](topics/09-multimodal-serving.md) |
 | Keep our chatbot safe and on-policy | Input and output guardrails, jailbreak and injection defense, PII, human review | [07 safety and guardrails](topics/07-safety-and-guardrails.md), [06 evaluation](topics/06-evaluation-system.md) |

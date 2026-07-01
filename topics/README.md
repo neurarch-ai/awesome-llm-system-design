@@ -15,7 +15,7 @@ shape, mirroring the [answer framework](../framework/answer-framework.md):
 
 ## Topics by pipeline stage
 
-All ten topics are written. They are grouped by where they sit in a production LLM
+All twelve topics are written. They are grouped by where they sit in a production LLM
 system. To navigate by use case instead, start from the
 [question bank](../questions.md).
 
@@ -27,6 +27,7 @@ system. To navigate by use case instead, start from the
 - [02 - Long-context inference and the KV cache](02-long-context-and-kv-cache.md)
 - [04 - LLM inference serving at scale](04-inference-serving-at-scale.md)
 - [10 - Realtime streaming chat](10-realtime-streaming-chat.md)
+- [11 - Cost optimization and model routing](11-cost-optimization-and-model-routing.md)
 
 **Building applications on top**
 - [03 - Agent orchestration](03-agent-orchestration.md)
@@ -38,6 +39,7 @@ system. To navigate by use case instead, start from the
 **Quality and safety**
 - [06 - LLM evaluation system](06-evaluation-system.md)
 - [07 - Safety, moderation, and guardrails](07-safety-and-guardrails.md)
+- [12 - Production monitoring and observability](12-production-monitoring-and-observability.md)
 
 ## Planned
 

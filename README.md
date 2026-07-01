@@ -72,6 +72,7 @@ repo groups the classic-ML half by use case, mirroring the same
 | 02 | [Long-context inference and the KV cache](topics/02-long-context-and-kv-cache.md) | The real cost of serving, GQA vs MLA, paged attention, prefix caching, batching |
 | 04 | [LLM inference serving at scale](topics/04-inference-serving-at-scale.md) | Continuous batching, speculative decoding, tensor parallelism, autoscaling |
 | 10 | [Realtime streaming chat](topics/10-realtime-streaming-chat.md) | Token streaming, session memory, websockets, backpressure |
+| 11 | [Cost optimization and model routing](topics/11-cost-optimization-and-model-routing.md) | Model routing, cascades, semantic caching, prompt compression, right-sizing, the quality-cost frontier |
 
 ### Building applications on top
 *Compose the model into a product capability.*
@@ -95,8 +96,9 @@ repo groups the classic-ML half by use case, mirroring the same
 |---|-------|-----------------|
 | 06 | [LLM evaluation system](topics/06-evaluation-system.md) | Offline suites, LLM-as-judge, online A/B, regression gates |
 | 07 | [Safety, moderation, and guardrails](topics/07-safety-and-guardrails.md) | Input/output filtering, jailbreak defense, PII, policy routing |
+| 12 | [Production monitoring and observability](topics/12-production-monitoring-and-observability.md) | Tracing, online eval without labels, LLM-as-judge, hallucination detection, drift, regression |
 
-All ten topics are written and ready.
+All twelve topics are written and ready.
 
 **Going deeper than the whiteboard?** [**deep-dives.md**](deep-dives.md) is a
 bank of ~135 rapid-fire, depth-probing questions: the follow-ups an interviewer
