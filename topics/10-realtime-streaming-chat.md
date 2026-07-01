@@ -166,6 +166,44 @@ Real systems that ship the patterns above. Each is a first-party engineering
 writeup; read them for what an interview answer skips: who the system serves,
 the product design, the eval bar, and the deployment shape.
 
+### The shared pipeline
+
+Every system here carries the same skeleton: an LLM emits tokens, a transport streams them to the client, and the client renders incrementally while session memory feeds history back into the next turn. The transport is the main fork. Text chat leans on SSE or WebSockets, while live voice moves to WebRTC because ordered TCP delivery stalls audio on packet loss. Voice agents wrap the LLM in an STT front end and a TTS back end, and add a turn-detection stage that decides when the user has finished speaking so the model can start.
+
+```mermaid
+flowchart LR
+  U["user"] --> LLM["LLM token stream"]
+  LLM --> T["transport<br/>(SSE / WebSocket / WebRTC)"]
+  T --> R["client render"]
+  M["session memory"] --> LLM
+  BP["backpressure"] --> T
+  subgraph voice["voice path"]
+    STT["STT"] --> TD["turn detection"] --> LLM2["LLM"] --> TTS["TTS"]
+  end
+```
+
+### How they differ
+
+| System | Transport | Text / voice | Turn detection / endpointing | Session memory or scale concern |
+|---|---|---|---|---|
+| LinkedIn | realtime messaging (WebSocket) | text | n/a | history in shared prompt templates |
+| Cloudflare | WebSocket via Durable Objects | text | n/a | persistent connections for concurrent streams |
+| Vercel | native streaming, throttled fallback | text | n/a | cross-platform stream delivery |
+| OpenAI | Realtime speech-to-speech | voice | model-side | audio snapshots for STT and TTS |
+| LiveKit | WebRTC (WebSocket for signaling) | voice | semantic end-of-turn model | packet loss and jitter tolerance |
+| Deepgram | streaming STT | voice | eager end-of-turn on medium confidence | overlap LLM start with speech |
+| AssemblyAI | streaming STT | voice | intelligent endpointing (~300ms) | immutable transcripts |
+| ElevenLabs | streaming TTS | voice | n/a | TTS time-to-first-byte |
+| Cartesia | streaming TTS | voice | n/a | 135ms model latency |
+| Krisp | CPU turn model | voice | 6M-weight turn detection | speak, listen, or wait decision |
+| Twilio | WebSocket Media Streams | voice | n/a | raw call audio fork, bidirectional |
+| Vapi | streaming STT plus VAD | voice | VAD and endpointing | inference coordination |
+| Daily / Pipecat | WebRTC, open benchmark | voice | Smart Turn v3 semantic VAD (12ms CPU) | latency benchmarking |
+| Slack | WebSocket gateway | text | n/a | stateful channel servers, 500ms global delivery |
+| Discord | WebSocket (Elixir GenServer) | text | n/a | 5M concurrent, Manifold fan-out |
+
+### The systems
+
 - **LinkedIn** [Musings on building a Generative AI product](https://www.linkedin.com/blog/engineering/generative-ai/musings-on-building-a-generative-ai-product): End-to-end token streaming and progressive parsing to cut perceived latency. *(deployment)*
 - **Cloudflare** [Durable Objects for WebSockets and auth in AI Gateway](https://blog.cloudflare.com/do-it-again/): Scaling persistent WebSocket connections for concurrent AI inference streams. *(deployment)*
 - **Vercel** [Chat SDK brings agents to your users](https://vercel.com/blog/chat-sdk-brings-agents-to-your-users): Streaming responses cross-platform via native streaming versus a throttled fallback. *(product design)*

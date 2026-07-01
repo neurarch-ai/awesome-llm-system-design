@@ -166,6 +166,44 @@ Real systems that ship the patterns above. Each is a first-party engineering
 writeup; read them for what an interview answer skips: who the system serves,
 the product design, the eval bar, and the deployment shape.
 
+### The shared pipeline
+
+Almost every system below is the same skeleton: turn a user goal into a plan,
+then run a tool-calling loop that acts, observes the result, and revises, with
+context and memory managed so the transcript does not blow the budget. The split
+is whether one agent holds the whole job or an orchestrator fans work out to
+subagents and stitches the results back. Verification (a self-test, a citation
+pass, a policy gate) is bolted on before the answer ships. Cost and latency come
+straight from the number of loop steps times the per-step token count.
+
+```mermaid
+flowchart TD
+  G["user goal"] --> P["planner"]
+  P --> L["tool-calling loop"]
+  subgraph L["tool-calling loop"]
+    A["act (call tool)"] --> O["observe result"]
+    O --> R["revise / update context + memory"]
+    R --> A
+  end
+  L --> V{"verify / self-check"}
+  V -->|ok| ANS["answer"]
+  V -->|retry| L
+  P -.->|"orchestrator + subagents"| S["parallel subagents"]
+  S -.-> L
+```
+
+### How they differ
+
+| System | Single vs multi-agent | Tool interface | Verification | Cost / latency control |
+|---|---|---|---|---|
+| Anthropic multi-agent research | Orchestrator plus parallel subagents | JSON tool-calls | Citation agent, subagent quality checks | Parallel fan-out cuts latency but ~15x tokens |
+| Cognition (Don't build multi-agents) | Single-threaded on purpose | JSON tool-calls | Shared full trace, no cross-agent drift | Context compression to bound the transcript |
+| OpenAI practical guide | Single, escalate to multi only when needed | JSON tool-calls | Guardrails layer around actions | Start small, add agents only when justified |
+| Hugging Face smolagents | Single code agent | Code execution (Python) | Sandboxed run (E2B) | Fewer steps via composable code actions |
+| Anthropic code execution with MCP | Single | Code execution over MCP | Typed tool schemas | Code path cuts tokens and round-trips |
+
+### The systems
+
 - **Anthropic** [Building effective agents](https://www.anthropic.com/research/building-effective-agents): When to use workflows versus agents, and five composable orchestration patterns. *(product design)*
 - **Anthropic** [How we built our multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system): Orchestrator-worker pattern with parallel subagents; +90.2% over a single agent. *(deployment)*
 - **Cognition** [Don't Build Multi-Agents](https://cognition.com/blog/dont-build-multi-agents): The counter-case: single-threaded agents win, and why parallel subagents are fragile. *(product design)*

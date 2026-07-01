@@ -165,6 +165,42 @@ Real systems that ship the patterns above. Each is a first-party engineering
 writeup; read them for what an interview answer skips: who the system serves,
 the product design, the eval bar, and the deployment shape.
 
+### The shared pipeline
+
+Almost every system below is the same skeleton: a raw modality (image, audio, or
+video) runs through a dedicated encoder, a connector reshapes those features into
+the language model's embedding space, and the decoder generates over one
+interleaved sequence of text and modality tokens. The one number that governs
+cost is the image-token budget, because those tokens land in prefill and the KV
+cache. The systems differ mostly in the connector and in how many tokens an image
+is allowed to become.
+
+```mermaid
+flowchart LR
+  IMG["image / audio / video"] --> ENC["modality encoder"]
+  ENC --> CONN["connector<br/>(projector or cross-attn)"]
+  CONN --> LLM["LLM over interleaved tokens"]
+  LLM --> OUT["output"]
+  BUD["image-token budget"] -.controls cost.-> CONN
+```
+
+### How they differ
+
+| System | Connector | Resolution / image-token budget | Modality | Focus |
+|---|---|---|---|---|
+| LLaVA | MLP projector | Fixed (CLIP ViT-L/14 336px) | Vision | Training |
+| Qwen2-VL | MLP projector | Dynamic native resolution, variable tokens | Vision, video | Training |
+| Pixtral 12B | MLP projector (custom ViT) | Native resolution, flexible token budget | Vision | Training |
+| Flamingo | Cross-attention (Perceiver + gated) | Fixed, resampled to few tokens | Vision, video | Training |
+| BLIP-2 | Cross-attention (Q-Former) | Fixed, 32 query tokens | Vision | Training |
+| Idefics2 | Cross-attention (perceiver resampler) | Fixed, resampled tokens | Vision | Training |
+| NVLM | Both (MLP vs cross-attn compared) | Tiled with tile-tagging for OCR | Vision | Training + serving |
+| Chameleon | Early-fusion (tokenized) | Discrete image tokens in one stream | Vision | Training |
+| Qwen2-Audio | Audio encoder + projector | Audio frames to tokens | Audio | Training |
+| Red Hat (vLLM) | n/a (runtime) | Encoder + prefix caching cut recompute | Vision | Serving |
+
+### The systems
+
 - **Red Hat (vLLM)** [vLLM V1: accelerating multimodal inference](https://developers.redhat.com/articles/2025/02/27/vllm-v1-accelerating-multimodal-inference-large-language-models): Encoder caching, per-image prefix caching, and async CPU/GPU for faster multimodal serving. *(deployment)*
 - **AMD (ROCm)** [Accelerating Multimodal Inference in vLLM](https://rocm.blogs.amd.com/software-tools-optimization/vllm-dp-vision/README.html): Batch-level data parallelism for vision encoders cuts sync overhead. *(deployment)*
 - **Alibaba (Qwen)** [Qwen2-VL: enhancing vision-language perception at any resolution](https://arxiv.org/abs/2409.12191): Dynamic resolution turns any image into variable visual tokens, with an MLP projector and M-RoPE. *(product design)*

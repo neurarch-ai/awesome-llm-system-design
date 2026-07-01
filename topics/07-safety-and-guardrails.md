@@ -180,6 +180,41 @@ Real systems that ship the patterns above. Each is a first-party engineering
 writeup; read them for what an interview answer skips: who the system serves,
 the product design, the eval bar, and the deployment shape.
 
+### The shared pipeline
+
+Underneath the branding these systems share one skeleton: untrusted input hits an
+input guardrail (prompt-injection, PII, policy) before the model, the model runs,
+then output guardrails (moderation, policy, PII) inspect the generation before it
+reaches the user. The guardrails are usually classifiers trained on the same
+policy the product enforces, and the highest-risk cases are routed to a human
+rather than auto-decided. The differences are in where the effort concentrates,
+not in the shape.
+
+```mermaid
+flowchart LR
+  U["user input"] --> IG["input guardrail<br/>(prompt-injection, PII, policy)"]
+  IG --> L["LLM"]
+  L --> OG["output guardrail<br/>(moderation, policy, PII)"]
+  OG --> R["response"]
+  IG --> HR["human review<br/>(high-risk)"]
+  OG --> HR
+  CL["classifiers trained on policy"] -.-> IG
+  CL -.-> OG
+```
+
+### How they differ
+
+| System | Input vs output | Classifier approach | Jailbreak / injection defense | Human review |
+|---|---|---|---|---|
+| Anthropic (Constitutional Classifiers) | both | trained classifiers on a synthetic constitution | classifiers cut jailbreak success 86% to 4.4% | red-team only, not per-decision |
+| Microsoft (MSRC) | both, spotlighting on input | Prompt Shields trained detector plus deterministic rules | spotlighting plus least privilege plus exfil blocking | user approval before send |
+| Roblox | both | distilled / quantized transformer classifiers, not LLM-judge | fast text and voice filters, PII detection | thousands of humans for nuanced cases |
+| Meta (Llama Guard) | both | instruction-tuned LLM classifier by taxonomy | paired Prompt Guard flags injection | n/a (shipped as a model) |
+| OpenAI (cookbook) | both, async | moderation API plus LLM-judge guardrails | output guardrail catches unsafe completions | n/a (pattern, not a service) |
+| Salesforce (Einstein Trust Layer) | both | rules plus toxicity scoring | prompt-injection defense plus PII masking | n/a (platform controls) |
+
+### The systems
+
 - **Roblox** [How Roblox Uses AI to Moderate Content on a Massive Scale](https://about.roblox.com/newsroom/2025/07/roblox-ai-moderation-massive-scale): Multi-model text, voice, and PII moderation at 750k requests per second with real-time prevention. *(deployment)*
 - **Anthropic** [Constitutional Classifiers: defending against universal jailbreaks](https://www.anthropic.com/research/constitutional-classifiers): Input/output classifiers trained on a synthetic constitution cut jailbreaks from 86% to 4.4%. *(eval bar)*
 - **Microsoft (MSRC)** [How Microsoft defends against indirect prompt injection attacks](https://www.microsoft.com/en-us/msrc/blog/2025/07/how-microsoft-defends-against-indirect-prompt-injection-attacks): Defense in depth: spotlighting, Prompt Shields detection, permission-based mitigation. *(deployment)*

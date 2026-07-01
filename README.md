@@ -45,11 +45,16 @@ numbers change. More on why that matters [below](#about-the-diagrams).
 
 ## Topics
 
-Two ways in. **By use case** (how interviews are actually posed): start with the
+Two ways in. **By question** (how interviews are actually posed): start with the
 [**question bank**](questions.md), which maps prompts like "design a customer
-support agent" or "make our LLM serving cheaper" to the topics below. **By
-pipeline stage** (to study the stack end to end): the topics are grouped below by
-where they sit in a production LLM system.
+support agent" or "make our LLM serving cheaper" to the topics below. **By stage
+of the LLM stack** (below): the topics are grouped by where they sit in a
+production LLM system. Unlike classic ML, which splits by use case (recommenders,
+fraud, vision), the LLM stack is better organized by pipeline stage; these five
+groups are where the 800-case database's GenAI, RAG, and AI-agent examples
+actually live. The companion [ML System Design Interview](https://github.com/neurarch-ai/awesome-ml-system-design)
+repo groups the classic-ML half by use case, mirroring the same
+[Evidently AI 800-case database](https://www.evidentlyai.com/ml-system-design).
 
 ### Retrieval and knowledge
 *Get the right context in front of the model.*

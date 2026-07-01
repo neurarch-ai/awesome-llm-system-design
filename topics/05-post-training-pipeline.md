@@ -290,6 +290,41 @@ Real systems that ship the patterns above. Each is a first-party engineering
 writeup; read them for what an interview answer skips: who the system serves,
 the product design, the eval bar, and the deployment shape.
 
+### The shared pipeline
+
+Every writeup below rides the same skeleton: start from an open or vendor base,
+curate a small high-quality dataset, run supervised fine-tuning (usually a LoRA
+or QLoRA adapter, sometimes a full fine-tune), optionally add preference
+optimization, then gate on a held-out eval before serving. The differences are
+which knobs each team actually needed, not the shape of the loop. Most ship SFT
+alone; preference tuning (DPO more than RLHF) shows up only where a quality axis
+SFT could not capture actually mattered.
+
+```mermaid
+flowchart LR
+  BASE["base model"] --> CUR["data curation"]
+  CUR --> SFT["SFT<br/>(full or LoRA / QLoRA)"]
+  SFT --> PREF["optional preference<br/>optimization (DPO / RLHF)"]
+  PREF --> GATE{"eval gates"}
+  GATE -->|"pass"| SERVE["deploy / serve adapter"]
+  GATE -->|"fail"| CUR
+```
+
+### How they differ
+
+| System | Adaptation | Alignment beyond SFT | Data curation focus | Eval gate |
+|---|---|---|---|---|
+| Grammarly CoEdIT | Task-specific instruction tuning | SFT only | Dense edit-task instruction data | Beats generalist LLMs at 12x to 60x fewer params |
+| Anyscale (DPO) | Full fine-tune (LoRA underperformed here) | SFT plus iterative DPO | On-policy synthetic prefs, LLM-as-judge | Q-and-A accuracy plus compression ratio |
+| Shopify Flow | Full fine-tune (Qwen3-32B, FSDP) | SFT only | Reverse-engineered synthetic workflows in a Python DSL | Weekly LLM judge calibrated to human labels |
+| Mercari | QLoRA (4-bit, 2B base) | SFT only | Templated listing-to-attribute pairs | BLEU versus GPT-3.5, ~14x cheaper |
+| Grab | LoRA then full fine-tune (Qwen2-VL) | SFT only | OCR and key-info-extraction pairs | Accuracy on document processing |
+| LinkedIn EON | Instruction tuning (Llama base) | SFT plus RLHF/DPO | Domain-adapted platform data | 75x cheaper than GPT-4 on platform tasks |
+| Cloudflare | Serves customer LoRA adapters | not applicable (inference) | Per-customer adapters on a shared base | Multi-LoRA edge serving |
+| Spotify | Rejection-sampling SFT | SFT plus DPO | Preference-aligned query expansions | 70% faster query expansion |
+
+### The systems
+
 - **Grammarly** [CoEdIT: state-of-the-art text editing with fewer parameters](https://www.grammarly.com/blog/engineering/coedit-text-editing/): Dense task-specific instruction tuning beats generalist LLMs at 12x to 60x fewer params. *(product design)*
 - **Anyscale** [Fine-Tuning LLMs: LoRA or Full-Parameter?](https://www.anyscale.com/blog/fine-tuning-llms-lora-or-full-parameter-an-in-depth-analysis-with-llama-2): LoRA versus full fine-tune accuracy tradeoffs, broken down per task type. *(eval bar)*
 - **Anyscale** [Direct Preference Optimization with Synthetic Data](https://www.anyscale.com/blog/direct-preference-optimization-with-synthetic-data): Iterative DPO: synthetic prefs, async reference model, judge-aligned eval. *(deployment)*

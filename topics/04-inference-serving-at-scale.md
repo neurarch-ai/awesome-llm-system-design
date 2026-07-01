@@ -310,6 +310,46 @@ Real systems that ship the patterns above. Each is a first-party engineering
 writeup; read them for what an interview answer skips: who the system serves,
 the product design, the eval bar, and the deployment shape.
 
+### The shared pipeline
+
+Underneath the branding these systems ship the same skeleton. A request lands on a
+router, joins a continuous (iteration-level) batching scheduler that reshapes the
+batch every token step, runs prefill and then decode (sometimes on the same GPU,
+sometimes disaggregated onto separate prefill and decode machines), optionally
+rides speculative decoding to emit several tokens per target-model pass, and
+streams tokens back while an autoscaler adds or drops replicas against the SLO.
+What differs is which of those stages each team pushed hardest on.
+
+```mermaid
+flowchart LR
+  REQ["request"] --> RT["router"]
+  RT --> SCH["continuous-batching<br/>scheduler"]
+  SCH --> PRE["prefill"]
+  PRE -->|"KV cache handoff<br/>(sometimes disaggregated)"| DEC["decode"]
+  DEC --> SPEC{"speculative<br/>decoding?"}
+  SPEC --> OUT["token stream"]
+  AUTO["autoscaler<br/>(SLO-driven)"] -.-> SCH
+```
+
+### How they differ
+
+| System | Batching | Speculative decoding | Prefill/decode disaggregation | Parallelism / quantization |
+|---|---|---|---|---|
+| Anyscale (vLLM) | Continuous, PagedAttention | no | no | TP, paged KV cache |
+| Character.AI | Continuous | no | no | int8 quant, MQA + cross-layer KV sharing |
+| LinkedIn | Continuous | yes, n-gram draft | no | not stated |
+| Baseten (BEI) | Continuous, backpressure | yes | no | FP8, TensorRT-LLM |
+| NVIDIA Dynamo | Continuous | no | yes | phase-specific TP, tiered KV offload |
+| Together ATLAS | Continuous | yes, runtime-learning draft | no | not stated |
+| Fireworks | Continuous | yes, adaptive | no | per-workload config tuning |
+| Moonshot Mooncake | Continuous | no | yes | pooled CPU/DRAM/SSD KV cache |
+| Microsoft Splitwise | Continuous | no | yes, separate machines | phase-specific hardware |
+| DistServe | Continuous | no | yes | goodput-tuned per-phase parallelism |
+| Sarathi-Serve | Chunked prefill | no | no (stall-free scheduling) | not stated |
+| Snowflake Arctic | Continuous | yes | optional | dynamic shift parallelism |
+
+### The systems
+
 - **Anyscale** [How continuous batching enables 23x throughput in LLM inference](https://www.anyscale.com/blog/continuous-batching-llm-inference): Iteration-level scheduling plus PagedAttention beat static batching up to 23x. *(deployment)*
 - **Character.AI** [Optimizing AI Inference at Character.AI](https://blog.character.ai/optimizing-ai-inference-at-character-ai/): MQA, cross-layer KV sharing, and int8 quant cut serving cost 13.5x. *(deployment)*
 - **LinkedIn** [Accelerating LLM inference with speculative decoding](https://www.linkedin.com/blog/engineering/ai/accelerating-llm-inference-with-speculative-decoding-lessons-from-linkedins-hiring-assistant): N-gram speculative decoding gave 4x throughput and 66% lower P90 latency. *(eval bar)*

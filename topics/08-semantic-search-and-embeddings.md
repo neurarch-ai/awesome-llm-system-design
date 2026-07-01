@@ -169,6 +169,47 @@ Real systems that ship the patterns above. Each is a first-party engineering
 writeup; read them for what an interview answer skips: who the system serves,
 the product design, the eval bar, and the deployment shape.
 
+### The shared pipeline
+
+Every system here runs the same two-path skeleton: offline, encode the corpus with
+an embedding model and build an ANN index; online, embed the query and retrieve
+approximate neighbors, often fused with a lexical signal, then optionally rerank
+the top candidates. The interesting variation is not the skeleton but the four
+knobs below: which ANN structure, how aggressively vectors are compressed, whether
+a lexical channel runs alongside the dense one, and whether a heavier reranker
+reorders the shortlist.
+
+```mermaid
+flowchart LR
+  subgraph Offline
+    D["docs"] --> EO["embed"] --> IX["ANN index<br/>(HNSW / IVF / PQ)"]
+  end
+  subgraph Online
+    Q["query"] --> EQ["embed"] --> AN["ANN retrieve"]
+    Q --> LX["lexical (BM25)"]
+    AN --> RR["rerank"]
+    LX --> RR
+    RR --> RES["results"]
+  end
+  IX -.-> AN
+```
+
+### How they differ
+
+| System | ANN index / library | Quantization / compression | Hybrid lexical+neural | Reranking |
+|---|---|---|---|---|
+| Spotify (Voyager) | HNSW (hnswlib) | E4M3 8-bit float | No | No |
+| Vespa | HNSW plus inverted file | int8 vectors | Yes | Two-phase full-precision |
+| Meta (Faiss) | IVF-PQ, GPU | Product quantization | Not stated | Not stated |
+| Google (ScaNN) | Partition plus reorder | Anisotropic learned quantization | Not stated | Full-precision rescore |
+| Microsoft (DiskANN) | Vamana graph, SSD | Product quantization | Not stated | Full-precision from SSD |
+| LinkedIn | Two-stage ANN plus ranker | Matryoshka dimension truncation | Not stated | Ranker stage |
+| Etsy | HNSW | 4-bit PQ | Yes (term plus neural) | Not stated |
+| Walmart | Inverted index plus neural | Not stated | Yes | Not stated |
+| Faire | SPLADE over Elasticsearch | Sparse neural | Yes (interpretable) | Not stated |
+
+### The systems
+
 - **Spotify** [Introducing Voyager: Spotify new nearest-neighbor search library](https://engineering.atspotify.com/2023/10/introducing-voyager-spotifys-new-nearest-neighbor-search-library): HNSW ANN library: recall versus speed versus memory tradeoffs, 8-bit compression. *(deployment)*
 - **Vespa** [Billion-scale vector search using hybrid HNSW-IF](https://blog.vespa.ai/vespa-hybrid-billion-scale-vector-search/): In-memory HNSW plus disk-backed inverted files for 90% recall under 50ms, cheaply. *(deployment)*
 - **LinkedIn** [Semantic Search for AI Agents at Scale](https://www.linkedin.com/blog/engineering/ai/semantic-search-for-ai-agents-at-scale-retrieval-and-ranking-for-linkedins-hiring-assistant): Two-stage ANN retrieval plus ranker over 1B+ profiles using Matryoshka embeddings. *(deployment)*

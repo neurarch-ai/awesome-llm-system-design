@@ -183,6 +183,39 @@ Real systems that ship the patterns above. Each is a first-party engineering
 writeup; read them for what an interview answer skips: who the system serves,
 the product design, the eval bar, and the deployment shape.
 
+### The shared pipeline
+
+Under the surface these systems run the same two-phase skeleton. A request is
+prefilled once to build its KV cache, then decode reuses that cache one token at
+a time. Every optimization here bolts onto this loop: page the cache so many
+sequences share GPU memory, shrink each entry with GQA/MLA or quantization, and
+reuse the prefill work whenever a system prompt or document prefix repeats across
+requests.
+
+```mermaid
+flowchart LR
+  P[Prompt] --> PF[Prefill: build KV cache]
+  PF --> KV[(Paged KV cache)]
+  KV --> D[Decode loop: reuse KV per token]
+  D --> KV
+  D --> O[Output tokens]
+  PC[Prefix / prompt cache] -.reuse across requests.-> KV
+  Q[GQA / MLA / quantization] -.shrink each entry.-> KV
+```
+
+### How they differ
+
+| System | KV reduction | Memory management | Prefix / prompt caching | Optimizes for |
+| --- | --- | --- | --- | --- |
+| vLLM (PagedAttention) | none intrinsic | OS-style paging of fixed blocks | yes, block-level | throughput |
+| Character.AI | MQA + cross-layer KV sharing + int8 | sliding-window local/global | yes, host-memory rolling hash, ~95% hit | memory and throughput |
+| DeepSeek (MLA) | latent-vector compression (~93%) | standard | not the focus | memory |
+| Google (GQA) | fewer KV heads | standard | not the focus | throughput and memory |
+| SGLang (RadixAttention) | none intrinsic | radix tree with LRU eviction | yes, automatic cross-request | throughput and TTFT |
+| Hugging Face KV quant | int4 / int2 per-token | residual full-precision window | not the focus | memory |
+
+### The systems
+
 - **vLLM (UC Berkeley)** [Efficient Memory Management for LLM Serving with PagedAttention](https://arxiv.org/abs/2309.06180): OS-style KV-cache paging cuts fragmentation, boosting throughput 2x to 4x. *(deployment)*
 - **Character.AI** [Optimizing AI Inference at Character.AI](https://blog.character.ai/optimizing-ai-inference-at-character-ai-2/): MQA, hybrid local/global attention, and cross-layer KV-sharing cut cost 33x. *(deployment)*
 - **DeepSeek** [DeepSeek-V2: a strong, economical, efficient MoE language model](https://arxiv.org/abs/2405.04434): Multi-head Latent Attention compresses the KV cache into a latent vector, shrinking it 93%. *(product design)*

@@ -196,6 +196,48 @@ Real systems that ship the patterns above. Each is a first-party engineering
 writeup; read them for what an interview answer skips: who the system serves,
 the product design, the eval bar, and the deployment shape.
 
+### The shared pipeline
+
+Across these writeups the skeleton is the same: embed the query, retrieve
+candidate chunks from an index (increasingly vector plus lexical, not vector
+alone), rerank the shortlist, assemble a tight grounded context, and let the LLM
+generate a cited answer. The offline half is separate: parse, chunk, embed, and
+index the corpus, with a freshness loop that re-embeds changed documents. What
+varies between teams is where they spend: retrieval strategy, how hard they
+rerank, and how seriously they evaluate.
+
+```mermaid
+flowchart LR
+  Q["query"] --> E["embed"]
+  E --> R["retrieve<br/>(vector + often lexical/hybrid)"]
+  R --> RR["rerank"]
+  RR --> C["assemble context"]
+  C --> G["LLM generate"]
+  G --> A["grounded answer"]
+  subgraph offline["offline + freshness loop"]
+    D["docs"] --> CH["chunk"]
+    CH --> EM["embed"]
+    EM --> IX["index"]
+  end
+  IX -.-> R
+  D -.->|"doc changes"| CH
+```
+
+### How they differ
+
+| System | Retrieval strategy | Reranking | Chunking / freshness | Evaluation |
+|---|---|---|---|---|
+| Ramp | Vector over precomputed embeddings | Two-prompt selection | Precomputed per NAICS code | Classification accuracy |
+| Uber | Agentic pre-retrieval query rewriting | Yes | Metadata-enriched docs | LLM-as-judge |
+| Microsoft GraphRAG | Knowledge-graph traversal | Cluster summaries | LLM-built entity graph | Comprehensiveness, diversity, SelfCheckGPT |
+| DoorDash | Vector RAG | Yes | Support-doc chunks | LLM judge + guardrail |
+| Dropbox Dash | Hybrid lexical + semantic | Larger embedding model | Query-time chunking; syncs + webhooks | Source F1; LLM correctness |
+| Vespa | Hybrid BM25 + quantized vectors | n/a (embedding focus) | n/a | Quality vs latency benchmarks |
+| NVIDIA | Vector recall | Cross-encoder microservice | Fewer chunks to LLM | Accuracy vs cost |
+| Glean | Hybrid + knowledge graph + permissions | Multi-signal ranking | Enterprise sync | Permission-aware relevance |
+
+### The systems
+
 - **Ramp** [From RAG to Richness: How Ramp Revamped Industry Classification](https://builders.ramp.com/post/industry_classification): Embedding-model selection plus two-prompt retrieval over NAICS codes, with precomputed embeddings. *(product design)*
 - **Uber** [Enhanced Agentic-RAG: near-human precision for chatbots](https://www.uber.com/blog/enhanced-agentic-rag/): Pre-retrieval query agents, doc loaders, metadata enrichment, and LLM-as-judge eval. *(deployment)*
 - **Microsoft Research** [GraphRAG: unlocking LLM discovery on narrative private data](https://www.microsoft.com/en-us/research/blog/graphrag-unlocking-llm-discovery-on-narrative-private-data/): Knowledge-graph retrieval beats vector-only RAG on multi-hop private-data queries. *(product design)*

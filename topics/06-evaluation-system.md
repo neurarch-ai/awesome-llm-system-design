@@ -265,6 +265,42 @@ Real systems that ship the patterns above. Each is a first-party engineering
 writeup; read them for what an interview answer skips: who the system serves,
 the product design, the eval bar, and the deployment shape.
 
+### The shared pipeline
+
+Every system below runs the same two-loop skeleton: an offline suite gates the
+change, an online loop checks the gate was honest. The offline half pairs
+checkable task metrics with an LLM-as-judge for open-ended output, and the judge
+is only trusted after it is calibrated against human labels. A candidate that
+clears the offline regression gate ships behind a canary or A/B, and the online
+outcome feeds back to recalibrate the offline score so cheap gates keep predicting
+reality.
+
+```mermaid
+flowchart LR
+  A["candidate<br/>(model + prompt)"] --> B["offline suite<br/>golden sets + LLM-as-judge<br/>(human-calibrated)"]
+  B --> C{"regression gate<br/>>= baseline - eps?"}
+  C -->|"fail"| R["block / roll back"]
+  C -->|"pass"| D["online A/B<br/>(canary)"]
+  D --> E{"outcome + guardrails ok?"}
+  E -->|"yes"| S["ship"]
+  E -->|"no"| R
+  E -.->|"recalibrate"| B
+```
+
+### How they differ
+
+| System | Offline suite | Judge vs human calibration | Online metric | Gating / regression |
+|---|---|---|---|---|
+| DoorDash (chatbot) | Simulated multi-turn conversations | LLM judge calibrated to human grades | Pre-release quality bar | Sim flywheel gates before release |
+| GitHub Copilot | 4000+ offline tests, ~100 broken repos | LLM judge for chat, plus manual review | Internal canary on live Hubbers | CI gate, daily regression vs prod |
+| Spotify | Offline evals as a pre-experiment funnel | Judge recalibrated when it misses A/B | A/B user outcome | Evals filter before A/B, gap drives recal |
+| Thomson Reuters | Public benchmarks + semi-automated task eval | Human A/B as final arbiter | Human preference A/B | Three-stage gate, human sign-off |
+| Uber (uReview) | Generated-comment scoring | LLM grader with confidence scores | Posted-comment usefulness | Confidence threshold gates what posts |
+| GitLab (Duo) | Central eval framework | LLM judge at scale | Model comparison across iters | Daily automated regression run |
+| Booking.com | Golden datasets | LLM-as-judge for monitoring | Production quality monitoring | Judge + golden set watch drift |
+
+### The systems
+
 - **DoorDash** [A Simulation and Evaluation Flywheel to Develop LLM Chatbots at Scale](https://careersatdoordash.com/blog/doordash-simulation-evaluation-flywheel-to-develop-llm-chatbots-at-scale/): Simulated multi-turn conversations graded by an LLM judge calibrated to humans before release. *(eval bar)*
 - **DoorDash** [How DoorDash leverages LLMs to evaluate search result pages](https://careersatdoordash.com/blog/doordash-llms-to-evaluate-search-result-pages/): AutoEval: fine-tuned LLM raters with a human in the loop for whole-page relevance. *(eval bar)*
 - **Thomson Reuters** [Efficiently evaluating LLMs for legal tasks](https://legal.thomsonreuters.com/blog/evaluating-llms-legal-tasks/): Three-stage gate: public benchmarks, semi-automated task eval, then human A/B. *(eval bar)*
