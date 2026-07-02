@@ -278,3 +278,12 @@ shape-checked end to end. All 92 are in the
 [Model Zoo](https://github.com/neurarch-ai/awesome-llm-model-zoo)
 ([gallery](https://neurarch-ai.github.io/awesome-llm-model-zoo)). Built by
 [Neurarch](https://www.neurarch.com).
+
+## Related deep-dive drills
+
+Rapid-fire questions that probe the modeling and systems underneath this topic, from [deep-dives.md](../deep-dives.md):
+
+- [Attention variants and positional encoding](../deep-dives.md#attention-variants-and-positional-encoding)
+- [Inference, quantization, and serving math](../deep-dives.md#inference-quantization-and-serving-math)
+- [Transformer internals and normalization](../deep-dives.md#transformer-internals-and-normalization)
+- [Commonly asked, commonly missed](../deep-dives.md#commonly-asked-commonly-missed)

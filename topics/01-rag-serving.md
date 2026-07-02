@@ -303,3 +303,11 @@ shape-checked end to end. Browse all 92 in the
 [Model Zoo](https://github.com/neurarch-ai/awesome-llm-model-zoo) or the
 [gallery](https://neurarch-ai.github.io/awesome-llm-model-zoo). Built by
 [Neurarch](https://www.neurarch.com).
+
+## Related deep-dive drills
+
+Rapid-fire questions that probe the modeling and systems underneath this topic, from [deep-dives.md](../deep-dives.md):
+
+- [Inference, quantization, and serving math](../deep-dives.md#inference-quantization-and-serving-math)
+- [Decoding and sampling](../deep-dives.md#decoding-and-sampling)
+- [Commonly asked, commonly missed](../deep-dives.md#commonly-asked-commonly-missed)

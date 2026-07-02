@@ -315,3 +315,11 @@ Real systems that ship the patterns above. Each is a first-party engineering wri
 - **Uber** [Uber's GenAI Gateway](https://www.uber.com/blog/genai-gateway/): A unified multi-vendor gateway with usage and budget management across teams, plus fallbacks. *(deployment)*
 
 More production case studies: the [Evidently AI ML system design database](https://www.evidentlyai.com/ml-system-design) (800 case studies from 150+ companies) is the broadest curated index; this section pulls the ones that map onto this topic.
+
+## Related deep-dive drills
+
+Rapid-fire questions that probe the modeling and systems underneath this topic, from [deep-dives.md](../deep-dives.md):
+
+- [Inference, quantization, and serving math](../deep-dives.md#inference-quantization-and-serving-math)
+- [Decoding and sampling](../deep-dives.md#decoding-and-sampling)
+- [Commonly asked, commonly missed](../deep-dives.md#commonly-asked-commonly-missed)

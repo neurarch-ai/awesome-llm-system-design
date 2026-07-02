@@ -261,3 +261,11 @@ not a screenshot. All 92 architectures live in the
 [Model Zoo](https://github.com/neurarch-ai/awesome-llm-model-zoo)
 ([gallery](https://neurarch-ai.github.io/awesome-llm-model-zoo)). Built by
 [Neurarch](https://www.neurarch.com).
+
+## Related deep-dive drills
+
+Rapid-fire questions that probe the modeling and systems underneath this topic, from [deep-dives.md](../deep-dives.md):
+
+- [Alignment, objectives, and KL divergence](../deep-dives.md#alignment-objectives-and-kl-divergence)
+- [Training, fine-tuning, and overfitting](../deep-dives.md#training-fine-tuning-and-overfitting)
+- [Commonly asked, commonly missed](../deep-dives.md#commonly-asked-commonly-missed)

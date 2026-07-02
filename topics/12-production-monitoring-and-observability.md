@@ -304,3 +304,11 @@ product design, the eval bar, and the deployment shape.
 - **Twilio Segment** [Instrumenting User Insights for your AI Copilot](https://www.twilio.com/en-us/blog/insights/ai/instrumenting-user-insights-for-your-ai-copilot/): Instruments prompts, responses, and engagement signals into product analytics for a live copilot. *(product design)*
 
 More production case studies: the [Evidently AI ML system design database](https://www.evidentlyai.com/ml-system-design) (800 case studies from 150+ companies) is the broadest curated index; this section pulls the ones that map onto this topic.
+
+## Related deep-dive drills
+
+Rapid-fire questions that probe the modeling and systems underneath this topic, from [deep-dives.md](../deep-dives.md):
+
+- [Alignment, objectives, and KL divergence](../deep-dives.md#alignment-objectives-and-kl-divergence)
+- [Inference, quantization, and serving math](../deep-dives.md#inference-quantization-and-serving-math)
+- [Commonly asked, commonly missed](../deep-dives.md#commonly-asked-commonly-missed)
