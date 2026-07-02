@@ -19,6 +19,9 @@ attention head divisibility, parameter counts within roughly 10 percent of the
 published weights. You can open any of them, edit the structure, and watch the
 numbers change. More on why that matters [below](#about-the-diagrams).
 
+> **Reading this as a book?** A chapter-by-chapter edition of this material, in
+> book style with figures and end-of-chapter questions, lives in [**book/**](book/).
+
 ---
 
 ## How to use this repo
