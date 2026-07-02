@@ -10,6 +10,8 @@ shows you (*who it serves* / *product design* / *eval bar* / *deployment*).
 This is a roll-up of the **Seen in production** section inside each topic, so you
 can browse the whole set by category in one place. 189 systems and growing.
 
+> Want the design behind these, not just the link? See [CASE-TEARDOWNS.md](CASE-TEARDOWNS.md): each system read from its source and turned into a diagram, interview questions, tricks, and common mistakes.
+
 ---
 ### [RAG serving](topics/01-rag-serving.md) · 18 systems
 
