@@ -333,20 +333,25 @@ flowchart LR
 
 ### How they differ
 
-| System | Batching | Speculative decoding | Prefill/decode disaggregation | Parallelism / quantization |
-|---|---|---|---|---|
-| Anyscale (vLLM) | Continuous, PagedAttention | no | no | TP, paged KV cache |
-| Character.AI | Continuous | no | no | int8 quant, MQA + cross-layer KV sharing |
-| LinkedIn | Continuous | yes, n-gram draft | no | not stated |
-| Baseten (BEI) | Continuous, backpressure | yes | no | FP8, TensorRT-LLM |
-| NVIDIA Dynamo | Continuous | no | yes | phase-specific TP, tiered KV offload |
-| Together ATLAS | Continuous | yes, runtime-learning draft | no | not stated |
-| Fireworks | Continuous | yes, adaptive | no | per-workload config tuning |
-| Moonshot Mooncake | Continuous | no | yes | pooled CPU/DRAM/SSD KV cache |
-| Microsoft Splitwise | Continuous | no | yes, separate machines | phase-specific hardware |
-| DistServe | Continuous | no | yes | goodput-tuned per-phase parallelism |
-| Sarathi-Serve | Chunked prefill | no | no (stall-free scheduling) | not stated |
-| Snowflake Arctic | Continuous | yes | optional | dynamic shift parallelism |
+| System | Batching | Speculative decoding | Prefill/decode disaggregation | Parallelism / quantization | When it wins | Watch out for |
+|---|---|---|---|---|---|---|
+| Anyscale (vLLM) | Continuous, PagedAttention | no | no | TP, paged KV cache | General high-QPS single-model serving that is cache-fragmentation bound | One pool, so a long prefill still spikes TPOT for in-flight decode |
+| Character.AI | Continuous | no | no | int8 quant, MQA + cross-layer KV sharing | Extreme concurrency where KV-cache size is the binding cost | KV sharing and int8 need a quality eval before they ship |
+| LinkedIn | Continuous | yes, n-gram draft | no | not stated | Predictable, templated output where n-gram drafts hit high acceptance | Acceptance collapses on novel text, wasting draft compute |
+| Baseten (BEI) | Continuous, backpressure | yes | no | FP8, TensorRT-LLM | Embedding, reranker, and classifier throughput under bursty load | FP8 and TensorRT engine builds are hardware and kernel specific |
+| NVIDIA Dynamo | Continuous | no | yes | phase-specific TP, tiered KV offload | Large distributed fleets where prefill and decode SLOs genuinely conflict | KV handoff needs fast interconnect or it becomes the new bottleneck |
+| Together ATLAS | Continuous | yes, runtime-learning draft | no | not stated | Live traffic whose distribution shifts, which the speculator learns | Cold or novel traffic before the draft has adapted |
+| Fireworks | Continuous | yes, adaptive | no | per-workload config tuning | Many distinct workloads each wanting a different config | Per-workload tuning is operational overhead and needs profiling |
+| Moonshot Mooncake | Continuous | no | yes | pooled CPU/DRAM/SSD KV cache | Heavy shared-prefix traffic a pooled tiered cache can reuse | Fetch latency on a cache miss or a slow tier |
+| Microsoft Splitwise | Continuous | no | yes, separate machines | phase-specific hardware | Matching prefill to compute-heavy GPUs and decode to bandwidth-heavy ones | Cross-machine KV transfer cost, needs a fast fabric |
+| DistServe | Continuous | no | yes | goodput-tuned per-phase parallelism | SLO-bound serving where goodput, not raw throughput, is the target | Per-phase parallelism must be retuned per workload |
+| Sarathi-Serve | Chunked prefill | no | no (stall-free scheduling) | not stated | Mixed prefill and decode on one pool without disaggregating | Chunk size is a throughput-versus-latency knob to tune |
+| Snowflake Arctic | Continuous | yes | optional | dynamic shift parallelism | Real traffic that shifts between latency-bound and throughput-bound | Shifting parallelism at runtime adds operational complexity |
+| Modal | Continuous | optional | no | quantization, CUDA graphs, weight snapshots | Bursty or scale-to-zero traffic where cold start dominates cost | Snapshots and weight streaming shrink but do not erase cold-start latency |
+| Databricks | Continuous | no | no (prefill/decode as phases) | hardware selection | Picking the right GPU and batch size for a known, steady workload | Guidance is workload-specific and needs a load test to pin down |
+| Baseten (stack) | Continuous | yes | no | multi-cloud autoscaling, routing, custom kernels | Spiky traffic needing multi-cloud capacity and SLO-driven autoscaling | Multi-cloud routing adds placement and cold-start complexity |
+
+The core dividing line is disaggregation: teams either split prefill and decode into separate pools (Dynamo, Splitwise, DistServe, Mooncake) or keep one pool and smooth it with chunked prefill and speculative decoding (everyone else).
 
 ### The systems
 

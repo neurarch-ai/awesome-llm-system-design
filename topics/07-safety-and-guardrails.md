@@ -204,14 +204,21 @@ flowchart LR
 
 ### How they differ
 
-| System | Input vs output | Classifier approach | Jailbreak / injection defense | Human review |
-|---|---|---|---|---|
-| Anthropic (Constitutional Classifiers) | both | trained classifiers on a synthetic constitution | classifiers cut jailbreak success 86% to 4.4% | red-team only, not per-decision |
-| Microsoft (MSRC) | both, spotlighting on input | Prompt Shields trained detector plus deterministic rules | spotlighting plus least privilege plus exfil blocking | user approval before send |
-| Roblox | both | distilled / quantized transformer classifiers, not LLM-judge | fast text and voice filters, PII detection | thousands of humans for nuanced cases |
-| Meta (Llama Guard) | both | instruction-tuned LLM classifier by taxonomy | paired Prompt Guard flags injection | n/a (shipped as a model) |
-| OpenAI (cookbook) | both, async | moderation API plus LLM-judge guardrails | output guardrail catches unsafe completions | n/a (pattern, not a service) |
-| Salesforce (Einstein Trust Layer) | both | rules plus toxicity scoring | prompt-injection defense plus PII masking | n/a (platform controls) |
+| System | Input vs output | Classifier approach | Jailbreak / injection defense | Human review | When it wins | When it breaks / watch out |
+|---|---|---|---|---|---|---|
+| Anthropic (Constitutional Classifiers) | both | trained classifiers on a synthetic constitution | classifiers cut jailbreak success 86% to 4.4% | red-team only, not per-decision | universal-jailbreak defense you can measure on a hard eval; policy expressed as a constitution | added classifier latency and cost on both paths; over-broad constitution raises false positives |
+| Microsoft (MSRC) | both, spotlighting on input | Prompt Shields trained detector plus deterministic rules | spotlighting plus least privilege plus exfil blocking | user approval before send | indirect prompt injection over untrusted content in agents; blast radius kept small in code | leans on structural isolation and a permission model that adds design complexity |
+| Roblox | both | distilled / quantized transformer classifiers, not LLM-judge | fast text and voice filters, PII detection | thousands of humans for nuanced cases | massive real-time scale (750k rps) across text and voice on a tight latency budget | needs a large human-review workforce for nuance; distilled models can miss edge policy |
+| Meta (Llama Guard) | both | instruction-tuned LLM classifier by taxonomy | paired Prompt Guard flags injection | n/a (shipped as a model) | open, drop-in classifier with a customizable taxonomy you control | you host, tune, and pay the full LLM-classifier latency yourself |
+| Google (ShieldGemma) | both | Gemma-based generative safety classifiers | n/a (classifier, benchmarked above Llama Guard) | n/a (shipped as a model) | open classifier that benchmarks above Llama Guard when you want higher catch rate | same self-host and per-request latency tradeoff as any LLM classifier |
+| OpenAI (cookbook) | both, async | moderation API plus LLM-judge guardrails | output guardrail catches unsafe completions | n/a (pattern, not a service) | async pattern keeps guard latency off the critical path | async means unsafe tokens can briefly surface before the guard fires; LLM-judge cost |
+| NVIDIA (NeMo Guardrails) | both | config-driven rails wiring LlamaGuard plus fact-check | rails invoke a guard model per turn | n/a (framework) | RAG apps that want declarative rails plus fact-checking without hand-wiring | another framework layer; rails are only as good as the config behind them |
+| Cloudflare (Firewall for AI) | input (prompt) | Llama Guard run at an edge proxy | blocks harmful prompts across 13 categories before origin | n/a (edge proxy) | zero app changes; harmful prompts blocked at the edge before they reach the model | input-only, so unsafe generations pass; category set is fixed |
+| Grab | content (moderation) | two-tier routing by an LLM violation-likelihood score | n/a | n/a | cost control: only ambiguous content is escalated to the expensive tier | miscalibrated score sends violating content down the cheap tier; threshold tuning |
+| Thomson Reuters (CoCounsel) | output (grounding) | grounding in trusted sources, not a text classifier | n/a (trusted-corpus grounding) | attorney review plus nightly 1,500-test benchmark | high-stakes legal domain where grounding beats moderation on accuracy | needs a trusted corpus and human-in-the-loop; slower than a classifier gate |
+| Salesforce (Einstein Trust Layer) | both | rules plus toxicity scoring | prompt-injection defense plus PII masking | n/a (platform controls) | enterprise platform bundling PII masking and zero-retention around every call | platform-bound; rules-based scoring can lag novel attacks |
+
+The core dividing line is whether a system treats safety as a classification problem (train a model to score text: Anthropic, Roblox, Meta, Google, Cloudflare) or a structural one (isolate untrusted text and gate actions or ground answers in code: Microsoft, Thomson Reuters), with human review layered in wherever the stakes outrun the classifier's confidence.
 
 ### The systems
 

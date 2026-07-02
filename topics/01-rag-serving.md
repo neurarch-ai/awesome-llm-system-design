@@ -225,16 +225,27 @@ flowchart LR
 
 ### How they differ
 
-| System | Retrieval strategy | Reranking | Chunking / freshness | Evaluation |
-|---|---|---|---|---|
-| Ramp | Vector over precomputed embeddings | Two-prompt selection | Precomputed per NAICS code | Classification accuracy |
-| Uber | Agentic pre-retrieval query rewriting | Yes | Metadata-enriched docs | LLM-as-judge |
-| Microsoft GraphRAG | Knowledge-graph traversal | Cluster summaries | LLM-built entity graph | Comprehensiveness, diversity, SelfCheckGPT |
-| DoorDash | Vector RAG | Yes | Support-doc chunks | LLM judge + guardrail |
-| Dropbox Dash | Hybrid lexical + semantic | Larger embedding model | Query-time chunking; syncs + webhooks | Source F1; LLM correctness |
-| Vespa | Hybrid BM25 + quantized vectors | n/a (embedding focus) | n/a | Quality vs latency benchmarks |
-| NVIDIA | Vector recall | Cross-encoder microservice | Fewer chunks to LLM | Accuracy vs cost |
-| Glean | Hybrid + knowledge graph + permissions | Multi-signal ranking | Enterprise sync | Permission-aware relevance |
+| System | Retrieval strategy | Reranking | Chunking / freshness | Evaluation | When it wins | Watch out / when it breaks |
+|---|---|---|---|---|---|---|
+| Ramp | Vector over precomputed embeddings | Two-prompt selection | Precomputed per NAICS code | Classification accuracy | Closed label set (a fixed taxonomy) you can embed once up front | Taxonomy changes force a full re-embed; not for open-ended Q&A |
+| Uber | Agentic pre-retrieval query rewriting | Yes | Metadata-enriched docs | LLM-as-judge | Messy or ambiguous queries that need rewriting before retrieval | Agent hops add latency and token cost on every query |
+| Microsoft GraphRAG | Knowledge-graph traversal | Cluster summaries | LLM-built entity graph | Comprehensiveness, diversity, SelfCheckGPT | Multi-hop, whole-corpus sensemaking that vector-only retrieval misses | LLM graph build is costly to construct and to keep fresh |
+| DoorDash | Vector RAG | Yes | Support-doc chunks | LLM judge + guardrail | Bounded support domain where a guardrail can catch bad answers | Judge and guardrail tuning is the real work; stays narrow |
+| Dropbox Dash | Hybrid lexical + semantic | Larger embedding model | Query-time chunking; syncs + webhooks | Source F1; LLM correctness | Fast-changing personal corpora needing near-real-time freshness | Query-time chunking adds read-path latency; sync plumbing is complex |
+| Vespa | Hybrid BM25 + quantized (INT8/binary) vectors | n/a (embedding focus) | n/a | Quality vs latency benchmarks | Large indexes constrained on memory and latency where quantization pays | Quantization costs some recall; the quality/latency knob needs tuning |
+| NVIDIA | Vector recall | Cross-encoder microservice | Fewer chunks to LLM | Accuracy vs cost | Cost-sensitive serving where harder reranking shrinks the prompt | Cross-encoder is an extra hop and service to run |
+| Glean | Hybrid + knowledge graph + permissions | Multi-signal ranking | Enterprise sync | Permission-aware relevance | Enterprise search where per-user permissions are non-negotiable | Permission-aware indexing and multi-signal ranking are heavy to build |
+| Databricks | Managed vector search, real-time serving | Model selection | Enterprise data sync | Quality monitoring | Teams already on the platform wanting managed serving plus monitoring | Platform lock-in; less control over each individual stage |
+| LinkedIn | Layered first and second-pass rankers | Separate relevance, quality, freshness models | Post index | Per-ranker relevance metrics | High-QPS search where staged ranking amortizes the expensive scoring | Many models to train, serve, and keep aligned |
+| Pinterest | RAG table retrieval grounding text-to-SQL | Table selection | Warehouse table and schema docs | SQL execution correctness | Grounding LLM-generated SQL over thousands of warehouse tables | Schema drift; a wrong table retrieval silently breaks the query |
+| Cloudflare AutoRAG | Managed vector (Vectorize) | Built-in | Async indexing | Managed defaults | Wanting a turnkey pipeline without owning the infrastructure | Small tuning surface; defaults may not fit your corpus |
+| Vimeo | Vector over transcripts | n/a | Transcript chunking, multi-size context windows | Answer quality on video Q&A | Media and transcript corpora with variable context needs | Transcription quality bounds retrieval; non-text content is a gap |
+| Elastic | Hybrid retrieval | Yes | Standard | Monitoring plus benchmarking | Already on Elastic and wanting hybrid search with observability | Operational tuning; hybrid weighting must be calibrated |
+| Anyscale | Vector RAG on Ray Serve | Optional | Standard | End-to-end eval | Scaling the whole pipeline elastically on Ray | Infrastructure complexity; you own the full stack |
+| GitHub Copilot | Semantic plus code search over repos | Yes | Repo and code indexing | Grounded-answer quality | Grounding answers in a large private code corpus | Code semantics differ from prose; index freshness on active repos |
+| Google / ETH RAGO | Serving-layer optimization (scheduling, placement) | n/a | n/a | QPS per chip, time-to-first-token | Squeezing throughput and latency out of an existing pipeline | It is a serving optimization, not a retrieval-quality lever |
+
+The core dividing line is how much intelligence each team pushes into retrieval (hybrid, knowledge-graph, or agentic query rewriting) versus into reranking, generation, and serving: multi-hop or messy corpora invest in richer retrieval, bounded domains lean on reranking plus guardrails, and scale-bound systems spend on the serving layer.
 
 ### The systems
 

@@ -186,18 +186,21 @@ flowchart LR
 
 ### How they differ
 
-| System | Connector | Resolution / image-token budget | Modality | Focus |
-|---|---|---|---|---|
-| LLaVA | MLP projector | Fixed (CLIP ViT-L/14 336px) | Vision | Training |
-| Qwen2-VL | MLP projector | Dynamic native resolution, variable tokens | Vision, video | Training |
-| Pixtral 12B | MLP projector (custom ViT) | Native resolution, flexible token budget | Vision | Training |
-| Flamingo | Cross-attention (Perceiver + gated) | Fixed, resampled to few tokens | Vision, video | Training |
-| BLIP-2 | Cross-attention (Q-Former) | Fixed, 32 query tokens | Vision | Training |
-| Idefics2 | Cross-attention (perceiver resampler) | Fixed, resampled tokens | Vision | Training |
-| NVLM | Both (MLP vs cross-attn compared) | Tiled with tile-tagging for OCR | Vision | Training + serving |
-| Chameleon | Early-fusion (tokenized) | Discrete image tokens in one stream | Vision | Training |
-| Qwen2-Audio | Audio encoder + projector | Audio frames to tokens | Audio | Training |
-| Red Hat (vLLM) | n/a (runtime) | Encoder + prefix caching cut recompute | Vision | Serving |
+| System | Connector | Resolution / image-token budget | Modality | Focus | When it wins | When it breaks / watch out |
+|---|---|---|---|---|---|---|
+| LLaVA | MLP projector | Fixed (CLIP ViT-L/14 336px) | Vision | Training | Simplest strong baseline; frozen CLIP plus a tiny projector is cheap to train and serve | Fixed low resolution loses fine detail; token count cannot adapt to the task |
+| Qwen2-VL | MLP projector | Dynamic native resolution, variable tokens | Vision, video | Training | Inputs vary widely in size and aspect ratio, or include video | Variable token count makes per-request cost and latency hard to bound; big images blow the budget |
+| Pixtral 12B | MLP projector (custom ViT) | Native resolution, flexible token budget | Vision | Training | Native-resolution input without fixed preprocessing, on a ViT tuned for it | Custom encoder trained from scratch, no frozen-CLIP shortcut; tokens still grow with resolution |
+| Flamingo | Cross-attention (Perceiver + gated) | Fixed, resampled to few tokens | Vision, video | Training | Keeps the decoder token budget tiny and constant; interleaved few-shot over frozen backbones | Resampling to few tokens caps recoverable detail; gated cross-attention adds decoder complexity |
+| BLIP-2 | Cross-attention (Q-Former) | Fixed, 32 query tokens | Vision | Training | Cheapest bridge between two frozen models at a fixed, tiny token cost | 32 tokens is a hard detail ceiling; dense or OCR-heavy content is lost |
+| Idefics2 | Cross-attention (perceiver resampler) | Fixed, resampled tokens | Vision | Training | Bounded token count with a fully open recipe and data | Resampling caps detail the same way Flamingo does |
+| NVLM | Both (MLP vs cross-attn compared) | Tiled with tile-tagging for OCR | Vision | Training + serving | OCR and dense documents that need high resolution; also when weighing connector choices | Tiling multiplies the token count; tile-tagging adds preprocessing complexity |
+| Chameleon | Early-fusion (tokenized) | Discrete image tokens in one stream | Vision | Training | One unified transformer over mixed modalities; can generate images as well as read them | Discrete tokenization loses continuous detail; early-fusion training is hard to keep stable |
+| Qwen2-Audio | Audio encoder + projector | Audio frames to tokens | Audio | Training | Audio and voice tasks that reuse the same encoder, projector, decoder shape | Long audio inflates the frame-token count the way high resolution inflates image tokens |
+| Red Hat (vLLM) | n/a (runtime) | Encoder + prefix caching cut recompute | Vision | Serving | Repeated images and prefixes across requests (catalogs, multi-turn about one upload) | Caching only pays off on repeats; cold, unique images see no gain |
+| AMD (ROCm) | n/a (runtime) | Batch-level data parallelism for vision encoders | Vision | Serving | High image volume where the vision encoder tier is the throughput bottleneck | Speeds only the encoder tier; long generations stay decode-bound |
+
+The core dividing line is how the connector treats the image-token budget: projectors pass a variable, resolution-scaled block of tokens so detail scales with cost, resamplers and cross-attention compress to a fixed few so cost is bounded but detail is capped, and early-fusion plus runtime caching are orthogonal takes on that same budget.
 
 ### The systems
 

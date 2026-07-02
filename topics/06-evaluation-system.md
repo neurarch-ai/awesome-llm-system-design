@@ -289,15 +289,20 @@ flowchart LR
 
 ### How they differ
 
-| System | Offline suite | Judge vs human calibration | Online metric | Gating / regression |
-|---|---|---|---|---|
-| DoorDash (chatbot) | Simulated multi-turn conversations | LLM judge calibrated to human grades | Pre-release quality bar | Sim flywheel gates before release |
-| GitHub Copilot | 4000+ offline tests, ~100 broken repos | LLM judge for chat, plus manual review | Internal canary on live Hubbers | CI gate, daily regression vs prod |
-| Spotify | Offline evals as a pre-experiment funnel | Judge recalibrated when it misses A/B | A/B user outcome | Evals filter before A/B, gap drives recal |
-| Thomson Reuters | Public benchmarks + semi-automated task eval | Human A/B as final arbiter | Human preference A/B | Three-stage gate, human sign-off |
-| Uber (uReview) | Generated-comment scoring | LLM grader with confidence scores | Posted-comment usefulness | Confidence threshold gates what posts |
-| GitLab (Duo) | Central eval framework | LLM judge at scale | Model comparison across iters | Daily automated regression run |
-| Booking.com | Golden datasets | LLM-as-judge for monitoring | Production quality monitoring | Judge + golden set watch drift |
+| System | Offline suite | Judge vs human calibration | Online metric | Gating / regression | When it wins | When it breaks / watch out |
+|---|---|---|---|---|---|---|
+| DoorDash (chatbot) | Simulated multi-turn conversations | LLM judge calibrated to human grades | Pre-release quality bar | Sim flywheel gates before release | Multi-turn agents where real pre-launch traffic is scarce or risky | Simulator drifts from real user behavior, so a sim pass can overstate readiness |
+| DoorDash (AutoEval, search) | Whole-page relevance scoring | Fine-tuned LLM raters, human in the loop | Search result page quality | Human-in-loop grades gate | Whole-page or list relevance where per-item labels miss the gestalt | Fine-tuned rater needs retraining as catalog and query mix shift |
+| GitHub Copilot | 4000+ offline tests, ~100 broken repos | LLM judge for chat, plus manual review | Internal canary on live Hubbers | CI gate, daily regression vs prod | Large stable code-task suites with executable pass/fail signal | Thousands of cases are costly to maintain; broken-repo fixtures go stale |
+| Spotify | Offline evals as a pre-experiment funnel | Judge recalibrated when it misses A/B | A/B user outcome | Evals filter before A/B, gap drives recal | High A/B volume where offline can cheaply filter candidates first | Needs enough A/B throughput to recalibrate; the offline-online gap must be watched |
+| Thomson Reuters | Public benchmarks + semi-automated task eval | Human A/B as final arbiter | Human preference A/B | Three-stage gate, human sign-off | High-stakes expert domains (legal) where errors are costly | Human sign-off is slow and expensive, so it does not scale to daily edits |
+| Uber (uReview) | Generated-comment scoring | LLM grader with confidence scores | Posted-comment usefulness | Confidence threshold gates what posts | High-volume generation where low-confidence output can be suppressed, not blocked | Confidence scores need calibration; a bad threshold floods or starves output |
+| Discord | Critic-LLM prompt review | Critic LLM assists human review | A/B rollout outcome | Critic screen before A/B | Fast prompt iteration where a critic cheaply catches obvious regressions | Critic is advisory, not a hard gate, so weak prompts can still reach A/B |
+| Ramp | Judge on agent classifications | LLM judge vs human labels | Shadow mode on live traffic | Shadow plus judge before rollout | Agent actions you can run silently on real traffic before enabling them | Shadow mode needs traffic and infra to mirror, and yields no user signal yet |
+| Microsoft (LLM-Rubric) | Multi-dimension rubric scoring | Calibrated to predict human satisfaction | Dialogue user satisfaction | Calibrated rubric score gate | Multi-faceted quality where one score hides tradeoffs across dimensions | Calibration needs a labeled satisfaction set per dimension, so setup is heavier |
+| GitLab (Duo) | Central eval framework | LLM judge at scale | Model comparison across iters | Daily automated regression run | Many models and prompts compared continuously under one shared harness | The framework is upfront investment, and judge drift hits every team at once |
+| Booking.com | Golden datasets | LLM-as-judge for monitoring | Production quality monitoring | Judge + golden set watch drift | Ongoing production monitoring to catch drift on a stable task | Golden sets go stale, and monitoring catches drift after it ships, not before |
+| Honeycomb | Minimal offline, product metrics | No judge, behavioral signal | Activation and adoption | Post-launch adoption watch | Early products where "did anyone use it" matters more than output scoring | Adoption lags and confounds, and there is no pre-ship gate |
 
 ### The systems
 

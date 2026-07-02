@@ -205,14 +205,19 @@ flowchart LR
 
 ### How they differ
 
-| System | KV reduction | Memory management | Prefix / prompt caching | Optimizes for |
-| --- | --- | --- | --- | --- |
-| vLLM (PagedAttention) | none intrinsic | OS-style paging of fixed blocks | yes, block-level | throughput |
-| Character.AI | MQA + cross-layer KV sharing + int8 | sliding-window local/global | yes, host-memory rolling hash, ~95% hit | memory and throughput |
-| DeepSeek (MLA) | latent-vector compression (~93%) | standard | not the focus | memory |
-| Google (GQA) | fewer KV heads | standard | not the focus | throughput and memory |
-| SGLang (RadixAttention) | none intrinsic | radix tree with LRU eviction | yes, automatic cross-request | throughput and TTFT |
-| Hugging Face KV quant | int4 / int2 per-token | residual full-precision window | not the focus | memory |
+| System | KV reduction | Memory management | Prefix / prompt caching | Optimizes for | When it wins | When it breaks / watch out |
+| --- | --- | --- | --- | --- | --- | --- |
+| vLLM (PagedAttention) | none intrinsic | OS-style paging of fixed blocks | yes, block-level | throughput | many concurrent variable-length sequences where fragmentation is the bottleneck | single-instance prefix cache does not span a multi-node cluster; needs cache-aware scheduling at scale |
+| Character.AI | MQA + cross-layer KV sharing + int8 | sliding-window local/global | yes, host-memory rolling hash, ~95% hit | memory and throughput | high-traffic chat with heavy prompt reuse and aggressive cost targets | MQA plus int8 stacks quality risk; must gate on eval |
+| DeepSeek (MLA) | latent-vector compression (~93%) | standard | not the focus | memory | you train or control the model and the KV cache is the binding constraint on long context | RoPE does not commute with the latent, so it needs the split-head fix; it is a training-time change, not a serving bolt-on |
+| Google (GQA) | fewer KV heads | standard | not the focus | throughput and memory | safe default: most of MHA quality with a smaller cache and no serving complexity | fixed cache ratio, so less aggressive than MLA when memory is truly the wall |
+| SGLang (RadixAttention) | none intrinsic | radix tree with LRU eviction | yes, automatic cross-request | throughput and TTFT | many requests with shared, branching prefixes (few-shot, agent trees) | benefit collapses when prefixes rarely overlap; LRU can thrash under diverse traffic |
+| Hugging Face KV quant | int4 / int2 per-token | residual full-precision window | not the focus | memory | long-generation memory pressure on a fixed model you cannot retrain | low-bit quant degrades quality; keep a full-precision recent window and eval |
+| Anthropic (prompt caching) | none intrinsic | TTL-scoped server-side cache | yes, API-level across calls | cost and latency | a large fixed context (long system prompt, document) reused across many API calls | no help when the context changes every call; watch cache TTL expiry and cache-write cost |
+| StreamingLLM (attention sinks) | fixed-window KV plus sink tokens | rolling window, keep the first tokens | not the focus | unbounded streaming | never-ending streams where losing the middle is acceptable; stable to millions of tokens | evicted tokens are gone, so it is not true long-context recall |
+| H2O (heavy-hitter eviction) | KV eviction to recent plus heavy hitters | budgeted cache, oracle eviction | not the focus | throughput and memory | a fixed KV budget where most attention mass sits on a few tokens | wrongly evicted tokens cannot be recovered; the quality hit is workload-dependent |
+
+The core dividing line: a system either shrinks each KV entry (GQA, MLA, quantization), reuses entries across requests (paged, radix, and prefix caching), or drops entries entirely (eviction, streaming windows).
 
 ### The systems
 

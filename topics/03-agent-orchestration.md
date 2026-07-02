@@ -194,13 +194,19 @@ flowchart TD
 
 ### How they differ
 
-| System | Single vs multi-agent | Tool interface | Verification | Cost / latency control |
-|---|---|---|---|---|
-| Anthropic multi-agent research | Orchestrator plus parallel subagents | JSON tool-calls | Citation agent, subagent quality checks | Parallel fan-out cuts latency but ~15x tokens |
-| Cognition (Don't build multi-agents) | Single-threaded on purpose | JSON tool-calls | Shared full trace, no cross-agent drift | Context compression to bound the transcript |
-| OpenAI practical guide | Single, escalate to multi only when needed | JSON tool-calls | Guardrails layer around actions | Start small, add agents only when justified |
-| Hugging Face smolagents | Single code agent | Code execution (Python) | Sandboxed run (E2B) | Fewer steps via composable code actions |
-| Anthropic code execution with MCP | Single | Code execution over MCP | Typed tool schemas | Code path cuts tokens and round-trips |
+| System | Single vs multi-agent | Tool interface | Verification | Cost / latency control | When it wins | When it breaks / watch out |
+|---|---|---|---|---|---|---|
+| Anthropic multi-agent research | Orchestrator plus parallel subagents | JSON tool-calls | Citation agent, subagent quality checks | Parallel fan-out cuts latency but ~15x tokens | Breadth-first research where subtasks are separable and each needs its own context | Token spend explodes; subagents drift and the join step is hard to debug |
+| Cognition (Don't build multi-agents) | Single-threaded on purpose | JSON tool-calls | Shared full trace, no cross-agent drift | Context compression to bound the transcript | Tasks that need one coherent line of decisions with no coordination overhead | No parallelism; one long transcript can still hit the context limit |
+| OpenAI practical guide | Single, escalate to multi only when needed | JSON tool-calls | Guardrails layer around actions | Start small, add agents only when justified | Teams shipping their first agent that want guardrails and a clear escalation path | Under-provisioning: staying single when a job genuinely needs isolated context |
+| Hugging Face smolagents | Single code agent | Code execution (Python) | Sandboxed run (E2B) | Fewer steps via composable code actions | Multi-step tool use that composes into code, cutting round-trips | Arbitrary code execution needs a secure sandbox; that is the risk surface |
+| Anthropic code execution with MCP | Single | Code execution over MCP | Typed tool schemas | Code path cuts tokens and round-trips | Many tools or large results where JSON round-trips waste tokens | Requires typed schemas and a code runtime, so more infra to stand up |
+| Ramp background agent | Single, async closed loop | Sandboxed Modal VM (code + shell) | Runs tests in the sandbox before finishing | Isolated VM per job, runs in the background | Long-running coding tasks that can self-verify against a test suite | Needs per-job sandbox infra; async, so not for interactive turns |
+| Replit Agent 3 self-test | Single | REPL plus browser | Autonomous self-test loop | Extra verify steps cost tokens but cut rework | Work whose correctness is checkable by running the code | Verify loops add steps and cost; flaky when the check itself is unreliable |
+| ReAct (reactive baseline) | Single, reactive loop | JSON tool-calls | None built in, reasoning trace only | Unbounded steps unless a hard cap is set | Simple, flexible tasks with a small tool set and short horizon | Can wander and rack up steps; needs a step cap as the backstop |
+| Reflexion | Single, self-reflective loop | JSON tool-calls | Self-critique on feedback, retry without weight updates | Retry episodes add calls; no fine-tuning cost | Tasks with a clear success signal the agent can learn from across tries | Repeated retries multiply cost; useless when feedback is absent or noisy |
+
+The core dividing line is whether one context holds the whole job (single-threaded: cheaper, coherent, easy to trace) or an orchestrator fans work to parallel subagents (faster on separable work, but multiplied tokens and harder to debug).
 
 ### The systems
 

@@ -304,6 +304,21 @@ or the [gallery](https://neurarch-ai.github.io/awesome-llm-model-zoo). Built by
 
 Real systems that ship the patterns above. Each is a first-party engineering writeup; read them for what an interview answer skips: who the system serves, the product design, the eval bar, and the deployment shape.
 
+### How they differ
+
+The levers below all move a query left on the quality-cost frontier, but they do it at different points in the request and carry different failure modes:
+
+| Approach | How it saves | When it wins | When it breaks / watch out | Quality risk |
+|---|---|---|---|---|
+| Model routing | Predicts difficulty before the call and dispatches to the cheapest model likely to answer well | Latency too tight for a two-model path, and you have a real difficulty signal | Decides once, blind, before seeing any answer; a router tuned on old traffic drifts as traffic shifts | Newly-hard queries silently routed to the small model, cost looks great while quality drops |
+| Cascades / deferral | Runs the cheap model first, scores its own confidence, escalates to a pricier model only when unsure | You can afford a cheap first call and the task has a trustworthy confidence or verification signal (code, SQL, math, extraction) | Miscalibrated cutoff: too eager to escalate and you pay for both models on everything | Too eager to accept and quality quietly drops on the answers kept from the cheap model |
+| Semantic caching | Serves a near-duplicate request from a stored response, no model call at all | Repeated or paraphrased queries over stable content (definitions, policies) | Loose threshold serves a different question's answer; stale facts; scoped answers leaked into a shared cache | Confidently, cheaply wrong when a near-neighbor's response is returned for a different question |
+| Prompt compression | Drops low-information tokens (LLMLingua) so fewer input tokens are billed | Input tokens dominate and context is long, verbose, and redundant | Costs a cheap small-model pass, so it only pays when input is heavy; the compression is lossy | Aggressive compression drops the one load-bearing token the answer hinged on |
+| Right-sizing per task | Matches model size to task, small models for routing, classification, extraction, embeddings, reranking | Narrow, well-defined subtasks where a fine-tuned small model beats a giant general one | More models to host, evaluate, and keep from drifting | Each small model can silently regress on its slice |
+| Quantization / FP8 + batching | More tokens per GPU-second (fewer bytes per token) and packing requests into each GPU step | Self-hosted models above some QPS where fixed GPU cost beats per-token API price | Applies only to models you host, not to API per-token pricing; below that QPS the API wins | Low, and the mechanics are owned by topics 02 and 04 |
+
+The core dividing line: routing and cascades pick a cheaper model (before versus after seeing an answer), while caching, compression, and right-sizing make the call itself cheaper instead.
+
 - **Stanford** [FrugalGPT: Using LLMs While Reducing Cost and Improving Performance](https://arxiv.org/abs/2305.05176): An LLM cascade defers to pricier models only when the cheap response scores unreliable. *(eval bar)*
 - **LMSYS** [RouteLLM: an open framework for cost-effective LLM routing](https://www.lmsys.org/blog/2024-07-01-routellm/): A preference-data router splits queries between strong and weak models, about 85% cost cut. *(product design)*
 - **Anyscale** [Building an LLM Router for High-Quality and Cost-Effective Responses](https://www.anyscale.com/blog/building-an-llm-router-for-high-quality-and-cost-effective-responses): A fine-tuned classifier routes by query complexity between closed and open models. *(eval bar)*

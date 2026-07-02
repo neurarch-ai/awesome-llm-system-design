@@ -196,17 +196,21 @@ flowchart LR
 
 ### How they differ
 
-| System | ANN index / library | Quantization / compression | Hybrid lexical+neural | Reranking |
-|---|---|---|---|---|
-| Spotify (Voyager) | HNSW (hnswlib) | E4M3 8-bit float | No | No |
-| Vespa | HNSW plus inverted file | int8 vectors | Yes | Two-phase full-precision |
-| Meta (Faiss) | IVF-PQ, GPU | Product quantization | Not stated | Not stated |
-| Google (ScaNN) | Partition plus reorder | Anisotropic learned quantization | Not stated | Full-precision rescore |
-| Microsoft (DiskANN) | Vamana graph, SSD | Product quantization | Not stated | Full-precision from SSD |
-| LinkedIn | Two-stage ANN plus ranker | Matryoshka dimension truncation | Not stated | Ranker stage |
-| Etsy | HNSW | 4-bit PQ | Yes (term plus neural) | Not stated |
-| Walmart | Inverted index plus neural | Not stated | Yes | Not stated |
-| Faire | SPLADE over Elasticsearch | Sparse neural | Yes (interpretable) | Not stated |
+| System | ANN index / library | Quantization / compression | Hybrid lexical+neural | Reranking | When it wins | Watch out |
+|---|---|---|---|---|---|---|
+| Spotify (Voyager) | HNSW (hnswlib) | E4M3 8-bit float | No | No | Pure-semantic recommendation where memory is not the constraint and lexical match does not matter | Graph plus vectors is RAM-heavy; no lexical channel, so exact-term queries can miss |
+| Vespa | HNSW plus inverted file | int8 vectors | Yes | Two-phase full-precision | Billion-scale at ~90% recall under 50ms on a budget, dense and lexical in one engine | Hybrid HNSW-IF plus two-phase rescore adds operational complexity |
+| Meta (Faiss) | IVF-PQ, GPU | Product quantization | Not stated | Not stated | Billion-scale throughput when GPUs are available | PQ costs recall; GPU fleet cost |
+| Google (ScaNN) | Partition plus reorder | Anisotropic learned quantization | Not stated | Full-precision rescore | Best recall-vs-QPS on ann-benchmarks for CPU-bound serving | Learned quantization is fit to the distribution; drift needs retraining |
+| Microsoft (DiskANN) | Vamana graph, SSD | Product quantization | Not stated | Full-precision from SSD | Billion vectors that do not fit in RAM, ~95% recall at ~5ms from SSD | SSD random reads bound tail latency; rebuild cost |
+| LinkedIn | Two-stage ANN plus ranker | Matryoshka dimension truncation | Not stated | Ranker stage | 1B+ profiles where a cheap truncated first stage feeds a heavy ranker | Two stages to tune and keep aligned |
+| Pinterest | Multi-embedding ANN (two-tower) | Not stated | Not stated | Interest filters | Several interest embeddings per user retrieved together for homefeed | Multi-embedding fan-out multiplies query cost |
+| Etsy | HNSW | 4-bit PQ | Yes (term plus neural) | Not stated | Personalized product retrieval mixing term and neural signals | Aggressive 4-bit PQ trades recall for memory |
+| Instacart | FAISS | Not stated | Not stated | Not stated | Two-tower catalog retrieval stable enough for daily index rebuilds | Daily indices lag intra-day catalog changes (freshness) |
+| Walmart | Inverted index plus neural | Not stated | Yes | Not stated | Tail product queries where lexical precision matters | Two retrieval systems to maintain and fuse |
+| Faire | SPLADE over Elasticsearch | Sparse neural | Yes (interpretable) | Not stated | Neural semantics with lexical-style interpretability on existing ES infra | SPLADE term expansion inflates posting-list size |
+
+The core dividing line is how each system spends its memory budget: hold full vectors in RAM behind a graph index, or compress hard (PQ, dimension truncation, SSD) and add a lexical channel to win back the recall that compression and pure-dense both cost.
 
 ### The systems
 

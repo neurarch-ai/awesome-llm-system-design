@@ -184,23 +184,25 @@ flowchart LR
 
 ### How they differ
 
-| System | Transport | Text / voice | Turn detection / endpointing | Session memory or scale concern |
-|---|---|---|---|---|
-| LinkedIn | realtime messaging (WebSocket) | text | n/a | history in shared prompt templates |
-| Cloudflare | WebSocket via Durable Objects | text | n/a | persistent connections for concurrent streams |
-| Vercel | native streaming, throttled fallback | text | n/a | cross-platform stream delivery |
-| OpenAI | Realtime speech-to-speech | voice | model-side | audio snapshots for STT and TTS |
-| LiveKit | WebRTC (WebSocket for signaling) | voice | semantic end-of-turn model | packet loss and jitter tolerance |
-| Deepgram | streaming STT | voice | eager end-of-turn on medium confidence | overlap LLM start with speech |
-| AssemblyAI | streaming STT | voice | intelligent endpointing (~300ms) | immutable transcripts |
-| ElevenLabs | streaming TTS | voice | n/a | TTS time-to-first-byte |
-| Cartesia | streaming TTS | voice | n/a | 135ms model latency |
-| Krisp | CPU turn model | voice | 6M-weight turn detection | speak, listen, or wait decision |
-| Twilio | WebSocket Media Streams | voice | n/a | raw call audio fork, bidirectional |
-| Vapi | streaming STT plus VAD | voice | VAD and endpointing | inference coordination |
-| Daily / Pipecat | WebRTC, open benchmark | voice | Smart Turn v3 semantic VAD (12ms CPU) | latency benchmarking |
-| Slack | WebSocket gateway | text | n/a | stateful channel servers, 500ms global delivery |
-| Discord | WebSocket (Elixir GenServer) | text | n/a | 5M concurrent, Manifold fan-out |
+| System | Transport | Text / voice | Turn detection / endpointing | Session memory or scale concern | When it wins | When it breaks / watch out |
+|---|---|---|---|---|---|---|
+| LinkedIn | realtime messaging (WebSocket) | text | n/a | history in shared prompt templates | streaming plus progressive parsing hides latency on structured output | mid-stream parsing of partial output is fragile; shared templates couple history |
+| Cloudflare | WebSocket via Durable Objects | text | n/a | persistent connections for concurrent streams | many long-lived concurrent streams needing stateful edge connections | a Durable Object per connection adds coordination and cost overhead |
+| Vercel | native streaming, throttled fallback | text | n/a | cross-platform stream delivery | one chat UI shipping across platforms that stream unevenly | the throttled fallback trades token smoothness for reach |
+| OpenAI | Realtime speech-to-speech | voice | model-side | audio snapshots for STT and TTS | lowest-latency voice when one model handles speech in and out | model-side turn detection is a black box you cannot tune per product |
+| LiveKit | WebRTC (WebSocket for signaling) | voice | semantic end-of-turn model | packet loss and jitter tolerance | real-world networks with packet loss, jitter, and congestion | WebRTC is heavier to operate; raw model APIs lack transport, echo, and turn logic |
+| Deepgram | streaming STT | voice | eager end-of-turn on medium confidence | overlap LLM start with speech | shaving latency by starting the LLM before the user fully stops | eager start can act on a half-finished utterance and misfire |
+| AssemblyAI | streaming STT | voice | intelligent endpointing (~300ms) | immutable transcripts | stable transcripts fast with no later rewrites | the ~300ms endpointing floor adds to every turn |
+| ElevenLabs | streaming TTS | voice | n/a | TTS time-to-first-byte | responsive spoken replies where the first audio byte matters | TTS time-to-first-byte piles onto the tail after the LLM |
+| Cartesia | streaming TTS | voice | n/a | 135ms model latency | the tightest voice latency budgets | a state-space TTS trades some quality for that latency |
+| Krisp | CPU turn model | voice | 6M-weight turn detection | speak, listen, or wait decision | cheap CPU turn-taking with no GPU in the loop | a 6M-weight model bounds how nuanced the decision can be |
+| Twilio | WebSocket Media Streams | voice | n/a | raw call audio fork, bidirectional | bridging telephony and PSTN call audio into an LLM | it forks raw audio only; STT, turn detection, and TTS are on you |
+| Vapi | streaming STT plus VAD | voice | VAD and endpointing | inference coordination | wanting an assembled pipeline instead of wiring parts yourself | coordinating STT, VAD, LLM, and TTS multiplies moving parts |
+| Daily / Pipecat | WebRTC, open benchmark | voice | Smart Turn v3 semantic VAD (12ms CPU) | latency benchmarking | open-source semantic turn detection with measurable latency | you self-host and assemble the whole stack |
+| Slack | WebSocket gateway | text | n/a | stateful channel servers, 500ms global delivery | stateful channels with predictable global delivery | stateful servers complicate scaling and failover |
+| Discord | WebSocket (Elixir GenServer) | text | n/a | 5M concurrent, Manifold fan-out | massive concurrent fan-out to many listeners at once | per-session actors and fan-out need a specialized runtime (Elixir/BEAM) |
+
+The core dividing line is the medium: text systems optimize concurrent-connection scale over SSE or WebSocket, while voice systems switch to WebRTC and bolt on STT, turn-detection, and TTS stages to fight per-hop latency.
 
 ### The systems
 

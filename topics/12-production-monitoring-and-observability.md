@@ -295,6 +295,21 @@ Real systems that ship the patterns above. Each is a first-party engineering
 writeup; read them for what an interview answer skips: who the system serves, the
 product design, the eval bar, and the deployment shape.
 
+### How they differ
+
+The approaches below are layers of one pipeline, not competitors, but they trade off cost, coverage, and how fast they catch a problem very differently.
+
+| Approach | What it catches | Latency to detect | Coverage | When it breaks / watch out | Cost |
+|---|---|---|---|---|---|
+| Tracing and spans | Where in the chain a request failed (bad retrieval, wrong tool call, missing context) | Immediate for the record, only when someone reads it for diagnosis | All requests | Verbatim prompts hold user secrets; log volume and retention explode at scale | Cheap, synchronous, on the hot path |
+| Metrics dashboards (latency, cost, tokens, TTFT) | Systems regressions: slower TTFT, cost blowups, error and timeout spikes | Minutes | All requests | Means hide the tail; a quality drop with stable latency is invisible here | Cheap, from span attributes |
+| Online LLM-as-judge | Faithfulness and answer-relevance quality with no labels | Minutes to hours, off the hot path | Sampled | Carries offline biases (position, verbosity, self-preference); a number that lies until calibrated against humans | Expensive; doubles the bill per judged call, so sampled |
+| Grounding and contradiction check | Hallucinations: claims not supported by the retrieved context | Minutes to hours on the async stream | Sampled, or all with a cheap NLI or embedding first pass | Only valid when the answer should be grounded; open creative generation has no context to check | Low with an encoder or embedding model, higher with an LLM judge |
+| Drift detection | Input drift (new topics, languages) and output drift (rising ungrounded rate, falling judge scores) | Hours to days, trend-based | All traffic against a reference window | Predicts trouble but confirms nothing alone; needs a stable reference window | Cheap embedding distance plus existing proxy scores |
+| Guardrail-violation logging | Attacks, safety regressions, over-eager filters blocking good traffic | Minutes on rate trends | All decisions logged, allowed traffic re-scanned on a sample | Blocked answers never get quality-scored, so a rising refusal rate hides as silent degradation | Cheap to log; the sampled safety re-scan adds judge cost |
+
+The core dividing line is whether a check is cheap enough to run synchronously on every request or must be sampled and run async because each call costs an extra model, which is exactly why cheap tracing and metrics cover all traffic while judge and grounding checks watch only a chosen slice.
+
 - **Datadog** [Detect hallucinations in your RAG LLM applications](https://www.datadoghq.com/blog/llm-observability-hallucination-detection/): Flags ungrounded or contradictory outputs against retrieved context in production RAG apps. *(product design)*
 - **Datadog** [Detecting hallucinations with LLM-as-a-judge](https://www.datadoghq.com/blog/ai/llm-hallucination-detection/): How they built and benchmarked an LLM-as-judge faithfulness detector. *(eval bar)*
 - **Honeycomb** [Improving LLMs in Production With Observability](https://www.honeycomb.io/blog/improving-llms-production-observability): Spans capture input, output, errors, latency, tokens, and user feedback for their Query Assistant. *(deployment)*

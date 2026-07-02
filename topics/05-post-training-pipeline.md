@@ -312,16 +312,23 @@ flowchart LR
 
 ### How they differ
 
-| System | Adaptation | Alignment beyond SFT | Data curation focus | Eval gate |
-|---|---|---|---|---|
-| Grammarly CoEdIT | Task-specific instruction tuning | SFT only | Dense edit-task instruction data | Beats generalist LLMs at 12x to 60x fewer params |
-| Anyscale (DPO) | Full fine-tune (LoRA underperformed here) | SFT plus iterative DPO | On-policy synthetic prefs, LLM-as-judge | Q-and-A accuracy plus compression ratio |
-| Shopify Flow | Full fine-tune (Qwen3-32B, FSDP) | SFT only | Reverse-engineered synthetic workflows in a Python DSL | Weekly LLM judge calibrated to human labels |
-| Mercari | QLoRA (4-bit, 2B base) | SFT only | Templated listing-to-attribute pairs | BLEU versus GPT-3.5, ~14x cheaper |
-| Grab | LoRA then full fine-tune (Qwen2-VL) | SFT only | OCR and key-info-extraction pairs | Accuracy on document processing |
-| LinkedIn EON | Instruction tuning (Llama base) | SFT plus RLHF/DPO | Domain-adapted platform data | 75x cheaper than GPT-4 on platform tasks |
-| Cloudflare | Serves customer LoRA adapters | not applicable (inference) | Per-customer adapters on a shared base | Multi-LoRA edge serving |
-| Spotify | Rejection-sampling SFT | SFT plus DPO | Preference-aligned query expansions | 70% faster query expansion |
+| System | Adaptation | Alignment beyond SFT | Data curation focus | When it wins | Cost / latency profile | Eval gate |
+|---|---|---|---|---|---|---|
+| Grammarly CoEdIT | Task-specific instruction tuning | SFT only | Dense edit-task instruction data | Narrow, well-scoped task with dense instruction data | Tiny model (12x to 60x fewer params), cheap to serve | Beats generalist LLMs at 12x to 60x fewer params |
+| Anyscale (DPO) | Full fine-tune (LoRA underperformed here) | SFT plus iterative DPO | On-policy synthetic prefs, LLM-as-judge | A quality axis SFT cannot capture, where LoRA left accuracy on the table | Full fine-tune, heavier train, one model per task | Q-and-A accuracy plus compression ratio |
+| Shopify Flow | Full fine-tune (Qwen3-32B, FSDP) | SFT only | Reverse-engineered synthetic workflows in a Python DSL | Structured DSL generation where a large base is needed | 32B full fine-tune under FSDP, heavy train | Weekly LLM judge calibrated to human labels |
+| Mercari | QLoRA (4-bit, 2B base) | SFT only | Templated listing-to-attribute pairs | Cost-sensitive extraction where a small tuned model can beat an API | 4-bit 2B adapter, ~14x cheaper than GPT-3.5 | BLEU versus GPT-3.5, ~14x cheaper |
+| Grab | LoRA then full fine-tune (Qwen2-VL) | SFT only | OCR and key-info-extraction pairs | Multimodal doc extraction where LoRA warm-start then full fine-tune buys the last gains | Staged train, full fine-tune for the final model | Accuracy on document processing |
+| LinkedIn EON | Instruction tuning (Llama base) | SFT plus RLHF/DPO | Domain-adapted platform data | Many platform tasks riding one domain-adapted base | 75x cheaper than GPT-4 on platform tasks | 75x cheaper than GPT-4 on platform tasks |
+| Cloudflare | Serves customer LoRA adapters | not applicable (inference) | Per-customer adapters on a shared base | Many tenants, each needing their own adapter on one base | Shared base plus tiny per-customer adapters at the edge | Multi-LoRA edge serving |
+| Spotify | Rejection-sampling SFT | SFT plus DPO | Preference-aligned query expansions | Generation quality shaped by preferences SFT alone misses | 70% faster query expansion at serve time | 70% faster query expansion |
+| GitHub Copilot | Mid-training plus SFT (fill-in-middle) | RL stage on top | Code-completion (fill-in-middle) data | Latency-critical completion at scale needing a custom base | Custom model built for faster completions | Faster, smarter completions versus prior model |
+| Shopify catalogue | Fine-tune small VLM | SFT only | Multimodal catalogue-extraction pairs | High-volume multimodal extraction where a small model must stay cheap | Small VLM sized for 40M inferences per day | Catalogue-extraction quality at 40M inferences per day |
+| Nubank | SFT of transaction foundation model (joint fusion) | SFT only | Transaction sequences | Proprietary tabular/behavioral domain no general LLM covers | In-house foundation model | Transaction user-model quality |
+| Thomson Reuters | Domain adaptation (7B to 30B, continued training) | SFT only | Legal corpus | High-stakes specialized domain (legal) | 7B to 30B trained on SageMaker HyperPod | Beats general models on legal tasks |
+| Yelp | Fine-tuned LLM classifier | SFT only | Inappropriate-language labeled reviews | High-precision content moderation | Classifier, cheap batch inference | Blocked 23,600+ reviews in 2023 |
+| Uber | LoRA/QLoRA, full fine-tune, and continued pretraining | SFT only | Many internal task datasets | Broad internal use spanning the full method range | In-house stack optimized across methods | Training-cost efficiency on the in-house stack |
+| Replit | Pretrain plus fine-tune code model | SFT only | Replit user code | Platform-native code model trained on proprietary code | Self-trained model on user code | Code-model quality on the platform |
 
 ### The systems
 
