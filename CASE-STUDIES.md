@@ -1,22 +1,106 @@
 # Production case studies, by topic
 
-The same landscape of shipped ML and LLM systems that the broad indexes catalog
-(the [Evidently AI ML system design database](https://www.evidentlyai.com/ml-system-design)
-is the widest, 800 case studies from 150+ companies), re-organized into this
-repo's own pipeline-stage taxonomy and presented our way: every entry is a
-first-party engineering writeup with a verified link, tagged by what it actually
-shows you (*who it serves* / *product design* / *eval bar* / *deployment*).
+The same landscape of shipped LLM systems that the broad indexes catalog
+(crediting the [Evidently AI ML system design database](https://www.evidentlyai.com/ml-system-design)),
+re-organized into this repo's own use-case taxonomy.
 
-This is a roll-up of the **Seen in production** section inside each topic, so you
-can browse the whole set by category in one place. 189 systems and growing.
+Each category is not just a link list: it opens with a **similarities and
+differences** synthesis, a **Mermaid diagram of where the real designs diverge**,
+a **choices side-by-side table**, the **math that separates the approaches**, and
+where useful a **tradeoff quadrant plot**, all read from the underlying engineering
+writeups. Then the systems themselves. For the full per-case teardown of any one,
+see [CASE-TEARDOWNS.md](CASE-TEARDOWNS.md); browse the same systems
+[by company](CASE-STUDIES-BY-COMPANY.md) or [by industry](CASE-STUDIES-BY-INDUSTRY.md).
 
-> Want the design behind these, not just the link? See [CASE-TEARDOWNS.md](CASE-TEARDOWNS.md): each system read from its source and turned into a diagram, interview questions, tricks, and common mistakes.
-
-
-> Prefer a different lens? Browse these same systems [by company](CASE-STUDIES-BY-COMPANY.md) or [by industry](CASE-STUDIES-BY-INDUSTRY.md).
+205 systems across the taxonomy, and growing.
 
 ---
 ### [RAG serving](topics/01-rag-serving.md) · 18 systems
+
+**What they share.** Every team runs the same spine: embed the query, retrieve candidate chunks from an index, rerank the shortlist, assemble a tight grounded context, and let the LLM generate a cited answer, with an offline parse-chunk-embed-index loop feeding freshness. What varies is where each team spends effort.
+
+```mermaid
+flowchart LR
+  Q["query"] --> E["embed"]
+  E --> RET{"retrieval strategy"}
+  RET -->|"dense vector"| V["Ramp, NVIDIA"]
+  RET -->|"hybrid vec + BM25"| H["Dropbox, Vespa, Glean"]
+  RET -->|"graph traversal"| GR["MS GraphRAG"]
+  RET -->|"agentic rewrite"| AG["Uber"]
+  V --> RR{"rerank effort"}
+  H --> RR
+  GR --> RR
+  AG --> RR
+  RR -->|"two-prompt select"| RA["Ramp"]
+  RR -->|"cross-encoder"| RN["NVIDIA"]
+  RR -->|"bigger embed model"| RD["Dropbox"]
+  RR -->|"community summaries"| RG["MS GraphRAG"]
+  RR -->|"multi-signal + ACL"| RGL["Glean"]
+  RA --> CH{"chunk / freshness"}
+  RN --> CH
+  RD --> CH
+  RG --> CH
+  RGL --> CH
+  CH -->|"precomputed per label"| CR["Ramp"]
+  CH -->|"query-time chunk + webhooks"| CD["Dropbox"]
+  CH -->|"LLM-enriched offline"| CU["Uber"]
+  CH -->|"LLM-built entity graph"| CG["MS GraphRAG"]
+  CR --> EV{"grounding / eval"}
+  CD --> EV
+  CU --> EV
+  CG --> EV
+  EV -->|"accuracy@k"| EA["Ramp, Vespa"]
+  EV -->|"LLM-as-judge"| EU["Uber, Dropbox"]
+  EV -->|"comprehensiveness + SelfCheckGPT"| EG["MS GraphRAG"]
+  EV -->|"source precision/recall/F1"| EF["Dropbox, Glean"]
+  EA --> G["LLM generate + citations"]
+  EU --> G
+  EG --> G
+  EF --> G
+```
+
+**The choices, side by side.**
+
+| Decision | Options (who chooses each) | What decides it |
+| --- | --- | --- |
+| Retrieval strategy | `dense` (Ramp, NVIDIA) vs `hybrid vec+BM25` (Dropbox, Vespa, Glean) vs `graph` (MS GraphRAG) vs `agentic rewrite` (Uber) | Multi-hop or messy queries pull richer retrieval |
+| Chunking / freshness | `precomputed per label` (Ramp) vs `query-time chunk` (Dropbox) vs `LLM-enriched offline` (Uber) vs `LLM entity graph` (MS) | Corpus churn and label-set stability |
+| Reranking | `two-prompt select` (Ramp) vs `cross-encoder` (NVIDIA) vs `bigger embed model` (Dropbox) vs `multi-signal+ACL` (Glean) | Precision need vs latency and token budget |
+| Grounding / eval | `accuracy@k` (Ramp, Vespa) vs `LLM-judge` (Uber, Dropbox) vs `comprehensiveness+SelfCheckGPT` (MS) vs `source F1` (Dropbox, Glean) | Closed labels score exactly; open Q&A needs judges |
+
+**The math that separates them.**
+
+**Retrieval recall ceiling (Ramp, Vespa)**
+$$\text{recall@}k = \frac{1}{|Q|}\sum_{q \in Q} \frac{|R_q^{k} \cap G_q|}{|G_q|}$$
+
+**Hybrid fusion beats semantic-only by 3 to 5 pts (Vespa, Dropbox, Glean)**
+$$\text{RRF}(d) = \sum_{r \in \{\text{bm25},\,\text{vec}\}} \frac{1}{k_{\text{rrf}} + \text{rank}_r(d)}$$
+
+**Rerank is a cost lever, roughly 75x cheaper than the generator (NVIDIA)**
+$$C_{\text{rerank}} \approx \frac{1}{75}\,C_{\text{gen}} \;\Rightarrow\; \Delta_{\text{cost}} \approx -21.5\%$$
+
+**Quantization sets the index memory budget, binary gives 32x (Vespa)**
+$$\text{bytes} = N \cdot d \cdot \frac{b}{8}, \qquad b: 32 \to 16 \to 1 \;\;(32\times \text{ smaller})$$
+
+```mermaid
+quadrantChart
+    title Retrieval investment vs quality
+    x-axis Low cost --> High cost
+    y-axis Low recall/quality --> High recall/quality
+    quadrant-1 rich and expensive
+    quadrant-2 high value
+    quadrant-3 cheap and shallow
+    quadrant-4 costly for little
+    Ramp dense: [0.22, 0.45]
+    NVIDIA cross-encoder: [0.5, 0.72]
+    Vespa hybrid + quant: [0.4, 0.78]
+    Dropbox hybrid + query-chunk: [0.6, 0.74]
+    Glean hybrid + graph + ACL: [0.78, 0.82]
+    Uber agentic rewrite: [0.82, 0.8]
+    MS GraphRAG: [0.9, 0.85]
+```
+
+**The systems**
 
 - **Ramp** [From RAG to Richness: How Ramp Revamped Industry Classification](https://builders.ramp.com/post/industry_classification): Embedding-model selection plus two-prompt retrieval over NAICS codes, with precomputed embeddings. *(product design)*
 - **Uber** [Enhanced Agentic-RAG: near-human precision for chatbots](https://www.uber.com/blog/enhanced-agentic-rag/): Pre-retrieval query agents, doc loaders, metadata enrichment, and LLM-as-judge eval. *(deployment)*
@@ -39,7 +123,67 @@ can browse the whole set by category in one place. 189 systems and growing.
 
 ---
 
-### [Semantic search & embedding service](topics/08-semantic-search-and-embeddings.md) · 21 systems
+### [Semantic search and embeddings](topics/08-semantic-search-and-embeddings.md) · 21 systems
+
+**What they share.** Every system runs the same skeleton: offline, embed the corpus and build an ANN index; online, embed the query, retrieve approximate neighbors, and rescore a shortlist at higher precision. The divergence is not the spine but four knobs: which ANN structure, how hard vectors are compressed, whether a lexical channel runs alongside, and how heavy the final rerank is.
+
+```mermaid
+flowchart LR
+  D["corpus"] --> E["embed (encoder-only / two-tower)"]
+  E --> IDX{"ANN index?"}
+  IDX -->|"graph"| G["HNSW (Spotify) / Vamana on SSD (DiskANN)"]
+  IDX -->|"inverted + quantize"| P["IVF-PQ (Meta Faiss) / anisotropic PQ (ScaNN)"]
+  Q["query"] --> EQ["embed query"]
+  EQ --> RET["ANN retrieve"]
+  G -.-> RET
+  P -.-> RET
+  Q --> HYB{"hybrid lexical?"}
+  HYB -->|"yes"| LX["BM25 / inverted-file fuse (Vespa, Etsy)"]
+  HYB -->|"no"| RET
+  RET --> RR{"rerank shortlist?"}
+  RR -->|"full-precision rescore"| RS["page real vectors, rescore (Vespa, ScaNN, DiskANN)"]
+  RR -->|"learned ranker"| LR["L2 DCNv2 / cross-encoder (LinkedIn)"]
+  RS --> RES["top-k"]
+  LR --> RES
+```
+
+**The choices, side by side.**
+
+| Decision | Options (who) | What decides it |
+| --- | --- | --- |
+| ANN index | `HNSW` (Spotify) vs `IVF-PQ` (Meta) vs `ScaNN` anisotropic (Google) vs `Vamana`/`DiskANN` (Microsoft) vs `HNSW-IF` (Vespa) | Does the corpus fit in RAM? Graph if yes; inverted-file plus SSD if billion-scale on a budget |
+| quantization | `E4M3 8-bit float` (Spotify) vs `int8` (Vespa) vs `PQ 20-byte codes` (Meta) vs `anisotropic learned PQ` (Google) vs `4-bit PQ` (Etsy) vs `8-bit custom scaling` (Dropbox) | RAM budget per vector; MIPS ranking wants parallel-error penalty, not uniform reconstruction |
+| hybrid/rerank | dense-only (Spotify) vs `HNSW + BM25/inverted-file` (Vespa, Etsy, Walmart) vs `SPLADE` sparse-neural (Faire); rescore: full-precision (Vespa depth 4000, ScaNN, DiskANN) vs learned `DCNv2` (LinkedIn) | Do exact-term / rare-token queries matter? Compressed first-phase scores are approximate, so rescore recovers precision |
+| dimensionality | `fixed full dim` (Dropbox, to bound cosine error) vs `Matryoshka` nested (LinkedIn: 2048 retrieve, 4096 rank) vs multi-embedding fan-out (Pinterest, Instacart) | Dim sets index RAM and search time linearly; Matryoshka serves both stages from one training run |
+
+**The math that separates them.**
+
+$$\textbf{index memory (uncompressed)} = n_{vectors} \times dim \times bytes_{per\ elem}$$
+
+$$\textbf{PQ compression ratio} = \frac{dim \times 4}{m \times \lceil b/8 \rceil}, \quad m\ \text{subspaces},\ b\ \text{bits/code}$$
+
+$$\textbf{ScaNN anisotropic loss} = \eta \, \lVert r_{\parallel} \rVert^{2} + \lVert r_{\perp} \rVert^{2}, \quad r = x - \tilde{x},\ \eta > 1$$
+
+$$\textbf{recall vs latency (graph)} = f(ef,\ M) \uparrow \ \Rightarrow\ recall \uparrow,\ latency \uparrow$$
+
+```mermaid
+quadrantChart
+  title ANN system tradeoffs
+  x-axis "low memory / cost" --> "high memory / cost"
+  y-axis "lower recall" --> "higher recall"
+  quadrant-1 "RAM-heavy, high recall"
+  quadrant-2 "cheap, high recall"
+  quadrant-3 "cheap, lower recall"
+  quadrant-4 "costly, lower recall"
+  Spotify HNSW: [0.72, 0.82]
+  Vespa HNSW-IF: [0.35, 0.80]
+  Meta Faiss IVF-PQ: [0.28, 0.55]
+  Google ScaNN: [0.40, 0.78]
+  Microsoft DiskANN: [0.22, 0.88]
+  LinkedIn Matryoshka: [0.45, 0.70]
+```
+
+**The systems**
 
 - **Spotify** [Introducing Voyager: Spotify new nearest-neighbor search library](https://engineering.atspotify.com/2023/10/introducing-voyager-spotifys-new-nearest-neighbor-search-library): HNSW ANN library: recall versus speed versus memory tradeoffs, 8-bit compression. *(deployment)*
 - **Vespa** [Billion-scale vector search using hybrid HNSW-IF](https://blog.vespa.ai/vespa-hybrid-billion-scale-vector-search/): In-memory HNSW plus disk-backed inverted files for 90% recall under 50ms, cheaply. *(deployment)*
@@ -65,7 +209,74 @@ can browse the whole set by category in one place. 189 systems and growing.
 
 ---
 
-### [Long-context inference & the KV cache](topics/02-long-context-and-kv-cache.md) · 20 systems
+### [Long-context and the KV cache](topics/02-long-context-and-kv-cache.md) · 20 systems
+
+**What they share.** Every system runs one two-phase loop: prefill builds a KV cache once, then decode reuses that cache one token at a time, memory-bandwidth bound. All the divergence is in how each entry is shrunk, reused, or dropped against the same `kv_bytes` formula.
+
+```mermaid
+flowchart LR
+  P[Prompt] --> PF[Prefill builds KV cache]
+  PF --> KV[(Paged KV cache)]
+  KV --> D[Decode loop reuses KV per token]
+  D --> KV
+  D --> O[Output tokens]
+
+  KV --> B1{Shrink each entry?}
+  B1 -->|fewer KV heads| GQA[GQA Google, MQA Character.AI]
+  B1 -->|latent compression| MLA[MLA DeepSeek-V2/V3]
+  B1 -->|low-bit cache| QNT[NVFP4 NVIDIA, int4/int2 HF/KIVI]
+
+  KV --> B2{Reuse entries across requests?}
+  B2 -->|paged blocks| PAG[PagedAttention vLLM]
+  B2 -->|radix / prefix| RDX[RadixAttention SGLang, prompt cache Anthropic/Databricks]
+
+  KV --> B3{Drop entries entirely?}
+  B3 -->|sink + window| STR[StreamingLLM MIT/Meta]
+  B3 -->|heavy-hitter evict| H2O[H2O UT Austin, MixAttention Databricks]
+```
+
+**The choices, side by side.**
+
+| Decision | Options (who) | What decides it |
+| --- | --- | --- |
+| attention KV sharing | `MHA` (baseline) vs `GQA` (Google, Llama-3) vs `MLA` (DeepSeek) vs `MQA` (Character.AI) | how much of the `kv_heads` term you cut vs quality floor; MLA is train-time, GQA converts cheaply, MQA is most aggressive |
+| memory management | `paged` (vLLM) vs `radix/prefix cache` (SGLang, Anthropic, Databricks) vs `eviction` (StreamingLLM, H2O) | reuse across requests when prefixes repeat; drop when the middle is expendable; page when fragmentation is the wall |
+| quantization | `NVFP4 4-bit` (NVIDIA) vs `int8 native` (Character.AI) vs `int4/int2 per-token` (HF, KIVI) | memory headroom vs eval-gated quality; native-int8 needs custom kernels, PTQ needs per-channel scales |
+| cross-layer / window sharing | `sliding window` (Databricks MixAttention, Character.AI 5-of-6) vs `cross-layer KV reuse` (Character.AI 2-3x, MA-Pairs) vs `full attention` (MHA) | long-range recall vs cache size; keep full-attention layers deep, cap sharing or reading-comprehension regresses |
+
+**The math that separates them.**
+
+**KV cache bytes (the term everyone attacks):**
+$$ \mathrm{kv\_bytes} \approx 2 \cdot L \cdot S \cdot h_{kv} \cdot d_{head} \cdot b \cdot B $$
+
+**GQA sharing ratio (32 query, 8 KV heads):**
+$$ r_{GQA} = \frac{h_{kv}}{h_q} = \frac{8}{32} = \frac{1}{4} $$
+
+**MLA latent compression (cache $d_c$, not K and V):**
+$$ r_{MLA} = \frac{d_c}{2 \cdot h_{kv} \cdot d_{head}} \approx 0.07 \quad (\text{about } 93\% \text{ smaller}) $$
+
+**Low-bit KV vs FP8 (NVFP4 halves memory):**
+$$ r_{quant} = \frac{b_{lo}}{b_{hi}} = \frac{4}{8} = \frac{1}{2} \Rightarrow 2\times \text{ context, batch, concurrency} $$
+
+```mermaid
+quadrantChart
+  title Memory saved vs quality retained
+  x-axis Low memory saved --> High memory saved
+  y-axis Low quality retained --> High quality retained
+  quadrant-1 aggressive and safe
+  quadrant-2 conservative and safe
+  quadrant-3 conservative and risky
+  quadrant-4 aggressive and risky
+  MHA: [0.05, 0.97]
+  GQA: [0.45, 0.92]
+  MLA: [0.9, 0.9]
+  NVFP4 KV: [0.6, 0.86]
+  MQA: [0.85, 0.68]
+  StreamingLLM: [0.8, 0.55]
+  H2O evict: [0.75, 0.58]
+```
+
+**The systems**
 
 - **vLLM (UC Berkeley)** [Efficient Memory Management for LLM Serving with PagedAttention](https://arxiv.org/abs/2309.06180): OS-style KV-cache paging cuts fragmentation, boosting throughput 2x to 4x. *(deployment)*
 - **Character.AI** [Optimizing AI Inference at Character.AI](https://blog.character.ai/optimizing-ai-inference-at-character-ai-2/): MQA, hybrid local/global attention, and cross-layer KV-sharing cut cost 33x. *(deployment)*
@@ -90,7 +301,70 @@ can browse the whole set by category in one place. 189 systems and growing.
 
 ---
 
-### [LLM inference serving at scale](topics/04-inference-serving-at-scale.md) · 16 systems
+### [Inference serving at scale](topics/04-inference-serving-at-scale.md) · 16 systems
+
+**What they share.** Every stack lands a request on a router, feeds a continuous (iteration-level) batching scheduler that reshapes the batch each token step, runs prefill then memory-bandwidth-bound decode, and streams tokens back while an SLO-driven autoscaler adds or drops replicas. What differs is only which stage each team pushed hardest.
+
+```mermaid
+flowchart TD
+  REQ["request (high QPS)"] --> RT["router"]
+  RT --> SCH["continuous-batching scheduler"]
+  SCH --> B1{"batch by request or token budget?"}
+  B1 -->|"static batch"| LEGACY["legacy (held hostage by longest seq)"]
+  B1 -->|"continuous + PagedAttention"| PRE["prefill"]
+  B1 -->|"token-budget pack"| PRE
+  PRE --> B2{"prefill and decode: one pool or split?"}
+  B2 -->|"one pool + chunked prefill"| DEC["decode"]
+  B2 -->|"disaggregate (NVIDIA Dynamo)"| DEC
+  DEC --> B3{"break one-token-per-pass?"}
+  B3 -->|"no"| OUT["token stream"]
+  B3 -->|"speculative decode (LinkedIn n-gram / Together ATLAS / Fireworks)"| OUT
+  DEC --> B4{"shrink bytes per decode step?"}
+  B4 -->|"int8 + MQA + cross-layer KV (Character.AI)"| OUT
+  B4 -->|"FP8 + TensorRT-LLM (Baseten)"| OUT
+  AUTO["autoscaler (SLO-driven)"] -.-> SCH
+```
+
+**The choices, side by side.**
+
+| Decision | Options (who) | What decides it |
+| --- | --- | --- |
+| batching | `continuous` + PagedAttention (vLLM/Anyscale) vs `static` vs `token-budget pack` (Baseten BEI) | Output-length variance: high variance rewards iteration-level scheduling; variable prompt length rewards packing to a token budget over a request count |
+| latency lever | `speculative decoding` (LinkedIn n-gram, Together ATLAS, Fireworks) vs `disaggregated prefill/decode` (NVIDIA Dynamo) | Draft acceptance rate vs whether prefill and decode SLOs genuinely conflict; disaggregation needs fast interconnect for the KV handoff |
+| parallelism | TP (in-node, per-layer all-reduce) vs PP (across nodes, stage boundaries) vs EP (MoE expert sharding) | TP for latency and to fit the model on fast links; PP to scale past a node; EP once experts outnumber a GPU |
+| quantization | `int8` weight + KV (Character.AI) vs `FP8` on H100 (Baseten, Modal) vs `4-bit` for fit / cold-start | Decode is bandwidth-bound so fewer bytes read = more tokens/s; every precision drop passes a quality eval (Baseten holds cosine similarity > 99%) |
+
+**The math that separates them.**
+
+$$\textbf{decode step time} \approx \frac{P \cdot b_w + N \cdot \text{KV}_{\text{bytes}}}{\text{HBM bandwidth}}$$
+
+$$\textbf{KV-cache bytes per token} = 2 \cdot L \cdot n_{kv} \cdot d_{head} \cdot b_{kv}$$
+
+$$\textbf{speculative acceptance speedup} = \frac{1 - \alpha^{k+1}}{(1 - \alpha)\,(1 + c\,k)}$$
+
+$$\textbf{arithmetic intensity vs roofline} \;\Rightarrow\; \text{tokens/s} = \min\!\left(\frac{\text{FLOPs}}{\text{op count}},\; \frac{\text{bandwidth}}{\text{bytes moved}}\right)$$
+
+where $P$ = weight params, $b_w$ = weight bytes/param, $N$ = batched sequences, $L$ = layers, $n_{kv}$ = KV heads (MQA drives to 1), $b_{kv}$ = KV bytes/element, $\alpha$ = draft acceptance rate, $k$ = draft length, $c$ = per-token verify overhead.
+
+```mermaid
+quadrantChart
+  title Throughput vs latency positioning
+  x-axis "latency-tuned" --> "throughput-tuned"
+  y-axis "one pool" --> "disaggregated"
+  quadrant-1 "split for throughput"
+  quadrant-2 "split for latency SLO"
+  quadrant-3 "single-pool latency"
+  quadrant-4 "single-pool throughput"
+  "vLLM/Anyscale": [0.72, 0.15]
+  "Character.AI": [0.85, 0.12]
+  "Baseten BEI": [0.68, 0.18]
+  "LinkedIn n-gram": [0.30, 0.20]
+  "Together ATLAS": [0.25, 0.22]
+  "Fireworks": [0.35, 0.18]
+  "NVIDIA Dynamo": [0.60, 0.85]
+```
+
+**The systems**
 
 - **Anyscale** [How continuous batching enables 23x throughput in LLM inference](https://www.anyscale.com/blog/continuous-batching-llm-inference): Iteration-level scheduling plus PagedAttention beat static batching up to 23x. *(deployment)*
 - **Character.AI** [Optimizing AI Inference at Character.AI](https://blog.character.ai/optimizing-ai-inference-at-character-ai/): MQA, cross-layer KV sharing, and int8 quant cut serving cost 13.5x. *(deployment)*
@@ -113,6 +387,66 @@ can browse the whole set by category in one place. 189 systems and growing.
 
 ### [Realtime streaming chat](topics/10-realtime-streaming-chat.md) · 17 systems
 
+**What they share.** Every system carries the same spine: an LLM emits tokens, a transport streams them out, the client renders incrementally, and session memory feeds history back into the next turn. The forks are transport, whether the medium is text or voice, and how each fights per-hop latency.
+
+```mermaid
+flowchart LR
+  U["user"] --> MEM["session memory<br/>feeds history back"]
+  MEM --> LLM["LLM token stream"]
+  LLM --> D1{"transport?"}
+  D1 -->|"SSE / WS"| TX["text stream<br/>(LinkedIn, Vercel, Cloudflare, Slack, Discord)"]
+  D1 -->|"WebRTC / UDP"| VO["voice pipeline<br/>(LiveKit, Daily/Pipecat, Twilio)"]
+  VO --> D2{"pipeline shape?"}
+  D2 -->|"fused"| S2S["speech-to-speech<br/>(OpenAI gpt-realtime)"]
+  D2 -->|"componentized"| CMP["STT to LLM to TTS<br/>(Deepgram, AssemblyAI, ElevenLabs, Cartesia)"]
+  CMP --> D3{"turn detection?"}
+  D3 -->|"eager / medium-conf"| EAG["Deepgram EagerEoT"]
+  D3 -->|"semantic + silence"| SEM["AssemblyAI, Krisp, Smart Turn v3"]
+  TX --> D4{"backpressure?"}
+  D4 -->|"cancel on disconnect"| BP["free the slot"]
+  D4 -->|"throttle / shed / fallback"| DEG["degrade visibly<br/>(Vercel throttled edits)"]
+```
+
+**The choices, side by side.**
+
+| Decision | Options (who) | What decides it |
+| --- | --- | --- |
+| transport | `SSE` (Vercel/OpenAI text) vs `WebSocket` (Cloudflare DO, Slack, Discord) vs `WebRTC/UDP` (LiveKit, Daily/Pipecat) | Text tolerates ordered TCP; voice cannot, because a 200ms TCP retransmit stalls all buffered audio (head-of-line blocking) |
+| pipeline | `text stream` (LinkedIn, Vercel) vs `fused speech-to-speech` (OpenAI gpt-realtime-mini) vs `componentized STT-LLM-TTS` (Deepgram/AssemblyAI/ElevenLabs/Cartesia) | Fused = lowest latency, black-box turn detect, no inspectable transcript; componentized = debuggable, tunable, more hops to add up |
+| turn detection | model-side (OpenAI) vs eager medium-confidence (Deepgram) vs semantic+acoustic+silence (AssemblyAI ~300ms, Krisp 6M-weight CPU, Smart Turn v3 12ms CPU) | Silence-only gives awkward pauses; eager cuts latency but misfires on half-utterances; semantic detects true end-of-turn |
+| session/memory | shared prompt templates (LinkedIn) vs Durable Object per-connection UUID (Cloudflare) vs Redis/PostgreSQL locks+kv (Vercel) vs stateful channel servers (Slack 500ms, Discord GenServer 5M concurrent) | Sticky routing to the replica holding cached KV; without stickiness every turn is a full-prefill cache miss |
+| backpressure/degradation | cancel on disconnect + continuous batching (generic) vs throttled edit-loop fallback (Vercel) vs queue/shed/fall-back-to-smaller-model (generic) | Each stream holds an inference slot for its whole generation, so orphaned streams silently eat capacity |
+
+**The math that separates them.**
+
+$$\textbf{End-to-end text latency:}\quad T_{\text{felt}} = T_{\text{TTFT}} + (N-1)\cdot t_{\text{inter}}$$
+
+$$\textbf{Voice pipeline latency sum:}\quad L_{\text{voice}} = L_{\text{STT}} + L_{\text{turn}} + L_{\text{LLM}} + L_{\text{TTS}} + L_{\text{net}}$$
+
+$$\textbf{Eager speculation cost tradeoff:}\quad C_{\text{LLM}} = C_{\text{base}}\cdot(1 + p_{\text{resume}}),\quad p_{\text{resume}} \approx 0.5 \text{ to } 0.7$$
+
+$$\textbf{Per-turn prefill grows with history:}\quad T_{\text{prefill}} \propto (1 - h_{\text{cache}})\cdot L_{\text{ctx}}$$
+
+```mermaid
+quadrantChart
+  title Latency vs pipeline richness
+  x-axis "lowest latency" --> "highest latency"
+  y-axis "fused / opaque" --> "componentized / inspectable"
+  quadrant-1 "rich but slow"
+  quadrant-2 "rich and fast"
+  quadrant-3 "fast and opaque"
+  quadrant-4 "slow and opaque"
+  OpenAI s2s: [0.2, 0.15]
+  Cartesia TTS: [0.25, 0.7]
+  AssemblyAI STT: [0.35, 0.8]
+  Deepgram eager: [0.3, 0.65]
+  ElevenLabs TTS: [0.45, 0.7]
+  LiveKit WebRTC: [0.4, 0.85]
+  Vercel text: [0.55, 0.5]
+```
+
+**The systems**
+
 - **LinkedIn** [Musings on building a Generative AI product](https://www.linkedin.com/blog/engineering/generative-ai/musings-on-building-a-generative-ai-product): End-to-end token streaming and progressive parsing to cut perceived latency. *(deployment)*
 - **Cloudflare** [Durable Objects for WebSockets and auth in AI Gateway](https://blog.cloudflare.com/do-it-again/): Scaling persistent WebSocket connections for concurrent AI inference streams. *(deployment)*
 - **Vercel** [Chat SDK brings agents to your users](https://vercel.com/blog/chat-sdk-brings-agents-to-your-users): Streaming responses cross-platform via native streaming versus a throttled fallback. *(product design)*
@@ -133,7 +467,138 @@ can browse the whole set by category in one place. 189 systems and growing.
 
 ---
 
+### [Cost optimization and model routing](topics/11-cost-optimization-and-model-routing.md) · 9 systems
+
+**What they share.** Every lever moves a query left on one quality-cost frontier by matching cheap paths to easy work and reserving the frontier model for the hard tail. All sit upstream of the model call in a gateway, and all live or die on one knob calibrated against a quality eval.
+
+```mermaid
+flowchart TD
+  REQ["request"] --> GW["gateway / proxy<br/>budget, fallback, logging"]
+  GW --> D1{"cache hit?<br/>Cloudflare AI Gateway"}
+  D1 -->|"semantic vs exact<br/>tau threshold"| OUT["response"]
+  D1 -->|"miss"| D2{"shorten input?<br/>LLMLingua vs trim"}
+  D2 --> D3{"decide before or<br/>after an answer?"}
+  D3 -->|"before: router<br/>RouteLLM / Anyscale / IBM"| SMALL["cheap model<br/>Mixtral, GPT-2, 13B"]
+  D3 -->|"after: cascade<br/>FrugalGPT scorer"| SMALL
+  SMALL --> D4{"escalate?<br/>confidence low"}
+  D4 -->|"yes"| BIG["frontier model<br/>GPT-4, Llama-3 70B"]
+  D4 -->|"no"| OUT
+  BIG --> OUT
+```
+
+**The choices, side by side.**
+
+| Decision | Options (who) | What decides it |
+| --- | --- | --- |
+| routing | `difficulty router` blind, pre-call (RouteLLM, Anyscale, IBM) vs `cascade` scores its own answer (FrugalGPT) | Latency budget: a two-model path needs slack; router decides once, cascade catches its own mistake |
+| caching | `semantic cache` embed + threshold vs `exact` hash(model, body) (Cloudflare) | Free-text repeats: exact rarely fires, semantic catches paraphrases but a loose tau leaks wrong answers |
+| prompt compression | `LLMLingua` perplexity token-drop vs `context trim` top-k rerank vs none | Input tokens must dominate and context be long, verbose, redundant; else the small-LM pass is pure overhead |
+| model right-sizing / quant | `fine-tuned small` per task + `FP8` self-host (Anyscale, Baseten) vs one frontier model | Task narrowness and QPS: FP8 helps only models you host above the QPS where fixed GPU beats API price |
+
+**The math that separates them.**
+
+$$\textbf{Cascade expected cost:}\quad \mathbb{E}[C] = c_1 + (1-p_1)\,c_2 + (1-p_1)(1-p_2)\,c_3$$
+
+$$\textbf{Router expected savings:}\quad S = f_{\text{weak}}\,(c_{\text{big}} - c_{\text{small}}) - c_{\text{router}}$$
+
+$$\textbf{Cache serve when:}\quad \max_{k}\ \cos(e_q, e_k) \ge \tau,\quad \tau \in (0,1)$$
+
+$$\textbf{Prompt compression ratio:}\quad \rho = \frac{n_{\text{orig}}}{n_{\text{comp}}},\quad \text{net win iff } c_{\text{big}}\,(n_{\text{orig}}-n_{\text{comp}}) > c_{\text{small}}\,n_{\text{orig}}$$
+
+```mermaid
+quadrantChart
+  title Cost saved vs quality retained
+  x-axis "low cost saved" --> "high cost saved"
+  y-axis "quality drops" --> "quality retained"
+  quadrant-1 "ship it"
+  quadrant-2 "safe, low payoff"
+  quadrant-3 "avoid"
+  quadrant-4 "risky discount"
+  "exact cache": [0.2, 0.98]
+  "semantic cache": [0.55, 0.82]
+  "cascade (FrugalGPT)": [0.75, 0.9]
+  "router (RouteLLM)": [0.85, 0.85]
+  "right-size + FP8": [0.6, 0.92]
+  "LLMLingua 20x": [0.7, 0.7]
+```
+
+**The systems**
+
+- **Stanford** [FrugalGPT: Using LLMs While Reducing Cost and Improving Performance](https://arxiv.org/abs/2305.05176): An LLM cascade defers to pricier models only when the cheap response scores unreliable. *(eval bar)*
+- **LMSYS** [RouteLLM: an open framework for cost-effective LLM routing](https://www.lmsys.org/blog/2024-07-01-routellm/): A preference-data router splits queries between strong and weak models, about 85% cost cut. *(product design)*
+- **Anyscale** [Building an LLM Router for High-Quality and Cost-Effective Responses](https://www.anyscale.com/blog/building-an-llm-router-for-high-quality-and-cost-effective-responses): A fine-tuned classifier routes by query complexity between closed and open models. *(eval bar)*
+- **IBM Research** [LLM routing for quality, low-cost responses](https://research.ibm.com/blog/LLM-routers): A real-time router sends each query to the best-value model, cutting cost up to 85%. *(product design)*
+- **Microsoft Research** [LLMLingua: prompt compression for LLM efficiency](https://www.microsoft.com/en-us/research/blog/llmlingua-innovating-llm-efficiency-with-prompt-compression/): Removes unimportant tokens for up to 20x prompt compression with little loss. *(product design)*
+- **Databricks** [Simple, Fast, Scalable Batch LLM Inference](https://www.databricks.com/blog/introducing-simple-fast-and-scalable-batch-llm-inference-mosaic-ai-model-serving): Governed batch inference over large datasets for cost-efficient bulk processing. *(deployment)*
+- **Baseten** [33% faster LLM inference with FP8 quantization](https://www.baseten.co/blog/33-faster-llm-inference-with-fp8-quantization/): FP8 quantization gives a 33% throughput gain and 24% lower cost per token. *(deployment)*
+- **Cloudflare** [Caching in AI Gateway](https://developers.cloudflare.com/ai-gateway/features/caching/): The gateway serves identical requests from cache, cutting billable provider calls and latency. *(deployment)*
+- **Uber** [Uber's GenAI Gateway](https://www.uber.com/blog/genai-gateway/): A unified multi-vendor gateway with usage and budget management across teams, plus fallbacks. *(deployment)*
+
+---
+
 ### [Agent orchestration](topics/03-agent-orchestration.md) · 22 systems
+
+**What they share.** Every system turns a user goal into a plan, then runs a tool-calling loop that acts, observes, and revises with managed context, bolting on a verification pass before the answer ships. They split on whether one context holds the whole job or an orchestrator fans work to parallel subagents.
+
+```mermaid
+flowchart TD
+  G["user goal"] --> P["planner"]
+  P --> D1{"topology?"}
+  D1 -->|single-threaded| ST["one continuous context<br/>Cognition, Airbnb, Uber"]
+  D1 -->|orchestrator + subagents| MA["parallel subagents<br/>Anthropic research, LinkedIn"]
+  ST --> LOOP["tool-calling loop:<br/>act to observe to revise"]
+  MA --> LOOP
+  LOOP --> D2{"tool interface?"}
+  D2 -->|JSON tool-call| J["ReAct, Airbnb, Anthropic research"]
+  D2 -->|code execution| CX["smolagents, MCP-code, Ramp VM"]
+  J --> D3{"context strategy?"}
+  CX --> D3
+  D3 -->|compress / write / select / isolate| CTX["LangChain, Cognition compressor"]
+  CTX --> V{"verify?"}
+  V -->|citation / self-test / policy gate| VOK["Anthropic CitationAgent, Ramp tests, Airbnb guardrails"]
+  V -->|retry / re-plan| LOOP
+  VOK --> OUT["answer / escalate"]
+```
+
+**The choices, side by side.**
+
+| Decision | Options (who) | What decides it |
+| --- | --- | --- |
+| topology | `single-agent loop` (Cognition, Airbnb, Uber) vs `orchestrator + parallel subagents` (Anthropic research, LinkedIn) vs `escalate-when-needed` (OpenAI guide) | Can one context hold the job? Separable subtasks needing isolated windows favor fan-out; coherent decision chains favor single-threaded. |
+| planning | `ReAct` reactive next-step (Yao et al.) vs `Reflexion` self-critique retry (Shinn et al.) vs `plan-then-execute` (Anthropic lead agent, Airbnb CoT loop) | Known task shape and cost predictability favor plan-first; open-ended favors reactive; a clear success signal to learn from favors Reflexion. |
+| tool / verification | `JSON tool-calls + gate` (Airbnb Tool Manager, ReAct) vs `code execution in sandbox` (smolagents E2B, Ramp Modal VM, Anthropic MCP-code) vs `citation pass` (Anthropic CitationAgent) | Many tools or large results waste tokens on JSON round-trips, so code wins; state-changing writes need a deterministic policy gate, not a prompt. |
+| memory / context | `compress` (Cognition distiller, Claude Code auto-compact) vs `write + select` external memory (LangChain, Uber RAG) vs `isolate` separate windows (Anthropic subagents, LinkedIn siloed stores) | Transcript nearing the limit forces compression; recurring facts favor external write-then-retrieve; token-heavy blobs favor isolation. |
+
+**The math that separates them.**
+
+$$\textbf{context growth per turn:}\quad T_n = T_0 + \sum_{i=1}^{n}\bigl(o_i + a_i\bigr)$$
+
+$$\textbf{per-ticket cost:}\quad C = \sum_{s=1}^{S} p\,(T_{s-1} + I_s) + g\,O_s$$
+
+$$\textbf{multi-agent token multiple:}\quad \frac{C_{multi}}{C_{single}} \approx k \cdot \bar{r} \;\;(\text{Anthropic: about }15\times)$$
+
+$$\textbf{MoE active fraction:}\quad f_{active} = \frac{\text{top-}k}{E},\qquad C_{token} \propto f_{active}$$
+
+$$\textbf{verified success:}\quad P_{ship} = P_{task}\cdot\bigl(1 - (1 - P_{catch})^{R}\bigr)$$
+
+```mermaid
+quadrantChart
+  title Autonomy vs reliability
+  x-axis "low autonomy" --> "high autonomy"
+  y-axis "lower reliability" --> "higher reliability"
+  quadrant-1 "autonomous + verified"
+  quadrant-2 "guarded + gated"
+  quadrant-3 "simple baselines"
+  quadrant-4 "fragile / drift risk"
+  "ReAct baseline": [0.55, 0.25]
+  "Reflexion": [0.6, 0.5]
+  "Airbnb v2 (gated)": [0.4, 0.8]
+  "Cognition single-thread": [0.55, 0.72]
+  "Ramp self-test VM": [0.82, 0.78]
+  "Anthropic multi-agent": [0.85, 0.55]
+```
+
+**The systems**
 
 - **Anthropic** [Building effective agents](https://www.anthropic.com/research/building-effective-agents): When to use workflows versus agents, and five composable orchestration patterns. *(product design)*
 - **Anthropic** [How we built our multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system): Orchestrator-worker pattern with parallel subagents; +90.2% over a single agent. *(deployment)*
@@ -162,6 +627,62 @@ can browse the whole set by category in one place. 189 systems and growing.
 
 ### [Multimodal serving](topics/09-multimodal-serving.md) · 19 systems
 
+**What they share.** Every vision-language system is the same spine: a modality encoder turns an image into a feature grid, a connector maps those features into the LLM embedding space, and one decoder generates over an interleaved text-plus-image token sequence. They differ almost entirely in the connector and in how many tokens an image is allowed to become.
+
+```mermaid
+flowchart LR
+  IMG["image / video / audio"] --> ENC["modality encoder (ViT)"]
+  ENC --> CONN["connector"]
+  CONN --> DEC["LLM decoder<br/>interleaved tokens"]
+  TXT["text"] --> DEC
+  DEC --> OUT["answer"]
+
+  CONN -. "projector: variable, resolution-scaled<br/>LLaVA, Qwen2-VL, Pixtral" .- D1{{"connector type?"}}
+  CONN -. "resampler / cross-attn: fixed few tokens<br/>Flamingo, BLIP-2, Idefics2" .- D1
+  ENC -. "resolution?<br/>fixed 336px (LLaVA) vs native dynamic (Qwen2-VL, Pixtral)" .- D2{{"how many img tokens?"}}
+  ENC -. "tiling + tile-tags for OCR<br/>NVLM, Idefics2 split" .- D2
+  DEC -. "serving split?<br/>encoder cache + prefix cache (vLLM), DP encoder / TP decoder (ROCm)" .- D3{{"serve one server or two tiers?"}}
+```
+
+**The choices, side by side.**
+
+| Decision | Options (who) | What decides it |
+| --- | --- | --- |
+| projector | `MLP` (LLaVA, Qwen2-VL, Pixtral) vs `cross-attn` (Flamingo, NVLM option) vs `resampler` (BLIP-2 Q-Former, Idefics2, Flamingo perceiver) | MLP passes a variable resolution-scaled block so detail scales with cost; resampler / cross-attn compress to a fixed few so cost is bounded but detail is capped |
+| resolution | `fixed` (LLaVA CLIP ViT-L/14 336px) vs `tiling/dynamic` (Qwen2-VL native, Pixtral native, NVLM tiles) | Task detail: OCR and dense docs need high resolution; "what is in this picture" does not |
+| image-token budget | `variable, scales with pixels` (Qwen2-VL, Pixtral) vs `fixed cap` (BLIP-2 = 32, Idefics2 = 64 or 320, Flamingo few) | Whether per-request cost/latency must be bounded vs whether fine detail must survive |
+| serving split | `one server` vs `separate encoder tier + prefix/embedding cache` (Red Hat vLLM V1) vs `DP encoder + TP decoder` (AMD ROCm) | Encoder is bounded, batchable, cacheable by image hash; decoder is autoregressive and memory-bound; scale each independently and route text-only past the encoder |
+
+**The math that separates them.**
+
+$$\textbf{image tokens} \;=\; \left\lfloor \tfrac{H}{p} \right\rfloor \left\lfloor \tfrac{W}{p} \right\rfloor \quad (\text{Pixtral: } 1024^2, p{=}16 \Rightarrow 4096)$$
+
+$$\textbf{tiled token count} \;=\; T \cdot \tfrac{H_t W_t}{p^2} \;+\; \text{tags} \quad (\text{grows linearly in tiles } T)$$
+
+$$\textbf{prefill compute is quadratic} \;=\; O\!\big((n_\text{text}+n_\text{img})^2 \, d\big)$$
+
+$$\textbf{KV bytes} \;=\; 2 \cdot L \cdot (n_\text{text}+n_\text{img}) \cdot d_\text{kv} \cdot b_\text{prec}$$
+
+```mermaid
+quadrantChart
+  title connector: recoverable detail vs image-token cost
+  x-axis "few tokens (cheap)" --> "many tokens (costly)"
+  y-axis "detail capped" --> "detail preserved"
+  quadrant-1 "high detail, high cost"
+  quadrant-2 "high detail, low cost"
+  quadrant-3 "low detail, low cost"
+  quadrant-4 "low detail, high cost"
+  "BLIP-2 Q-Former (32)": [0.10, 0.20]
+  "Flamingo perceiver": [0.18, 0.28]
+  "Idefics2 (64/320)": [0.35, 0.45]
+  "LLaVA MLP (336px)": [0.45, 0.40]
+  "Qwen2-VL dynamic": [0.75, 0.80]
+  "Pixtral native": [0.80, 0.85]
+  "NVLM tiled + tags": [0.88, 0.90]
+```
+
+**The systems**
+
 - **Red Hat (vLLM)** [vLLM V1: accelerating multimodal inference](https://developers.redhat.com/articles/2025/02/27/vllm-v1-accelerating-multimodal-inference-large-language-models): Encoder caching, per-image prefix caching, and async CPU/GPU for faster multimodal serving. *(deployment)*
 - **AMD (ROCm)** [Accelerating Multimodal Inference in vLLM](https://rocm.blogs.amd.com/software-tools-optimization/vllm-dp-vision/README.html): Batch-level data parallelism for vision encoders cuts sync overhead. *(deployment)*
 - **Alibaba (Qwen)** [Qwen2-VL: enhancing vision-language perception at any resolution](https://arxiv.org/abs/2409.12191): Dynamic resolution turns any image into variable visual tokens, with an MLP projector and M-RoPE. *(product design)*
@@ -184,7 +705,79 @@ can browse the whole set by category in one place. 189 systems and growing.
 
 ---
 
-### [Fine-tuning & post-training](topics/05-post-training-pipeline.md) · 19 systems
+### [Post-training pipeline](topics/05-post-training-pipeline.md) · 19 systems
+
+**What they share.** Every team rides one post-training spine (base to curated data to SFT to optional preference tuning to eval gate to serve) and differs only in which knobs the task forced them to turn. Most ship SFT alone; DPO/RLHF appears only where a quality axis SFT could not capture actually mattered.
+
+```mermaid
+flowchart TD
+  BASE["open base<br/>Llama / Mistral / Qwen / Gemma / FLAN-T5"] --> CUR["data curation"]
+  CUR --> D1{"adaptation depth?"}
+  D1 -->|"small behavior nudge, many tenants"| LORA["LoRA / QLoRA<br/>Mercari, Cloudflare, Grab (warm-start)"]
+  D1 -->|"big shift or LoRA drifts OOD"| FULL["full fine-tune<br/>Anyscale, Shopify Flow, Grab (final)"]
+  LORA --> D2{"align beyond SFT?"}
+  FULL --> D2
+  D2 -->|"format / tone / skill only"| SFTONLY["SFT only<br/>Grammarly, Mercari, Shopify, Grab"]
+  D2 -->|"prefer one valid answer"| PREF["DPO / RLHF<br/>Anyscale (DPO), Spotify (RSFT+DPO), LinkedIn (RLHF+DPO)"]
+  SFTONLY --> D3{"label source?"}
+  PREF --> D3
+  D3 -->|"human labels"| HUM["human gold"]
+  D3 -->|"synthetic + judge"| SYN["LLM-as-judge<br/>Anyscale, Shopify flywheel"]
+  HUM --> GATE{"eval gate<br/>offline + safety + regression vs prod"}
+  SYN --> GATE
+  GATE -->|"pass"| SERVE["serve<br/>multi-LoRA edge: Cloudflare"]
+  GATE -->|"fail"| CUR
+  SERVE -->|"production logs"| CUR
+```
+
+**The choices, side by side.**
+
+| Decision | Options (who) | What decides it |
+| --- | --- | --- |
+| adaptation | `full FT` (Anyscale, Shopify Flow) vs `LoRA` (Cloudflare, Grab warm-start) vs `QLoRA` (Mercari) | Behavior-shift size and serving economics: small nudge or many tenants goes LoRA/QLoRA; big shift or LoRA drifting OOD forces full FT. |
+| alignment | `SFT only` (Grammarly, Mercari, Shopify, Grab) vs `DPO` (Anyscale, Spotify) vs `RLHF+DPO` (LinkedIn) | Is there a quality axis SFT cannot capture (prefer one valid answer, safety, tone)? If no, stop at SFT. |
+| data curation | `dense human instruction set` (Grammarly) vs `templated pairs` (Mercari) vs `synthetic + LLM judge` (Anyscale, Shopify) vs `proprietary graph/domain` (LinkedIn, Grab) | Whether real production data exists yet, and whether the task axis can be scored automatically. |
+| eval gate | `human pref vs generalist` (Grammarly) vs `BLEU vs API` (Mercari) vs `1% live activation rate` (Shopify) vs `Q&A accuracy + compression` (Anyscale) | Offline metrics overstate readiness; gate on the real product metric (live slice) before scaling traffic. |
+| serving | `one tuned model` (Anyscale, Shopify) vs `4-bit PTQ small model` (Mercari) vs `multi-LoRA shared base` (Cloudflare) | Tenant count and cost target: many customers/domains push toward one warm base plus swappable adapters. |
+
+**The math that separates them.**
+
+**LoRA low-rank weight update:**
+
+$$W = W_0 + \frac{\alpha}{r} B A, \quad B \in \mathbb{R}^{d \times r},\ A \in \mathbb{R}^{r \times k},\ r \ll \min(d,k)$$
+
+**DPO preference loss (Anyscale, Spotify):**
+
+$$\mathcal{L}_{DPO} = -\mathbb{E}_{(x,y_w,y_l)} \left[ \log \sigma \left( \beta \log \frac{\pi_\theta(y_w \mid x)}{\pi_{ref}(y_w \mid x)} - \beta \log \frac{\pi_\theta(y_l \mid x)}{\pi_{ref}(y_l \mid x)} \right) \right]$$
+
+**RLHF KL-penalized objective (LinkedIn):**
+
+$$\max_{\pi_\theta}\ \mathbb{E}_{x,\, y \sim \pi_\theta}\big[ r_\phi(x,y) \big] - \beta\, \mathrm{KL}\!\left[ \pi_\theta(y \mid x)\ \|\ \pi_{ref}(y \mid x) \right]$$
+
+**QLoRA memory (Mercari, 4-bit frozen base):**
+
+$$M \approx \underbrace{4\text{-bit} \cdot N_{base}}_{\text{frozen, }\sim 0.5\text{ byte/param}} + \underbrace{16\text{-bit} \cdot 2 r (d+k) L}_{\text{trainable adapter} \ll N_{base}}$$
+
+```mermaid
+quadrantChart
+  title Training cost vs alignment strength
+  x-axis "Cheap train" --> "Heavy train"
+  y-axis "SFT only" --> "Strong alignment"
+  quadrant-1 "Full FT + preference"
+  quadrant-2 "Light + aligned"
+  quadrant-3 "Light + SFT"
+  quadrant-4 "Heavy + SFT"
+  "Mercari QLoRA": [0.15, 0.15]
+  "Grammarly CoEdIT": [0.30, 0.20]
+  "Cloudflare LoRA": [0.12, 0.10]
+  "Spotify RSFT+DPO": [0.40, 0.70]
+  "Grab full FT": [0.75, 0.22]
+  "Shopify Flow FFT": [0.80, 0.25]
+  "Anyscale iter-DPO": [0.78, 0.72]
+  "LinkedIn RLHF+DPO": [0.85, 0.85]
+```
+
+**The systems**
 
 - **Grammarly** [CoEdIT: state-of-the-art text editing with fewer parameters](https://www.grammarly.com/blog/engineering/coedit-text-editing/): Dense task-specific instruction tuning beats generalist LLMs at 12x to 60x fewer params. *(product design)*
 - **Anyscale** [Fine-Tuning LLMs: LoRA or Full-Parameter?](https://www.anyscale.com/blog/fine-tuning-llms-lora-or-full-parameter-an-in-depth-analysis-with-llama-2): LoRA versus full fine-tune accuracy tradeoffs, broken down per task type. *(eval bar)*
@@ -208,7 +801,75 @@ can browse the whole set by category in one place. 189 systems and growing.
 
 ---
 
-### [LLM evaluation](topics/06-evaluation-system.md) · 18 systems
+### [Evaluation system](topics/06-evaluation-system.md) · 18 systems
+
+**What they share.** Every system runs the same two-loop skeleton: an offline suite (checkable task metrics plus an LLM-as-judge) gates the change, then an online loop checks the gate was honest and feeds back to recalibrate the judge. The judge is trusted only after it is validated against human labels.
+
+```mermaid
+flowchart TD
+  A["candidate<br/>(model + prompt)"] --> B["offline suite<br/>golden set + LLM-as-judge"]
+  B --> P1{"offline signal?<br/>checkable task metric vs judge"}
+  P1 -->|"executable pass/fail"| Q1["GitHub Copilot<br/>(broken-repo unit tests)"]
+  P1 -->|"open-ended judge"| Q2["Spotify, GitLab Duo<br/>Booking.com"]
+  Q1 --> C
+  Q2 --> C
+  C{"judge calibration?<br/>vs human labels"}
+  C -->|"validated (kappa / exact-match)"| D1["Pinterest 73.7%<br/>Thomson Reuters, DoorDash"]
+  C -->|"confidence-scored"| D2["Uber uReview<br/>(grader model)"]
+  D1 --> E
+  D2 --> E
+  E{"online proof?<br/>A/B vs shadow vs canary"}
+  E -->|"live A/B"| F1["Spotify, Pinterest"]
+  E -->|"shadow / canary"| F2["Ramp (shadow)<br/>GitHub (Hubbers canary)"]
+  E -->|"human sign-off"| F3["Thomson Reuters<br/>(Trust Team A/B)"]
+  F1 --> G["recalibrate offline<br/>on offline-online gap"]
+  F2 --> G
+  F3 --> G
+  G -.-> B
+```
+
+**The choices, side by side.**
+
+| Decision | Options (who) | What decides it |
+| --- | --- | --- |
+| offline signal | `golden set + task metric` (GitHub broken-repo pass/fail, GitLab Cosine/Cross similarity) vs `LLM-as-judge` (Spotify, Booking.com, Uber) | Is the answer checkable? Executable / labeled task uses a metric; open-ended (relevance, tone, faithfulness) needs a judge |
+| judge calibration | `validated vs human` (Pinterest 73.7% exact-match, DoorDash, Thomson Reuters) vs `confidence-scored` (Uber uReview grader) vs `uncalibrated` (anti-pattern) | Failure cost and gate authority: high-stakes gating demands measured judge-human agreement before trust |
+| online | `A/B` (Spotify, Pinterest) vs `shadow` (Ramp) vs `canary` (GitHub Hubbers) | Can the action run silently? Shadow needs mirrored traffic and yields no user signal; A/B needs throughput; canary needs a safe internal cohort |
+| gating | `CI regression gate` (GitHub daily vs prod, GitLab daily CEF) vs `confidence threshold` (Uber, per assistant/lang/category) vs `human sign-off` (Thomson Reuters Trust Team) | Change cadence and blast radius: daily prompt edits need automated gates; irreversible legal output needs a human arbiter |
+
+**The math that separates them.**
+
+**Judge-human agreement (Cohen's kappa)**
+$$\kappa = \frac{p_o - p_e}{1 - p_e}$$
+
+**Retrieval / precision-recall (F1)**
+$$F_1 = 2 \cdot \frac{\text{precision} \cdot \text{recall}}{\text{precision} + \text{recall}}$$
+
+**Position-bias averaging (both orderings)**
+$$s(A,B) = \tfrac{1}{2}\big[\, j(A \prec B) + \big(1 - j(B \prec A)\big) \,\big]$$
+
+**Per-slice regression gate inequality**
+$$\text{ship} \iff \min_{g \in \text{segments}} \big( s_g^{\text{cand}} - s_g^{\text{base}} \big) \ge -\,\epsilon, \quad \epsilon \sim \sigma_{\text{judge}}$$
+
+```mermaid
+quadrantChart
+  title Eval method: cost vs fidelity to user value
+  x-axis "Low cost" --> "High cost"
+  y-axis "Low fidelity" --> "High fidelity"
+  quadrant-1 "gate here when you can"
+  quadrant-2 "final arbiter"
+  quadrant-3 "coarse filter only"
+  quadrant-4 "expensive, use sparingly"
+  "Public benchmarks": [0.18, 0.28]
+  "Task metric / unit test": [0.30, 0.72]
+  "LLM-as-judge (validated)": [0.52, 0.60]
+  "Confidence-gated judge": [0.45, 0.50]
+  "Shadow mode": [0.68, 0.66]
+  "Online A/B": [0.82, 0.90]
+  "Human expert A/B": [0.92, 0.95]
+```
+
+**The systems**
 
 - **DoorDash** [A Simulation and Evaluation Flywheel to Develop LLM Chatbots at Scale](https://careersatdoordash.com/blog/doordash-simulation-evaluation-flywheel-to-develop-llm-chatbots-at-scale/): Simulated multi-turn conversations graded by an LLM judge calibrated to humans before release. *(eval bar)*
 - **DoorDash** [How DoorDash leverages LLMs to evaluate search result pages](https://careersatdoordash.com/blog/doordash-llms-to-evaluate-search-result-pages/): AutoEval: fine-tuned LLM raters with a human in the loop for whole-page relevance. *(eval bar)*
@@ -231,7 +892,67 @@ can browse the whole set by category in one place. 189 systems and growing.
 
 ---
 
-### [Safety, moderation & guardrails](topics/07-safety-and-guardrails.md) · 19 systems
+### [Safety and guardrails](topics/07-safety-and-guardrails.md) · 19 systems
+
+**What they share.** Every system wraps the model in a layered pipeline: untrusted input hits an input guard, the model runs, then output guards inspect the generation, with classifiers trained on the enforced policy and the highest-risk cases routed to humans.
+
+```mermaid
+flowchart LR
+  U["untrusted input<br/>(user, docs, tool output)"] --> IG["input guard"]
+  IG --> D1{"guard model?"}
+  D1 -->|small distilled classifier| A1["Roblox, Cloudflare edge"]
+  D1 -->|guard-LLM 7B| A2["Meta Llama Guard,<br/>Google ShieldGemma, NVIDIA NeMo"]
+  D1 -->|trained on synthetic policy| A3["Anthropic<br/>Constitutional Classifiers"]
+  IG --> L["LLM"]
+  L --> OG["output guard"]
+  OG --> D2{"safety as..."}
+  D2 -->|classification: score text| B1["Anthropic, Roblox, Meta,<br/>Google, Cloudflare"]
+  D2 -->|structure: isolate + gate in code| B2["Microsoft MSRC,<br/>Salesforce, Thomson Reuters"]
+  OG --> D3{"placement + timing"}
+  D3 -->|input-only, edge| C1["Cloudflare"]
+  D3 -->|both, streaming token-level| C2["Anthropic"]
+  D3 -->|both, async race| C3["OpenAI cookbook"]
+  D2 --> HR["human review<br/>(high-risk / appeals)"]
+```
+
+**The choices, side by side.**
+
+| Decision | Options (who) | What decides it |
+| --- | --- | --- |
+| guard model | `small distilled classifier` (Roblox 750k RPS, Cloudflare) vs `guard-LLM 7B` (Meta Llama Guard, Google ShieldGemma, NVIDIA NeMo) vs `synthetic-policy classifier` (Anthropic) | request volume and latency budget: billions/day forces distilled; taxonomy flexibility favors instruction-tuned 7B |
+| placement | `input filter` (Cloudflare edge) vs `output filter` (Thomson Reuters grounding) vs `both` (Anthropic, Meta, Microsoft, Salesforce, NeMo) | trust boundary: input-only misses unsafe generations; RAG/agents need output grounding too |
+| jailbreak / injection defense | `trained classifier` (Anthropic 86%→4.4%) vs `spotlighting + code gates` (Microsoft) vs `PII masking + prompt defense` (Salesforce) vs `input blocklist-free zero-shot` (Cloudflare) | direct jailbreak yields to output classifiers; indirect injection needs structural isolation and least-privilege action gates |
+| policy routing | `hard block` vs `safe-complete` vs `graded score` (OpenAI G-Eval 1-5, Grab likelihood tier) vs `escalate to human` (Roblox, Thomson Reuters) | stakes and false-positive cost: graded scores enable rewrite; regulated domains escalate ambiguity |
+| latency hiding | `cascade cheap-to-expensive` (Grab, Meta) vs `async race vs generation` (OpenAI) vs `separate batched vLLM tier` (NeMo, Cloudflare 2s timeout) | critical-path budget; async leaks tokens before block fires, so it needs side-effect-free generation |
+
+**The math that separates them.**
+
+$$\textbf{Cascade expected cost: } \; \mathbb{E}[C] = c_{\text{cheap}} + p_{\text{escalate}} \cdot c_{\text{guardLLM}}$$
+
+$$\textbf{Recall at fixed FPR operating point: } \; \text{Recall}@\text{FPR}=0.01 = \frac{TP}{TP+FN} \;\; \text{s.t.} \;\; \frac{FP}{FP+TN}=0.01$$
+
+$$\textbf{Attack success under layered defense: } \; \text{ASR} = \prod_{i=1}^{L}\bigl(1 - r_i\bigr) \;\;\Rightarrow\;\; 0.86 \to 0.044$$
+
+$$\textbf{Async race adds no wall clock: } \; T_{\text{total}} = \max\bigl(T_{\text{guard}},\, T_{\text{gen}}\bigr) \;\; \text{vs series } \; T_{\text{guard}} + T_{\text{gen}}$$
+
+```mermaid
+quadrantChart
+  title Guard placement: added latency vs coverage
+  x-axis "low added latency" --> "high added latency"
+  y-axis "narrow coverage" --> "full coverage"
+  quadrant-1 "thorough, costly"
+  quadrant-2 "ideal"
+  quadrant-3 "cheap, partial"
+  quadrant-4 "slow, partial"
+  "Roblox distilled": [0.18, 0.62]
+  "Cloudflare edge input": [0.22, 0.35]
+  "Meta Llama Guard 7B": [0.68, 0.7]
+  "Anthropic in+out": [0.72, 0.9]
+  "OpenAI async race": [0.3, 0.75]
+  "Microsoft spotlighting+gates": [0.55, 0.82]
+```
+
+**The systems**
 
 - **Roblox** [How Roblox Uses AI to Moderate Content on a Massive Scale](https://about.roblox.com/newsroom/2025/07/roblox-ai-moderation-massive-scale): Multi-model text, voice, and PII moderation at 750k requests per second with real-time prevention. *(deployment)*
 - **Anthropic** [Constitutional Classifiers: defending against universal jailbreaks](https://www.anthropic.com/research/constitutional-classifiers): Input/output classifiers trained on a synthetic constitution cut jailbreaks from 86% to 4.4%. *(eval bar)*
@@ -252,3 +973,77 @@ can browse the whole set by category in one place. 189 systems and growing.
 - **LinkedIn** [Defending Against Abuse at LinkedIn's Scale](https://www.linkedin.com/blog/engineering/trust-and-safety/defending-against-abuse-at-linkedins-scale): Real-time abuse defense at 4M+ transactions/sec using ML models and statistical rules. *(deployment)*
 - **Pinterest** [How Pinterest built its Trust & Safety team](https://medium.com/pinterest-engineering/how-pinterest-built-its-trust-safety-team-8d6c026dd4b9): Building moderation infrastructure, policies, real-time signals, and ML before scaling. *(product design)*
 - **Discord** [Our Approach to Content Moderation](https://discord.com/safety/our-approach-to-content-moderation): Layered human plus ML moderation including AutoMod filters and CSAM detection. *(product design)*
+
+---
+
+### [Production monitoring and observability](topics/12-production-monitoring-and-observability.md) · 7 systems
+
+**What they share.** Every system emits a cheap synchronous trace per request (inputs, retrieved context, output, latency, tokens, cost) then fans expensive quality checks off that stream asynchronously and sampled, so serving is never taxed. The dividing lines are what quality signal they trust, how fast it detects, and whether they build the judge or adopt a platform.
+
+```mermaid
+flowchart TD
+  U["user request"] --> S["serving chain<br/>retrieve, prompt, generate, tools"]
+  S --> R["response to user"]
+  S --> T["emit trace + spans<br/>context, output, latency, tokens, cost"]
+  R --> FB["user feedback<br/>thumbs + implicit"]
+  FB --> T
+  T --> B1{"trace granularity?"}
+  B1 -->|span per step, OTel| G1["Honeycomb / Grafana OpenLIT"]
+  B1 -->|request + feedback log| G2["Uber Genie / Twilio Segment"]
+  T --> B2{"quality signal?"}
+  B2 -->|online LLM-judge| G3["Datadog / LangChain / Uber"]
+  B2 -->|grounding vs context| G4["Datadog RAG detector"]
+  B2 -->|drift vs reference window| G5["embedding-distance monitor"]
+  T --> B3{"build or adopt?"}
+  B3 -->|build custom judge| G6["Datadog / Uber Michelangelo"]
+  B3 -->|adopt SDK + dashboards| G7["Grafana OpenLIT / Segment SDK"]
+  B2 --> D["dashboards + alerts on rate/delta"]
+  B3 --> D
+```
+
+**The choices, side by side.**
+
+| Decision | Options (who) | What decides it |
+| --- | --- | --- |
+| trace granularity | `span/trace` OTel per step (Honeycomb, Grafana OpenLIT) vs `request+feedback log` (Uber Genie via Kafka/Hive, Twilio Segment) | Agents and multi-hop RAG need step-level spans to localize failure; single-shot copilots can log per-message and stitch on a conversation id |
+| quality signal | `online LLM-judge` faithfulness/relevance (Datadog, LangChain, Uber) vs `grounding check` answer-vs-context (Datadog RAG) vs `drift` on embeddings | Judge is the workhorse but biased and costly; grounding is exact only when the answer should be grounded; drift predicts but confirms nothing alone |
+| detection latency | immediate-but-read (traces) / minutes (metrics, guardrail rates) / minutes-to-hours (judge, grounding, async) / hours-to-days (drift trends) | Cost of a bad answer: a 3am page justifies fast sampled judging; a bland chat reply lives on a weekly drift dashboard |
+| build vs adopt | `build` custom two-stage judge + ETL (Datadog GPT-4o judge, Uber Michelangelo) vs `adopt` auto-instrument SDK (Grafana OpenLIT, Twilio Segment SDK) | Domain-specific faithfulness bar and provider-agnostic control push toward build; low-effort coverage and GenAI semantic conventions push toward adopt |
+| coverage vs cost | all-traffic cheap (traces, metrics, guardrail logs) vs sampled expensive (judge, grounding, human review) | Whether the check costs an extra model call per request; only cheap span-derived metrics run on 100 percent |
+
+**The math that separates them.**
+
+$$\textbf{judge-human agreement (kappa):}\quad \kappa=\frac{p_o-p_e}{1-p_e}$$
+
+$$\textbf{faithfulness = grounded claim fraction:}\quad G(a)=\frac{1}{|C(a)|}\sum_{c\in C(a)}\mathbf{1}[\,\text{context}\models c\,]$$
+
+$$\textbf{cosine input-drift score:}\quad d_t=1-\frac{\bar{e}_t\cdot \bar{e}_{\text{ref}}}{\lVert \bar{e}_t\rVert\,\lVert \bar{e}_{\text{ref}}\rVert}$$
+
+$$\textbf{sampling rate sets observing cost:}\quad \mathbb{E}[\text{cost}_{\text{obs}}]=s\cdot \lambda\cdot c_{\text{judge}},\qquad t_{\text{detect}}\approx \frac{k}{s\,\lambda\,r_{\text{fail}}}$$
+
+```mermaid
+quadrantChart
+  title detection latency vs coverage
+  x-axis "narrow (sampled)" --> "full traffic"
+  y-axis "slow to detect" --> "fast to detect"
+  quadrant-1 "cheap, all-traffic, fast"
+  quadrant-2 "sampled but fast"
+  quadrant-3 "sampled and slow"
+  quadrant-4 "broad but lagging"
+  "Traces (diagnostic)": [0.80, 0.35]
+  "Metrics dashboards": [0.90, 0.82]
+  "Guardrail-rate logging": [0.85, 0.70]
+  "Online LLM-judge": [0.28, 0.45]
+  "Grounding check": [0.35, 0.48]
+  "Drift detection": [0.75, 0.18]
+```
+
+**The systems**
+
+- **Datadog** [Detect hallucinations in your RAG LLM applications](https://www.datadoghq.com/blog/llm-observability-hallucination-detection/): Flags ungrounded or contradictory outputs against retrieved context in production RAG apps. *(product design)*
+- **Datadog** [Detecting hallucinations with LLM-as-a-judge](https://www.datadoghq.com/blog/ai/llm-hallucination-detection/): How they built and benchmarked an LLM-as-judge faithfulness detector. *(eval bar)*
+- **Honeycomb** [Improving LLMs in Production With Observability](https://www.honeycomb.io/blog/improving-llms-production-observability): Spans capture input, output, errors, latency, tokens, and user feedback for their Query Assistant. *(deployment)*
+- **Uber** [Genie: Uber's Gen AI On-Call Copilot](https://www.uber.com/us/en/blog/genie-ubers-gen-ai-on-call-copilot/): A production copilot streaming user-feedback ratings, hallucination and relevancy evals to dashboards. *(product design)*
+- **Grafana Labs** [Monitor LLMs in production with Grafana Cloud, OpenLIT, and OpenTelemetry](https://grafana.com/blog/ai-observability-llms-in-production/): Dashboards for token usage, per-call cost, latency percentiles, and time-to-first-token. *(deployment)*
+- **LangChain** [The agent improvement loop starts with a trace](https://www.langchain.com/blog/traces-start-agent-improvement-loop): Collecting and enriching production traces of agent tool calls to find failures and prevent regressions. *(deployment)*
+- **Twilio Segment** [Instrumenting User Insights for your AI Copilot](https://www.twilio.com/en-us/blog/insights/ai/instrumenting-user-insights-for-your-ai-copilot/): Instruments prompts, responses, and engagement signals into product analytics for a live copilot. *(product design)*
