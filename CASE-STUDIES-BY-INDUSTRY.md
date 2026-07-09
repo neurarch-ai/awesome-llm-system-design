@@ -1,6 +1,6 @@
 # Case studies, by industry
 
-The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by industry so you can see which the same LLM problem patterns recur in your domain. 205 case studies across 11 industries.
+The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by industry so you can see which the same LLM problem patterns recur in your domain. 208 case studies across 11 industries.
 
 ---
 
@@ -95,7 +95,7 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | OpenAI | [Updates for developers building with voice](https://developers.openai.com/blog/updates-audio-models) | Realtime Streaming Chat |
 | OpenGVLab | [InternVL 2.5: model, data, and test-time scaling](https://arxiv.org/abs/2412.05271) | Multimodal Serving |
 
-## AI infra and developer tools (55)
+## AI infra and developer tools (56)
 
 | Company | Case study | Topic |
 | --- | --- | --- |
@@ -141,6 +141,7 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | LMSYS | [RouteLLM: an open framework for cost-effective LLM routing](https://www.lmsys.org/blog/2024-07-01-routellm/) | Cost Optimization And Model Routing |
 | LMSYS / SGLang | [Fast and expressive LLM inference with RadixAttention](https://www.lmsys.org/blog/2024-01-17-sglang/) | Long Context And KV Cache |
 | Modal | [High-performance LLM inference](https://modal.com/docs/guide/high-performance-llm-inference) | Inference Serving At Scale |
+| MongoDB | [Taking RAG to Production with the MongoDB Documentation AI Chatbot](https://www.mongodb.com/developer/products/atlas/taking-rag-to-production-documentation-ai-chatbot/) | RAG Serving |
 | Replit | [Enabling Agent 3 to self-test at scale with REPL verification](https://replit.com/blog/automated-self-testing) | Agent Orchestration |
 | Replit | [Replit Code v1.5 on Hugging Face](https://replit.com/blog/replit-code-v1_5) | Post Training Pipeline |
 | Slack | [Real-time Messaging](https://slack.engineering/real-time-messaging/) | Realtime Streaming Chat |
@@ -155,7 +156,7 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | Vercel | [Chat SDK brings agents to your users](https://vercel.com/blog/chat-sdk-brings-agents-to-your-users) | Realtime Streaming Chat |
 | vLLM | [Efficient Memory Management for LLM Serving with PagedAttention](https://arxiv.org/abs/2309.06180) | Long Context And KV Cache |
 
-## E-commerce and retail (10)
+## E-commerce and retail (11)
 
 | Company | Case study | Topic |
 | --- | --- | --- |
@@ -163,6 +164,7 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | Faire | [Beyond BM25 and dense embeddings: smart, interpretable retrieval](https://craft.faire.com/beyond-bm25-and-dense-embeddings-841a7b18ce27) | Semantic Search And Embeddings |
 | Instacart | [How Instacart uses embeddings to improve search relevance](https://company.instacart.com/how-its-made/how-instacart-uses-embeddings-to-improve-search-relevance) | Semantic Search And Embeddings |
 | Instacart | [Scaling Catalog Attribute Extraction with Multi-modal LLMs](https://company.instacart.com/tech-innovation/scaling-catalog-attribute-extraction-with-multi-modal-llms) | Evaluation System |
+| Mercado Libre | [Beyond the Hype: Real-World Lessons from Working with Large Language Models](https://medium.com/mercadolibre-tech/beyond-the-hype-real-world-lessons-and-insights-from-working-with-large-language-models-6d637e39f8f8) | RAG Serving |
 | Mercari | [Domain-Aware Text Embeddings for C2C Marketplaces](https://arxiv.org/abs/2512.21021) | Semantic Search And Embeddings |
 | Mercari | [Fine-Tuning an LLM to Extract Dynamically Specified Attributes](https://engineering.mercari.com/en/blog/entry/20240913-fine-tuning-an-llm-to-extract-dynamically-specified-attributes/) | Post Training Pipeline |
 | Shopify | [Flow generation through natural language: an agentic modeling approach](https://shopify.engineering/fine-tuning-agent-shopify-flow) | Post Training Pipeline |
@@ -213,7 +215,7 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | Stripe | [Can AI agents build real Stripe integrations?](https://stripe.com/blog/can-ai-agents-build-real-stripe-integrations) | Agent Orchestration |
 | Wealthsimple | [Our LLM Gateway for secure, reliable generative AI](https://engineering.wealthsimple.com/get-to-know-our-llm-gateway-and-how-it-provides-a-secure-and-reliable-space-to-use-generative-ai) | Safety And Guardrails |
 
-## Delivery and mobility (13)
+## Delivery and mobility (14)
 
 | Company | Case study | Topic |
 | --- | --- | --- |
@@ -222,6 +224,7 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | DoorDash | [Path to high-quality LLM-based Dasher support automation](https://careersatdoordash.com/blog/large-language-modules-based-dasher-support-automation/) | RAG Serving |
 | Grab | [A custom vision LLM to improve document processing](https://engineering.grab.com/custom-vision-llm-at-grab) | Post Training Pipeline |
 | Grab | [How LLMs make content moderation more precise](https://www.grab.com/inside-grab/stories/how-large-language-models-help-us-make-more-precise-content-moderation-decisions/) | Safety And Guardrails |
+| Grab | [Leveraging RAG-powered LLMs for Analytical Tasks](https://engineering.grab.com/transforming-the-analytics-landscape-with-RAG-powered-LLM) | RAG Serving |
 | Uber | [Enhanced Agentic-RAG: near-human precision for chatbots](https://www.uber.com/blog/enhanced-agentic-rag/) | RAG Serving |
 | Uber | [From Predictive to Generative: how Michelangelo accelerates Uber AI](https://www.uber.com/blog/from-predictive-to-generative-ai/) | Evaluation System |
 | Uber | [Genie: Uber's Gen AI on-call copilot](https://www.uber.com/en-US/blog/genie-ubers-gen-ai-on-call-copilot/) | Agent Orchestration |

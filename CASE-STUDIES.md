@@ -12,10 +12,10 @@ writeups. Then the systems themselves. For the full per-case teardown of any one
 see [CASE-TEARDOWNS.md](CASE-TEARDOWNS.md); browse the same systems
 [by company](CASE-STUDIES-BY-COMPANY.md) or [by industry](CASE-STUDIES-BY-INDUSTRY.md).
 
-205 systems across the taxonomy, and growing.
+208 systems across the taxonomy, and growing.
 
 ---
-### [RAG serving](topics/01-rag-serving.md) · 18 systems
+### [RAG serving](topics/01-rag-serving.md) · 21 systems
 
 **What they share.** Every team runs the same spine: embed the query, retrieve candidate chunks from an index, rerank the shortlist, assemble a tight grounded context, and let the LLM generate a cited answer, with an offline parse-chunk-embed-index loop feeding freshness. What varies is where each team spends effort.
 
@@ -120,6 +120,9 @@ quadrantChart
 - **Anyscale** [Building RAG-based LLM Applications for Production](https://www.anyscale.com/blog/a-comprehensive-guide-for-building-rag-based-llm-applications-part-1): End-to-end RAG built, evaluated, and served at scale with Ray Serve. *(deployment)*
 - **GitHub** [What is retrieval-augmented generation?](https://github.blog/ai-and-ml/generative-ai/what-is-retrieval-augmented-generation-and-what-does-it-do-for-generative-ai/): How Copilot Enterprise grounds answers via internal code search and semantic retrieval. *(product design)*
 - **Google / ETH Zurich** [RAGO: systematic performance optimization for RAG serving](https://arxiv.org/abs/2503.14649): A serving framework raising QPS per chip 2x and cutting time-to-first-token 55%. *(deployment)*
+- **MongoDB** [Taking RAG to Production with the MongoDB Documentation AI Chatbot](https://www.mongodb.com/developer/products/atlas/taking-rag-to-production-documentation-ai-chatbot/): Atlas Vector Search docs chatbot, chunking and embedding-model choices, moved from prototype to production. *(deployment)*
+- **Grab** [Leveraging RAG-powered LLMs for Analytical Tasks](https://engineering.grab.com/transforming-the-analytics-landscape-with-RAG-powered-LLM): Data-Arks middleware retrieves context to ground report-generation and fraud-investigation bots for analysts. *(product design)*
+- **Mercado Libre** [Beyond the Hype: Real-World Lessons from Working with Large Language Models](https://medium.com/mercadolibre-tech/beyond-the-hype-real-world-lessons-and-insights-from-working-with-large-language-models-6d637e39f8f8): RAG over technical docs plus table-doc generation and structured extraction; raw LLMs need context and iteration. *(eval bar)*
 
 ---
 

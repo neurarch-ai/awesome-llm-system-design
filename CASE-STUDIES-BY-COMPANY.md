@@ -1,6 +1,6 @@
 # Case studies, by company
 
-The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by company so you can see how one org approaches the same LLM problem across problems. 205 case studies, 95 companies. Deep teardowns of many of these live in [CASE-TEARDOWNS.md](CASE-TEARDOWNS.md).
+The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by company so you can see how one org approaches the same LLM problem across problems. 208 case studies, 97 companies. Deep teardowns of many of these live in [CASE-TEARDOWNS.md](CASE-TEARDOWNS.md).
 
 ---
 
@@ -156,6 +156,12 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Selecting a model for semantic search at Dropbox scale](https://dropbox.tech/machine-learning/selecting-model-semantic-search-dropbox-ai) *(Semantic Search And Embeddings)*
 - [Creating a modern OCR pipeline using CV and deep learning](https://dropbox.tech/machine-learning/creating-a-modern-ocr-pipeline-using-computer-vision-and-deep-learning) *(Multimodal Serving)*
 
+### Grab (3)
+
+- [Leveraging RAG-powered LLMs for Analytical Tasks](https://engineering.grab.com/transforming-the-analytics-landscape-with-RAG-powered-LLM) *(RAG Serving)*
+- [A custom vision LLM to improve document processing](https://engineering.grab.com/custom-vision-llm-at-grab) *(Post Training Pipeline)*
+- [How LLMs make content moderation more precise](https://www.grab.com/inside-grab/stories/how-large-language-models-help-us-make-more-precise-content-moderation-decisions/) *(Safety And Guardrails)*
+
 ### OpenAI (3)
 
 - [A practical guide to building agents](https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf) *(Agent Orchestration)*
@@ -221,11 +227,6 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 
 - [FireAttention V2: long contexts practical for online inference](https://fireworks.ai/blog/fireattention-v2-long-context-inference) *(Long Context And KV Cache)*
 - [FireOptimizer: customizing latency and quality](https://fireworks.ai/blog/fireoptimizer) *(Inference Serving At Scale)*
-
-### Grab (2)
-
-- [A custom vision LLM to improve document processing](https://engineering.grab.com/custom-vision-llm-at-grab) *(Post Training Pipeline)*
-- [How LLMs make content moderation more precise](https://www.grab.com/inside-grab/stories/how-large-language-models-help-us-make-more-precise-content-moderation-decisions/) *(Safety And Guardrails)*
 
 ### Honeycomb (2)
 
@@ -386,6 +387,10 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 
 - [Fast and expressive LLM inference with RadixAttention](https://www.lmsys.org/blog/2024-01-17-sglang/) *(Long Context And KV Cache)*
 
+### Mercado Libre (1)
+
+- [Beyond the Hype: Real-World Lessons from Working with Large Language Models](https://medium.com/mercadolibre-tech/beyond-the-hype-real-world-lessons-and-insights-from-working-with-large-language-models-6d637e39f8f8) *(RAG Serving)*
+
 ### Mistral (1)
 
 - [Pixtral 12B](https://arxiv.org/abs/2410.07073) *(Multimodal Serving)*
@@ -397,6 +402,10 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 ### Modal (1)
 
 - [High-performance LLM inference](https://modal.com/docs/guide/high-performance-llm-inference) *(Inference Serving At Scale)*
+
+### MongoDB (1)
+
+- [Taking RAG to Production with the MongoDB Documentation AI Chatbot](https://www.mongodb.com/developer/products/atlas/taking-rag-to-production-documentation-ai-chatbot/) *(RAG Serving)*
 
 ### Moonshot AI (1)
 
