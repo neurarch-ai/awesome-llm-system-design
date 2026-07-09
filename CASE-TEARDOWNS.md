@@ -278,6 +278,150 @@ flowchart TD
 - Ranking on similarity only: combine multiple signals for enterprise relevance.
 - Ignoring the empty-retrieval case: design graceful gap handling instead of hallucinated answers.
 
+
+### Company: MongoDB ([source](https://www.mongodb.com/developer/products/atlas/taking-rag-to-production-documentation-ai-chatbot/))
+
+MongoDB moved a documentation AI chatbot from prototype to production on Atlas Vector Search. Retrieval is a two-stage aggregation pipeline: a `$vectorSearch` stage narrows candidates, then `$project` shapes results. Two knobs control recall versus latency: `numCandidates` (how many potential matches to evaluate, with an optional exact-nearest-neighbor mode that scans all documents) and `limit` (how many chunks to return). Chunking offers recursive splitting (paragraph and sentence boundaries, the default) or fixed-token with overlap, with sizes from 40 to 1500 tokens and overlap capped at 50% of chunk size. Embeddings come from Voyage AI, defaulting to `voyage-3-large` with domain variants (`voyage-finance-2`, `voyage-law-2`). The pipeline exposes the search query, retrieved document count, and per-document scores for transparency.
+
+```mermaid
+flowchart LR
+  D["docs / PDF"] --> CK["chunk<br/>recursive or fixed+overlap"]
+  CK --> EM["embed<br/>Voyage voyage-3-large"]
+  EM --> IX["Atlas Vector Search index"]
+  Q["user query"] --> QE["embed query"]
+  QE --> VS["$vectorSearch<br/>numCandidates -> limit"]
+  IX --> VS
+  VS --> PR["$project shape results"]
+  PR --> G["LLM generate + show scores"]
+```
+
+**Interview questions this design invites**
+- What is the difference between `numCandidates` and `limit`, and how does each affect recall versus latency?
+- When would you enable exact-nearest-neighbor (scan all documents) instead of approximate search?
+- How do you choose between recursive and fixed-token-with-overlap chunking for docs?
+- Why cap chunk overlap at 50% of chunk size, and what does more overlap buy you?
+- When is a domain-tuned embedding model (finance, law) worth it over a general one?
+- Why surface the search query and per-document scores in the UI?
+
+**Tricks and gotchas**
+- `numCandidates` widens the approximate-search pool before `limit` trims it; they are separate levers for recall and cost.
+- Recursive chunking preserves natural structure; fixed-token gives predictable sizes but can split logical units.
+- Text-only embeddings mean images inside PDFs are silently dropped from the index.
+- Exposing scores and the executed query makes retrieval failures debuggable rather than mysterious.
+
+**Common mistakes and how to fix them**
+- Leaving `numCandidates` too low and starving recall: raise it (or use exhaustive mode) and watch the latency tradeoff.
+- Fixed-token chunking that cuts mid-paragraph: switch to recursive splitting when structure matters.
+- Assuming PDFs with figures are fully indexed: remember text-only embeddings skip images, so curate accordingly.
+- Picking the largest embedding model blindly: try a domain-specific variant on your own accuracy numbers first.
+
+
+### Company: Grab ([source](https://engineering.grab.com/transforming-the-analytics-landscape-with-RAG-powered-LLM))
+
+Grab grounds analyst-facing bots (a Report Summarizer and the A* fraud-investigation bot) with Data-Arks, a Python API middleware that packages frequently used SQL queries and Python functions into vetted, parameterized APIs. Instead of letting the LLM generate SQL, RAG selects the most relevant pre-written query API from the catalog, executes it, and feeds the returned tabular data to the LLM to summarize. This trades open-ended query generation for accuracy: the retrieval unit is a curated query, not a document chunk, so hallucinated SQL is eliminated. The stack combines an internal LLM platform (Spellvault), Data-Arks, a scheduler, and Slack as the interface, with reported savings of 3 to 4 hours per report and fraud investigations cut from hours to minutes.
+
+```mermaid
+flowchart LR
+  U["analyst prompt in Slack"] --> RAG["RAG: select relevant<br/>query API"]
+  CAT["Data-Arks catalog<br/>vetted SQL + Python APIs"] --> RAG
+  RAG --> EX["execute API<br/>(parameterized)"]
+  EX --> DAT["tabular results"]
+  DAT --> G["Spellvault LLM<br/>summarize insights"]
+  SCH["scheduler"] -.-> U
+```
+
+**Interview questions this design invites**
+- Why retrieve a pre-written query API instead of having the LLM generate SQL?
+- How does grounding on executed tabular data differ from grounding on retrieved text chunks?
+- What is the retrieval unit here, and how do you keep the API catalog relevant over time?
+- Where does hallucination risk move when the LLM only summarizes results rather than writing queries?
+- How would you evaluate a report-summarizer whose inputs are structured tables?
+- Why pick Slack as the surface, and what does the scheduler add?
+
+**Tricks and gotchas**
+- Most analyst work is the same SQL with parameter tweaks, so packaging queries as APIs captures the pattern cheaply.
+- Making the retrieval unit a vetted query removes the entire class of generated-SQL errors.
+- The LLM only summarizes trusted numbers, so grounding correctness is decoupled from generation quality.
+- Multi-source APIs (Slack, Wiki, JIRA) let one middleware aggregate context beyond the warehouse.
+
+**Common mistakes and how to fix them**
+- Letting the LLM author SQL against production data: retrieve a vetted, parameterized query instead.
+- Treating RAG as document-only: here the corpus is a catalog of query APIs, so index those.
+- Summarizing without provenance: return the underlying table so numbers are auditable.
+- Building a bespoke UI: meet analysts in Slack and automate refreshes with a scheduler.
+
+
+### Company: Thomson Reuters ([source](https://medium.com/tr-labs-ml-engineering-blog/better-customer-support-using-retrieval-augmented-generation-rag-at-thomson-reuters-4d140a6044c3))
+
+Thomson Reuters grounds customer-support answers in a regulated (tax) domain with dense retrieval. Knowledge-base articles and CRM content are chunked and embedded with the `all-MiniLM-L6-v2` sentence transformer, stored in Milvus, and retrieved by cosine or Euclidean similarity. Retrieved passages are concatenated with the prompt and sent to GPT-4 for generation. Because knowledge lives outside the model's parameters, it can be updated post-training without retraining, which matters when compliance guidance evolves. Their worked example (tax error IND-041) shows RAG turning generic GPT-4 guidance into precise product-specific steps, reducing hallucination and adding provenance.
+
+```mermaid
+flowchart LR
+  KB["KB articles + CRM"] --> CK["chunk"]
+  CK --> EM["embed<br/>all-MiniLM-L6-v2"]
+  EM --> MV["Milvus vector DB"]
+  Q["support query"] --> QE["embed query"]
+  QE --> RT["retrieve top-k<br/>cosine / euclidean"]
+  MV --> RT
+  RT --> CC["concatenate context + prompt"]
+  CC --> G["GPT-4 generate<br/>grounded + provenance"]
+```
+
+**Interview questions this design invites**
+- Why choose dense retrieval over sparse (keyword) retrieval for support content?
+- What does a non-parametric knowledge store buy you in a regulated, fast-changing domain?
+- Why might `all-MiniLM-L6-v2` be a reasonable choice despite being small?
+- How does concatenating retrieved context reduce hallucination, and where can it still fail?
+- What does "provenance" mean here and why is it critical in a compliance setting?
+- How would you evaluate answer correctness for regulated support beyond anecdotes?
+
+**Tricks and gotchas**
+- Keeping knowledge outside model weights lets compliance updates ship without retraining.
+- A small sentence-transformer can be enough when the corpus is domain-specific and well curated.
+- Provenance (citing the grounding article) is a first-class requirement, not a nicety, in regulated domains.
+- Cosine versus Euclidean similarity is a real choice that depends on whether embeddings are normalized.
+
+**Common mistakes and how to fix them**
+- Relying on GPT-4 parametric knowledge for product-specific steps: ground on the KB and CRM instead.
+- Shipping answers with no source: attach provenance so agents can verify against the cited article.
+- Retraining to update guidance: update the vector store, since the knowledge is non-parametric.
+- Ignoring the similarity metric: match cosine versus Euclidean to whether your vectors are normalized.
+
+
+### Company: Mercado Libre ([source](https://medium.com/mercadolibre-tech/beyond-the-hype-real-world-lessons-and-insights-from-working-with-large-language-models-6d637e39f8f8))
+
+Mercado Libre's lessons center on raising the eval bar for practical LLM systems. Their documentation-search RAG (built with LlamaIndex) taught them the model cannot reliably answer beyond its retrieved context, so the fix was improving documentation quality rather than trusting general knowledge. Facing 2000 undocumented database tables, they used LLMs to auto-generate table descriptions and hit 90% stakeholder approval, but only after iterating heavily on prompts for structure, jargon, and format. For ambiguous natural language ("next Thursday", product quantities) they used function calling with defined output schemas to force predictable structured extraction. Recurring principles: ground in domain knowledge, iterate on prompts with QA feedback, offload processing outside the model to cut cost, and start with simpler models before premium ones.
+
+```mermaid
+flowchart TD
+  DOC["technical docs"] --> RAG["LlamaIndex RAG<br/>retrieve context"]
+  RAG --> ANS["grounded answer"]
+  TBL["2000 undocumented tables"] --> GEN["LLM generate descriptions"]
+  GEN --> QA["stakeholder QA<br/>iterate prompts"]
+  QA --> APP["90% approval"]
+  NL["ambiguous NL input"] --> FC["function calling<br/>defined schema"]
+  FC --> STR["structured extraction"]
+```
+
+**Interview questions this design invites**
+- Why does improving documentation beat prompt-tuning when RAG answers are weak?
+- How do you QA thousands of LLM-generated table descriptions efficiently?
+- When do you reach for function calling with a fixed schema instead of free-text generation?
+- Why start with simpler models before premium ones, and how do you know when to upgrade?
+- What does "offload processing outside the model" mean and when does it save cost?
+- How would you measure the 90% approval bar objectively across stakeholders?
+
+**Tricks and gotchas**
+- If retrieval has no answer, no prompt trick recovers it; fix the corpus, not the prompt.
+- Auto-generated metadata (table descriptions) is a force multiplier but needs a human QA loop.
+- Function calling with a schema turns messy natural language into predictable, actionable data.
+- Cheaper models often clear the bar; reserve premium models for tasks that measurably need them.
+
+**Common mistakes and how to fix them**
+- Blaming the model for gaps that are really missing documentation: enrich the corpus first.
+- Trusting generated metadata without review: add a stakeholder QA loop and iterate prompts.
+- Parsing ambiguous inputs with free text: use function calling with an explicit output schema.
+- Defaulting to the most expensive model: start simple and upgrade only when metrics demand it.
 _Not reachable: DoorDash_
 
 ---

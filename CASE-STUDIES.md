@@ -17,87 +17,65 @@ see [CASE-TEARDOWNS.md](CASE-TEARDOWNS.md); browse the same systems
 ---
 ### [RAG serving](topics/01-rag-serving.md) · 21 systems
 
-**What they share.** Every team runs the same spine: embed the query, retrieve candidate chunks from an index, rerank the shortlist, assemble a tight grounded context, and let the LLM generate a cited answer, with an offline parse-chunk-embed-index loop feeding freshness. What varies is where each team spends effort.
+**What they share.** Every team embeds the query, retrieves candidate context from an index, assembles a tight grounded prompt, and lets the LLM answer so knowledge updates without retraining; they diverge on the retrieval unit (chunk, query API, graph community, table) and on how hard they push fusion, reranking, and eval.
 
 ```mermaid
-flowchart LR
-  Q["query"] --> E["embed"]
-  E --> RET{"retrieval strategy"}
-  RET -->|"dense vector"| V["Ramp, NVIDIA"]
-  RET -->|"hybrid vec + BM25"| H["Dropbox, Vespa, Glean"]
-  RET -->|"graph traversal"| GR["MS GraphRAG"]
-  RET -->|"agentic rewrite"| AG["Uber"]
-  V --> RR{"rerank effort"}
-  H --> RR
-  GR --> RR
-  AG --> RR
-  RR -->|"two-prompt select"| RA["Ramp"]
-  RR -->|"cross-encoder"| RN["NVIDIA"]
-  RR -->|"bigger embed model"| RD["Dropbox"]
-  RR -->|"community summaries"| RG["MS GraphRAG"]
-  RR -->|"multi-signal + ACL"| RGL["Glean"]
-  RA --> CH{"chunk / freshness"}
-  RN --> CH
-  RD --> CH
-  RG --> CH
-  RGL --> CH
-  CH -->|"precomputed per label"| CR["Ramp"]
-  CH -->|"query-time chunk + webhooks"| CD["Dropbox"]
-  CH -->|"LLM-enriched offline"| CU["Uber"]
-  CH -->|"LLM-built entity graph"| CG["MS GraphRAG"]
-  CR --> EV{"grounding / eval"}
-  CD --> EV
-  CU --> EV
-  CG --> EV
-  EV -->|"accuracy@k"| EA["Ramp, Vespa"]
-  EV -->|"LLM-as-judge"| EU["Uber, Dropbox"]
-  EV -->|"comprehensiveness + SelfCheckGPT"| EG["MS GraphRAG"]
-  EV -->|"source precision/recall/F1"| EF["Dropbox, Glean"]
-  EA --> G["LLM generate + citations"]
-  EU --> G
-  EG --> G
-  EF --> G
+flowchart TD
+  Q["query"] --> D1{"retrieval unit?"}
+  D1 -->|"text chunk"| D2{"lexical + vector?"}
+  D1 -->|"vetted query API"| GRAB["Grab Data-Arks"]
+  D1 -->|"graph community"| MSFT["MS GraphRAG"]
+  D2 -->|"vector only"| D3{"chunk when?"}
+  D2 -->|"hybrid fuse"| HY["Uber / Vespa / Glean"]
+  D3 -->|"pre-index"| PV["MongoDB / Thomson Reuters<br/>Mercado Libre / Ramp / NVIDIA"]
+  D3 -->|"at query time"| DBX["Dropbox Dash"]
+  HY --> RR{"rerank stage?"}
+  PV --> RR
+  RR -->|"cross-encoder"| NV["NVIDIA / Dropbox"]
+  RR -->|"multi-signal + ACL"| GL["Glean"]
+  RR -->|"two-prompt LLM select"| RAMP["Ramp"]
+  RR -->|"none / similarity"| SIM["MongoDB / Thomson Reuters"]
 ```
 
 **The choices, side by side.**
 
-| Decision | Options (who chooses each) | What decides it |
+| Decision | Options (who) | What decides it |
 | --- | --- | --- |
-| Retrieval strategy | `dense` (Ramp, NVIDIA) vs `hybrid vec+BM25` (Dropbox, Vespa, Glean) vs `graph` (MS GraphRAG) vs `agentic rewrite` (Uber) | Multi-hop or messy queries pull richer retrieval |
-| Chunking / freshness | `precomputed per label` (Ramp) vs `query-time chunk` (Dropbox) vs `LLM-enriched offline` (Uber) vs `LLM entity graph` (MS) | Corpus churn and label-set stability |
-| Reranking | `two-prompt select` (Ramp) vs `cross-encoder` (NVIDIA) vs `bigger embed model` (Dropbox) vs `multi-signal+ACL` (Glean) | Precision need vs latency and token budget |
-| Grounding / eval | `accuracy@k` (Ramp, Vespa) vs `LLM-judge` (Uber, Dropbox) vs `comprehensiveness+SelfCheckGPT` (MS) vs `source F1` (Dropbox, Glean) | Closed labels score exactly; open Q&A needs judges |
+| Retrieval strategy | vector-only (MongoDB, Thomson Reuters, Mercado Libre, Ramp, NVIDIA); hybrid vec+BM25 (Uber, Vespa, Glean, Dropbox); query-API RAG (Grab); knowledge graph (MS, Glean) | whether exact terms and jargon matter, and if the corpus is docs, queries, or entities |
+| Chunking and freshness | pre-index chunks (MongoDB, Thomson Reuters, Mercado Libre, Ramp); query-time chunk (Dropbox); sync + webhooks (Dropbox); non-parametric store updated live (Thomson Reuters); LLM-enriched offline (Uber) | index churn vs query latency, and how fast source data changes |
+| Reranking | none / similarity-only (MongoDB, Thomson Reuters); cross-encoder (NVIDIA, Dropbox); two-prompt LLM select (Ramp); multi-signal permission-aware (Glean); community summaries (MS) | cost budget per query and how noisy first-stage recall is |
+| Grounding and eval | verify-before-use (MongoDB); provenance citations (Thomson Reuters, MS); LLM-as-judge (Uber, Dropbox); accuracy@k tuning (Ramp, Vespa); stakeholder approval (Mercado Libre); source P/R/F1 (Dropbox, Glean) | regulated domains need provenance; open-ended needs a judge; enumerable labels use accuracy@k |
 
 **The math that separates them.**
 
-**Retrieval recall ceiling (Ramp, Vespa)**
-$$\text{recall@}k = \frac{1}{|Q|}\sum_{q \in Q} \frac{|R_q^{k} \cap G_q|}{|G_q|}$$
+$$\text{recall@}k = \frac{1}{|Q|}\sum_{q \in Q}\frac{|R_q^{k}\cap G_q|}{|G_q|}$$
 
-**Hybrid fusion beats semantic-only by 3 to 5 pts (Vespa, Dropbox, Glean)**
-$$\text{RRF}(d) = \sum_{r \in \{\text{bm25},\,\text{vec}\}} \frac{1}{k_{\text{rrf}} + \text{rank}_r(d)}$$
+$$\text{RRF}(d) = \sum_{r\in\{\text{bm25},\,\text{vec}\}}\frac{1}{k_{\text{rrf}} + \text{rank}_r(d)}$$
 
-**Rerank is a cost lever, roughly 75x cheaper than the generator (NVIDIA)**
-$$C_{\text{rerank}} \approx \frac{1}{75}\,C_{\text{gen}} \;\Rightarrow\; \Delta_{\text{cost}} \approx -21.5\%$$
+$$F_1^{\text{source}} = \frac{2\,P\,R}{P+R},\qquad P = \frac{\text{relevant retrieved}}{\text{retrieved}},\quad R = \frac{\text{relevant retrieved}}{\text{relevant}}$$
 
-**Quantization sets the index memory budget, binary gives 32x (Vespa)**
-$$\text{bytes} = N \cdot d \cdot \frac{b}{8}, \qquad b: 32 \to 16 \to 1 \;\;(32\times \text{ smaller})$$
+$$C_{\text{rerank}} \approx \frac{1}{75}\,C_{\text{gen}} \;\Rightarrow\; \text{keep top-}m \ll n \text{ candidates before generation}$$
 
 ```mermaid
 quadrantChart
-    title Retrieval investment vs quality
-    x-axis Low cost --> High cost
-    y-axis Low recall/quality --> High recall/quality
-    quadrant-1 rich and expensive
-    quadrant-2 high value
-    quadrant-3 cheap and shallow
-    quadrant-4 costly for little
-    Ramp dense: [0.22, 0.45]
-    NVIDIA cross-encoder: [0.5, 0.72]
-    Vespa hybrid + quant: [0.4, 0.78]
-    Dropbox hybrid + query-chunk: [0.6, 0.74]
-    Glean hybrid + graph + ACL: [0.78, 0.82]
-    Uber agentic rewrite: [0.82, 0.8]
-    MS GraphRAG: [0.9, 0.85]
+  title "RAG serving: retrieval sophistication vs eval rigor"
+  x-axis "Simple retrieval" --> "Sophisticated retrieval"
+  y-axis "Lightweight eval" --> "Rigorous eval"
+  quadrant-1 "Heavy stack"
+  quadrant-2 "Eval-led"
+  quadrant-3 "Prototype-grade"
+  quadrant-4 "Retrieval-led"
+  "MongoDB": [0.30, 0.25]
+  "Thomson Reuters": [0.28, 0.45]
+  "Mercado Libre": [0.32, 0.55]
+  "Grab": [0.45, 0.40]
+  "Ramp": [0.55, 0.72]
+  "Dropbox": [0.68, 0.82]
+  "Uber": [0.78, 0.80]
+  "NVIDIA": [0.62, 0.58]
+  "Vespa": [0.72, 0.62]
+  "Glean": [0.85, 0.60]
+  "MS GraphRAG": [0.88, 0.68]
 ```
 
 **The systems**
