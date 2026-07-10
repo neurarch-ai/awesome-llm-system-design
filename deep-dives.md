@@ -914,7 +914,7 @@ Top-k keeps the $k$ highest-probability tokens, renormalizes over them, and samp
 
 **Q: What is min-p sampling and what problem does it target?**
 
-Min-p sets a threshold relative to the probability of the most likely token: it keeps tokens whose probability satisfies $p_i \ge \text{min\_p}\cdot\max_i p_i$, then renormalizes and samples. This makes the cutoff scale with model confidence, so on a very peaked step where the top token dominates, the admitted set stays tight, while on a flat step it opens up. It targets a weakness of top-p at high temperature, where flattening can push borderline tokens into the nucleus and let low-quality tokens through. By anchoring the threshold to the peak $\max_i p_i$ rather than to cumulative mass, min-p tends to preserve diversity while more aggressively cutting the truly unlikely tail. In practice it lets you run higher temperatures with fewer incoherent tokens.
+Min-p sets a threshold relative to the probability of the most likely token: it keeps tokens whose probability satisfies $p_i \ge \text{min-p}\cdot\max_i p_i$, then renormalizes and samples. This makes the cutoff scale with model confidence, so on a very peaked step where the top token dominates, the admitted set stays tight, while on a flat step it opens up. It targets a weakness of top-p at high temperature, where flattening can push borderline tokens into the nucleus and let low-quality tokens through. By anchoring the threshold to the peak $\max_i p_i$ rather than to cumulative mass, min-p tends to preserve diversity while more aggressively cutting the truly unlikely tail. In practice it lets you run higher temperatures with fewer incoherent tokens.
 
 **Q: Put the decoding rules side by side. When does each win and how does each fail?**
 
