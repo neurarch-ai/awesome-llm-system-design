@@ -46,9 +46,9 @@ The empirical finding (from the RMSNorm paper and confirmed at scale in LLaMA, T
 
 In post-LN the normalization sits after the residual addition, so the output of each sublayer is normalized, which means the residual path itself is repeatedly renormalized and gradient magnitudes to early layers can blow up or vanish at depth. In pre-LN the norm is applied to the input of each sublayer while the residual branch stays a clean identity path, so gradients flow through an unnormalized skip connection all the way to the input, which is far more stable to train deep. The two placements are:
 
-$$\text{post-LN:}\quad x_{l+1} = \text{LN}\!\left(x_l + \text{Sublayer}(x_l)\right)$$
+$$\text{post-LN:}\quad x_{l+1} = \text{LN}\left(x_l + \text{Sublayer}(x_l)\right)$$
 
-$$\text{pre-LN:}\quad x_{l+1} = x_l + \text{Sublayer}\!\left(\text{LN}(x_l)\right)$$
+$$\text{pre-LN:}\quad x_{l+1} = x_l + \text{Sublayer}\left(\text{LN}(x_l)\right)$$
 
 The concrete consequence is that pre-LN can often be trained without a learning-rate warmup and tolerates larger learning rates, whereas post-LN typically needs careful warmup or it diverges early. The tradeoff is that pre-LN can slightly underperform a well-tuned post-LN model of the same depth and tends to grow the residual stream norm with depth, which is why some models add a final norm and techniques like DeepNorm exist to make post-LN trainable at extreme depth.
 
@@ -87,7 +87,7 @@ $$\text{Var}(q \cdot k) = \sum_{i=1}^{d_k} \text{Var}(q_i k_i) = d_k$$
 
 so its magnitude grows with head dimension. Feeding large-magnitude logits into softmax pushes it into a saturated regime where one weight is near $1$ and the rest near $0$, and the gradient through softmax there is vanishingly small. Dividing by $\sqrt{d_k}$ rescales the variance back to order $1$, giving the standard form
 
-$$\text{Attention}(Q,K,V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V$$
+$$\text{Attention}(Q,K,V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right)V$$
 
 so the softmax stays in a responsive range with healthy gradients. The condition this rests on is the unit-variance assumption from initialization, which is exactly why the constant is $\sqrt{d_k}$ and not something learned.
 
@@ -101,9 +101,9 @@ Because softmax is invariant to adding a constant to all inputs (the constant ca
 
 **Q: GELU, GLU, SwiGLU: why did SwiGLU win in modern LLM MLP blocks?**
 
-GELU is a smooth activation that gates an input by (approximately) the probability mass of a Gaussian below it, giving a soft, differentiable alternative to ReLU, where $\text{GELU}(x) = x\,\Phi(x)$ and $\Phi$ is the standard normal CDF. A GLU-family layer instead splits the projection into two branches and uses one branch, passed through a nonlinearity, to multiplicatively gate the other, so the network learns a data-dependent gate rather than a fixed pointwise curve. SwiGLU is the GLU variant that uses the Swish (SiLU) activation on the gate:
+GELU is a smooth activation that gates an input by (approximately) the probability mass of a Gaussian below it, giving a soft, differentiable alternative to ReLU, where $\text{GELU}(x) = x \Phi(x)$ and $\Phi$ is the standard normal CDF. A GLU-family layer instead splits the projection into two branches and uses one branch, passed through a nonlinearity, to multiplicatively gate the other, so the network learns a data-dependent gate rather than a fixed pointwise curve. SwiGLU is the GLU variant that uses the Swish (SiLU) activation on the gate:
 
-$$\text{SwiGLU}(x) = \big(\text{SiLU}(xW_1)\big) \odot (xW_3), \quad \text{SiLU}(z) = z\,\sigma(z)$$
+$$\text{SwiGLU}(x) = \big(\text{SiLU}(xW_1)\big) \odot (xW_3), \quad \text{SiLU}(z) = z \sigma(z)$$
 
 Noam Shazeer's ablations plus later LLaMA-scale results found it consistently lowers loss versus plain GELU/ReLU MLPs. The catch is that a GLU block has three weight matrices ($W_1, W_3$, and the down-projection $W_2$) instead of two, so to keep parameter count fixed the hidden dimension is scaled down, commonly to about two-thirds, so $\frac{8}{3}d_{model}$ rather than $4 d_{model}$. SwiGLU wins on quality per parameter even after that adjustment.
 
@@ -119,7 +119,7 @@ Normalization forces activations to a fixed distribution (zero mean, unit varian
 
 Logit soft-capping passes a set of logits through a bounded squashing function, typically
 
-$$\text{softcap}(z) = c \cdot \tanh\!\left(\frac{z}{c}\right)$$
+$$\text{softcap}(z) = c \cdot \tanh\left(\frac{z}{c}\right)$$
 
 so their magnitude is smoothly clamped to the interval $(-c, c)$ instead of being allowed to grow without bound. Gemma 2 applied this to both the attention scores and the final output logits to keep them in a controlled range, which improves training stability by preventing a few entries from exploding and dominating the softmax. The tradeoff is that $\tanh$ saturates, so very confident predictions get their logits compressed, and it is incompatible with some fused-kernel fast paths like standard FlashAttention that do not implement the cap. This is why later models (Gemma 3) moved away from it toward other stabilizers such as QK-norm, since the stability benefit did not always justify the kernel and saturation costs.
 
@@ -135,7 +135,7 @@ Depth adds sequential compositional stages, letting the model build features tha
 
 In pre-LN, each sublayer adds its output to the residual without renormalizing the accumulator, so the running sum can accumulate magnitude layer after layer. If sublayer outputs are roughly independent with per-layer variance $s^2$, the stream norm grows like
 
-$$\|x_L\|^2 \approx \|x_0\|^2 + \sum_{l=1}^{L} s_l^2$$
+$$\Vert x_L\Vert ^2 \approx \Vert x_0\Vert ^2 + \sum_{l=1}^{L} s_l^2$$
 
 so in practice the residual-stream norm tends to grow roughly with depth. This is usually benign for training because each sublayer sees a normalized input regardless of the stream's absolute scale, but it means the raw stream feeding the output is large and uneven. The standard fix is a single final norm after the last block so the unembedding reads a well-scaled input, and some architectures additionally scale residual contributions at initialization (for example dividing by $\sqrt{2N}$ style schemes) to keep growth controlled. The tradeoff versus post-LN is exactly this: post-LN renormalizes the stream every layer and so does not grow, but pays for it with the harder gradient flow that motivated pre-LN in the first place.
 
@@ -143,7 +143,7 @@ so in practice the residual-stream norm tends to grow roughly with depth. This i
 
 QK-norm applies a normalization (often RMSNorm or $L_2$ normalization) to the query and key vectors before their dot product, which directly bounds the magnitude of the attention logits regardless of how the projections drift during training. With $L_2$ normalization the logit becomes a scaled cosine similarity:
 
-$$\text{logit}_{ij} = \tau \cdot \frac{q_i \cdot k_j}{\|q_i\|\,\|k_j\|} \in [-\tau, \tau]$$
+$$\text{logit}_{ij} = \tau \cdot \frac{q_i \cdot k_j}{\Vert q_i\Vert \Vert k_j\Vert } \in [-\tau, \tau]$$
 
 The problem it solves is attention-logit growth: without it, query/key norms can inflate as training proceeds, producing extreme logits, near-one-hot softmaxes, and instability, especially at large scale or in low precision. Compared to logit soft-capping, QK-norm controls the logits at their source rather than clamping the result, so it avoids $\tanh$ saturation and composes better with fused attention kernels, which is why Gemma 3 and other recent models adopted it. The cost is a couple of extra normalization ops inside the hot attention path, which is cheap relative to the stability it buys.
 
@@ -151,7 +151,7 @@ The problem it solves is attention-logit growth: without it, query/key norms can
 
 GQA sits between full multi-head attention (MHA), where every query head has its own key/value head, and multi-query attention (MQA), where all query heads share a single key/value head. In GQA the $H$ query heads are partitioned into $G$ groups, and each group shares one key/value head, so the number of KV heads is $G$ with $1 \le G \le H$:
 
-$$\text{MQA} \;(G=1) \;\le\; \text{GQA} \;(1 < G < H) \;\le\; \text{MHA} \;(G=H)$$
+$$\text{MQA} \ (G=1) \ \le\ \text{GQA} \ (1 < G < H) \ \le\ \text{MHA} \ (G=H)$$
 
 The main benefit is inference memory: the KV cache scales with the number of KV heads, so cutting from $H$ to $G$ shrinks the cache (and the memory-bandwidth cost of reading it at every decode step) by a factor of roughly $H/G$, which is often the binding constraint on long-context serving throughput. MQA saves the most but can hurt quality and stability, whereas GQA recovers almost all of the MHA quality at a fraction of the KV cost, which is why it is the mainstream choice in modern decoder LLMs such as LLaMA 2/3, Mistral, and many others. It is mainly a decode-time and long-context optimization, not a training-quality trick.
 
@@ -165,7 +165,7 @@ The core attention operation is permutation-equivariant: $\text{softmax}(QK^\top
 
 All four compute scaled dot-product attention with multiple query heads,
 
-$$\text{Attention}(Q, K, V) = \text{softmax}\!\left(\frac{Q K^\top}{\sqrt{d_k}}\right) V$$
+$$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{Q K^\top}{\sqrt{d_k}}\right) V$$
 
 and differ only in how many distinct key/value projections exist. MHA gives every query head its own $K$ and $V$, maximizing representational capacity but making the KV cache the largest. MQA collapses all heads to a single shared $K$/$V$ pair, shrinking the cache by a factor of the head count and boosting decode throughput, but it can degrade quality and destabilize training. GQA groups query heads to share $K$/$V$ within each group, sitting between the two, while MLA (Multi-head Latent Attention, from DeepSeek) instead stores a single low-rank latent vector that is up-projected into per-head $K$/$V$ at compute time. The tradeoff axis is quality versus KV-memory versus throughput: MHA best quality / worst memory, MQA best memory / weakest quality, GQA and MLA are the practical compromises.
 
@@ -216,11 +216,11 @@ Sliding-window attention restricts each token to attend only to the previous $w$
 
 Learned-absolute embeddings add a trainable vector per position; they are flexible but cannot represent positions beyond the trained maximum, so they fail to extrapolate. Sinusoidal encodings use fixed $\sin$/$\cos$ functions of position added to the input; deterministic and unbounded in principle but still added absolutely and weak at length extrapolation in practice. RoPE (Rotary Position Embedding) rotates the query and key vectors by an angle proportional to position,
 
-$$q_m^\top k_n = \big(R_m\, q\big)^\top \big(R_n\, k\big) = q^\top R_{n-m}\, k$$
+$$q_m^\top k_n = \big(R_m q\big)^\top \big(R_n k\big) = q^\top R_{n-m} k$$
 
 so the dot product depends only on the relative offset $n - m$, injecting relative position directly into attention without adding to values. ALiBi skips embeddings entirely and instead adds a linear, head-specific distance penalty to the attention scores,
 
-$$\text{score}_{ij} = \frac{q_i^\top k_j}{\sqrt{d_k}} - m_h \,\lvert i - j \rvert$$
+$$\text{score}_{ij} = \frac{q_i^\top k_j}{\sqrt{d_k}} - m_h \lvert i - j \rvert$$
 
 where $m_h$ is a fixed per-head slope, which extrapolates gracefully to longer sequences. The axis is absolute versus relative encoding and how well each extrapolates past training length.
 
@@ -279,7 +279,7 @@ The minimum of the validation curve (around epoch 3 above) is where you want to 
 
 LoRA reparameterizes the weight update as a low-rank product, so the effective weight is
 
-$$W = W_0 + \Delta W = W_0 + \frac{\alpha}{r} B A, \qquad B \in \mathbb{R}^{d \times r},\; A \in \mathbb{R}^{r \times k},\; r \ll \min(d, k)$$
+$$W = W_0 + \Delta W = W_0 + \frac{\alpha}{r} B A, \qquad B \in \mathbb{R}^{d \times r},\ A \in \mathbb{R}^{r \times k},\ r \ll \min(d, k)$$
 
 where $W_0$ is frozen, $B$ starts at zero and $A$ is randomly initialized (so $\Delta W = 0$ at step 0), and $\frac{\alpha}{r}$ is a fixed scaling factor. The most LoRA-specific lever is the rank $r$: a smaller rank constrains the update to a low-dimensional subspace and mechanically limits how much the model can memorize, so dropping from $r = 64$ to $r = 8$ or $r = 16$ is often the single best anti-overfitting move on small data. LoRA dropout and weight decay on the adapter matrices $A$ and $B$ add further regularization but have milder effect than rank. You can also scale down the $\frac{\alpha}{r}$ ratio to shrink the effective update magnitude. The tradeoff is capacity: too small a rank underfits tasks that require broad behavioral change (new language, heavy formatting), so you raise rank only when validation loss shows underfitting rather than reflexively.
 
@@ -303,7 +303,7 @@ The tradeoffs: LoRA and QLoRA can slightly underfit tasks needing deep changes, 
 
 Warmup ramps the learning rate from near zero over the first few hundred to few thousand steps, linearly $\eta_t = \eta_{\max} \cdot \frac{t}{t_{\text{warmup}}}$, so that early, high-variance gradients (and, with Adam, poorly-conditioned second-moment estimates) do not take huge destabilizing steps into random directions. Cosine decay then lowers the rate smoothly toward the end,
 
-$$\eta_t = \eta_{\min} + \tfrac{1}{2}(\eta_{\max} - \eta_{\min})\left(1 + \cos\frac{\pi \, t}{T}\right),$$
+$$\eta_t = \eta_{\min} + \tfrac{1}{2}(\eta_{\max} - \eta_{\min})\left(1 + \cos\frac{\pi t}{T}\right),$$
 
 so the model settles into a flatter minimum instead of bouncing around it, which improves final loss. Skip warmup and you risk an early loss spike or divergence, especially at large batch sizes and high peak LR. Skip decay and the model keeps taking large steps late in training, leaving final loss higher and noisier; the tradeoff with very aggressive decay is that the effective training time near a useful LR shrinks, so you match the schedule length $T$ to the token budget.
 
@@ -329,11 +329,11 @@ NaNs come from producing $\infty$ then combining it ($\infty - \infty$, $0 \time
 
 **Q: What does gradient clipping actually do, and how do you pick the threshold?**
 
-Gradient clipping rescales the gradient when its global norm exceeds a threshold $\tau$, so a single anomalous batch cannot produce an oversized parameter step that destabilizes training. Formally, with global norm $\|g\| = \sqrt{\sum_i g_i^2}$,
+Gradient clipping rescales the gradient when its global norm exceeds a threshold $\tau$, so a single anomalous batch cannot produce an oversized parameter step that destabilizes training. Formally, with global norm $\Vert g\Vert = \sqrt{\sum_i g_i^2}$,
 
-$$g \leftarrow g \cdot \min\!\left(1, \frac{\tau}{\|g\|}\right),$$
+$$g \leftarrow g \cdot \min\left(1, \frac{\tau}{\Vert g\Vert }\right),$$
 
-which leaves well-behaved steps untouched and only shrinks outliers, making it cheap insurance against loss spikes and divergence, especially early in training. You pick the threshold by watching the distribution of gradient norms and setting $\tau$ a bit above the typical value ($\|g\| \approx 1.0$ is common) so that only genuine outliers are clipped. The tradeoff is that a threshold set too low clips constantly, biasing the optimization and slowing learning, while too high never engages when you need it, so you monitor the fraction of steps being clipped and adjust.
+which leaves well-behaved steps untouched and only shrinks outliers, making it cheap insurance against loss spikes and divergence, especially early in training. You pick the threshold by watching the distribution of gradient norms and setting $\tau$ a bit above the typical value ($\Vert g\Vert \approx 1.0$ is common) so that only genuine outliers are clipped. The tradeoff is that a threshold set too low clips constantly, biasing the optimization and slowing learning, while too high never engages when you need it, so you monitor the fraction of steps being clipped and adjust.
 
 **Q: How does batch size affect training, and what is the critical batch size?**
 
@@ -361,7 +361,7 @@ Contamination is when eval examples (or close paraphrases) leak into training da
 
 **Q: When you fine-tune a model that already went through RLHF or instruction tuning, how do you keep it from drifting off its aligned behavior?**
 
-Plain supervised fine-tuning on a narrow set can overwrite the aligned policy, so the model regresses on safety, tone, or format while gaining your task. The standard control is a KL penalty toward the reference (the pre-fine-tune) model, adding a regularization term $\beta \, \mathrm{KL}(\pi_\theta \,\|\, \pi_{\text{ref}})$ that grows when the new policy's output distribution diverges from the reference, anchoring behavior while still allowing task adaptation. In practice you combine this with a low learning rate, LoRA to keep base weights recoverable, and replay of general instruction data so the aligned behavior keeps getting reinforced. The tradeoff is the KL coefficient $\beta$: too high and the model cannot move enough to learn the task, too low and it drifts and forgets alignment, so you sweep it against both task metrics and a behavior-preservation eval rather than optimizing task loss alone.
+Plain supervised fine-tuning on a narrow set can overwrite the aligned policy, so the model regresses on safety, tone, or format while gaining your task. The standard control is a KL penalty toward the reference (the pre-fine-tune) model, adding a regularization term $\beta \mathrm{KL}(\pi_\theta \Vert \pi_{\text{ref}})$ that grows when the new policy's output distribution diverges from the reference, anchoring behavior while still allowing task adaptation. In practice you combine this with a low learning rate, LoRA to keep base weights recoverable, and replay of general instruction data so the aligned behavior keeps getting reinforced. The tradeoff is the KL coefficient $\beta$: too high and the model cannot move enough to learn the task, too low and it drifts and forgets alignment, so you sweep it against both task metrics and a behavior-preservation eval rather than optimizing task loss alone.
 
 **Q: Why does LoRA work at all, and where is it most and least effective?**
 
@@ -377,15 +377,15 @@ Full fine-tuning of an $N$-parameter model in mixed precision costs roughly $2N$
 
 In standard RLHF you maximize expected reward under the policy minus a $\beta$-scaled KL to a frozen reference $\pi_\text{ref}$ (usually the SFT model):
 
-$$\max_{\pi_\theta}\ \mathbb{E}_{x,\,y\sim\pi_\theta(\cdot\mid x)}\big[r(x,y)\big]-\beta\,\text{KL}\!\big(\pi_\theta(y\mid x)\,\|\,\pi_\text{ref}(y\mid x)\big)$$
+$$\max_{\pi_\theta}\ \mathbb{E}_{x, y\sim\pi_\theta(\cdot\mid x)}\big[r(x,y)\big]-\beta \text{KL}\big(\pi_\theta(y\mid x) \Vert \pi_\text{ref}(y\mid x)\big)$$
 
 In practice PPO implements the penalty per token: the effective reward at token $t$ is the terminal reward minus a log-ratio,
 
-$$\tilde{r}_t = r(x,y)\cdot\mathbb{1}[t=T]\;-\;\beta\,\log\frac{\pi_\theta(y_t\mid x,y_{<t})}{\pi_\text{ref}(y_t\mid x,y_{<t})}.$$
+$$\tilde{r}_t = r(x,y)\cdot\mathbb{1}[t=T]\ -\ \beta \log\frac{\pi_\theta(y_t\mid x,y_{<t})}{\pi_\text{ref}(y_t\mid x,y_{<t})}.$$
 
 Summing that log-ratio over the sequence is a single-sample Monte Carlo estimate of the sequence-level KL, so the "KL penalty" and the "KL regularizer" are the same object realized token by token. The closed-form optimum of the regularized objective is the reward-tilted reference distribution:
 
-$$\pi^*(y\mid x)\;\propto\;\pi_\text{ref}(y\mid x)\,\exp\!\Big(\tfrac{1}{\beta}\,r(x,y)\Big).$$
+$$\pi^*(y\mid x)\ \propto\ \pi_\text{ref}(y\mid x) \exp\Big(\tfrac{1}{\beta} r(x,y)\Big).$$
 
 $\beta$ sets how sharply reward tilts the reference: small $\beta$ chases reward hard, large $\beta$ stays close to $\pi_\text{ref}$.
 
@@ -395,21 +395,21 @@ The reward model is a learned, imperfect proxy for human preference, and it is o
 
 **Q: Is the RLHF KL forward or reverse, and what behavioral bias does that direction imply?**
 
-RLHF minimizes the reverse KL, $\text{KL}(\pi_\theta\,\|\,\pi_\text{ref})$, because you take expectations under samples from $\pi_\theta$ (the thing you are optimizing) and pull it toward $\pi_\text{ref}$. Reverse KL is mode-seeking: it heavily penalizes $\pi_\theta$ putting mass where $\pi_\text{ref}$ has little, so the policy prefers to concentrate on a subset of high-probability, high-reward modes rather than spread across all of $\pi_\text{ref}$'s support. This is part of why aligned models become more deterministic and lower-entropy than the base model, sometimes to the point of reduced diversity. The tradeoff is that mode-seeking gives you crisp, confident, reward-aligned behavior at the cost of coverage and creativity.
+RLHF minimizes the reverse KL, $\text{KL}(\pi_\theta \Vert \pi_\text{ref})$, because you take expectations under samples from $\pi_\theta$ (the thing you are optimizing) and pull it toward $\pi_\text{ref}$. Reverse KL is mode-seeking: it heavily penalizes $\pi_\theta$ putting mass where $\pi_\text{ref}$ has little, so the policy prefers to concentrate on a subset of high-probability, high-reward modes rather than spread across all of $\pi_\text{ref}$'s support. This is part of why aligned models become more deterministic and lower-entropy than the base model, sometimes to the point of reduced diversity. The tradeoff is that mode-seeking gives you crisp, confident, reward-aligned behavior at the cost of coverage and creativity.
 
 **Q: Contrast forward and reverse KL precisely, using the zero-forcing versus zero-avoiding distinction.**
 
 Forward KL takes the expectation under the true/target $p$:
 
-$$\text{KL}(p\,\|\,q)=\mathbb{E}_{p}\!\left[\log\frac{p}{q}\right]=\sum_x p(x)\log\frac{p(x)}{q(x)}.$$
+$$\text{KL}(p \Vert q)=\mathbb{E}_{p}\left[\log\frac{p}{q}\right]=\sum_x p(x)\log\frac{p(x)}{q(x)}.$$
 
 Wherever $p$ has mass and $q$ does not, $\log(p/q)\to\infty$, so $q$ is forced to cover all of $p$'s modes (zero-avoiding, mass-covering). Reverse KL takes the expectation under $q$:
 
-$$\text{KL}(q\,\|\,p)=\mathbb{E}_{q}\!\left[\log\frac{q}{p}\right],$$
+$$\text{KL}(q \Vert p)=\mathbb{E}_{q}\left[\log\frac{q}{p}\right],$$
 
 so $q$ is penalized only for placing mass where $p$ is small; $q$ can safely ignore modes of $p$ and collapse onto one (zero-forcing, mode-seeking). Maximum-likelihood/cross-entropy training is a forward KL from data to model, which is why pretraining produces broad, mass-covering distributions. RL fine-tuning is reverse KL to the reference, which is why it sharpens and narrows. Neither is "correct" in the abstract; the direction encodes whether you value coverage or decisiveness.
 
-| Property | Forward $\text{KL}(p\,\|\,q)$ | Reverse $\text{KL}(q\,\|\,p)$ |
+| Property | Forward $\text{KL}(p \Vert q)$ | Reverse $\text{KL}(q \Vert p)$ |
 | --- | --- | --- |
 | Expectation taken under | $p$ (target/data) | $q$ (the fitted/optimized dist) |
 | Behavior | zero-avoiding (mass-covering) | zero-forcing (mode-collapsing) |
@@ -422,11 +422,11 @@ so $q$ is penalized only for placing mass where $p$ is small; $q$ can safely ign
 
 DPO starts from the same KL-regularized reward objective whose optimum is $\pi^*(y\mid x)\propto\pi_\text{ref}(y\mid x)\exp(r(x,y)/\beta)$. Inverting that relation gives the reward as a $\beta$-scaled log-ratio plus a prompt-only partition term:
 
-$$r(x,y)=\beta\,\log\frac{\pi_\theta(y\mid x)}{\pi_\text{ref}(y\mid x)}+\beta\,\log Z(x).$$
+$$r(x,y)=\beta \log\frac{\pi_\theta(y\mid x)}{\pi_\text{ref}(y\mid x)}+\beta \log Z(x).$$
 
-Plugging this into the Bradley-Terry preference likelihood, $P(y_w\succ y_l)=\sigma\!\big(r(x,y_w)-r(x,y_l)\big)$, cancels the intractable $Z(x)$ (it is shared by the chosen and rejected completions), leaving
+Plugging this into the Bradley-Terry preference likelihood, $P(y_w\succ y_l)=\sigma\big(r(x,y_w)-r(x,y_l)\big)$, cancels the intractable $Z(x)$ (it is shared by the chosen and rejected completions), leaving
 
-$$\mathcal{L}_\text{DPO}=-\log\sigma\!\Big(\beta\log\tfrac{\pi_\theta(y_w\mid x)}{\pi_\text{ref}(y_w\mid x)}-\beta\log\tfrac{\pi_\theta(y_l\mid x)}{\pi_\text{ref}(y_l\mid x)}\Big).$$
+$$\mathcal{L}_\text{DPO}=-\log\sigma\Big(\beta\log\tfrac{\pi_\theta(y_w\mid x)}{\pi_\text{ref}(y_w\mid x)}-\beta\log\tfrac{\pi_\theta(y_l\mid x)}{\pi_\text{ref}(y_l\mid x)}\Big).$$
 
 So DPO never runs RL or samples on-policy, yet the same KL-to-reference is baked in through $\pi_\text{ref}$ appearing in every log-ratio, with $\beta$ as the exact same KL temperature. Larger $\beta$ keeps $\pi_\theta$ closer to $\pi_\text{ref}$; smaller $\beta$ allows bigger preference-driven departures.
 
@@ -442,7 +442,7 @@ A reward model is a finite-capacity function fit on finite preference data, so i
 
 If you plot gold (true) reward against the square root of KL from the reference, you observe a characteristic rise-then-fall: proxy reward increases roughly monotonically while gold reward increases, plateaus, then declines. The $x$-axis being $\sqrt{\text{KL}}$ matters because empirically the gold-reward curve is well fit by a function of $\sqrt{\text{KL}}$, giving KL a natural role as the "distance traveled" budget. Concretely the fit has the shape
 
-$$R_\text{gold}(d)=d\,\big(\alpha-\beta_\text{coef}\,d\big),\qquad d=\sqrt{\text{KL}(\pi_\theta\,\|\,\pi_\text{ref})},$$
+$$R_\text{gold}(d)=d \big(\alpha-\beta_\text{coef} d\big),\qquad d=\sqrt{\text{KL}(\pi_\theta \Vert \pi_\text{ref})},$$
 
 a concave function of $d$ that peaks and then declines. The gap between proxy and gold is the over-optimization penalty and it widens with KL and narrows with reward-model size and data. Practically you tune $\beta$ (or early-stop on KL) to sit near the gold-reward peak, not the proxy peak. Larger, better-calibrated reward models push the peak further out, buying you more usable KL budget.
 
@@ -461,21 +461,21 @@ The upper (monotone) line is proxy reward, the lower (rise-then-fall) line is go
 
 Cross-entropy decomposes into data entropy plus a forward KL:
 
-$$H(p,q)=-\mathbb{E}_{x\sim p}[\log q(x)]=H(p)+\text{KL}(p\,\|\,q),$$
+$$H(p,q)=-\mathbb{E}_{x\sim p}[\log q(x)]=H(p)+\text{KL}(p \Vert q),$$
 
-where $p$ is the empirical data distribution and $q$ is the model. Since $H(p)$ (the data entropy) does not depend on the model parameters, minimizing cross-entropy is exactly minimizing the forward KL $\text{KL}(p\,\|\,q)$. So next-token pretraining is a mass-covering, forward-KL fit that tries to place probability everywhere the data does. This is the mathematical reason base models are broad generalists and why the zero-avoiding property gives them wide support before any alignment sharpens them. It also frames alignment as switching KL direction: pretraining is forward KL to data, RL fine-tuning is reverse KL to a reference.
+where $p$ is the empirical data distribution and $q$ is the model. Since $H(p)$ (the data entropy) does not depend on the model parameters, minimizing cross-entropy is exactly minimizing the forward KL $\text{KL}(p \Vert q)$. So next-token pretraining is a mass-covering, forward-KL fit that tries to place probability everywhere the data does. This is the mathematical reason base models are broad generalists and why the zero-avoiding property gives them wide support before any alignment sharpens them. It also frames alignment as switching KL direction: pretraining is forward KL to data, RL fine-tuning is reverse KL to a reference.
 
 **Q: How does knowledge distillation use KL, and which direction is it?**
 
-Standard distillation minimizes $\text{KL}(p_\text{teacher}\,\|\,p_\text{student})$ over the teacher's softened output distribution (temperature-scaled logits), i.e. the student's cross-entropy against soft targets, which is a forward KL from teacher to student. This is mass-covering, so the student is pushed to reproduce the full soft distribution including the teacher's relative probabilities over wrong answers ("dark knowledge"), not just the $\arg\max$. Some sequence-level LLM distillation instead uses reverse KL (student-sampled) to get mode-seeking behavior that avoids the student spreading mass over teacher modes it cannot represent. The choice mirrors the alignment story: forward for coverage, reverse for a sharper, more student-feasible target. Temperature on the teacher controls how much of the soft structure survives.
+Standard distillation minimizes $\text{KL}(p_\text{teacher} \Vert p_\text{student})$ over the teacher's softened output distribution (temperature-scaled logits), i.e. the student's cross-entropy against soft targets, which is a forward KL from teacher to student. This is mass-covering, so the student is pushed to reproduce the full soft distribution including the teacher's relative probabilities over wrong answers ("dark knowledge"), not just the $\arg\max$. Some sequence-level LLM distillation instead uses reverse KL (student-sampled) to get mode-seeking behavior that avoids the student spreading mass over teacher modes it cannot represent. The choice mirrors the alignment story: forward for coverage, reverse for a sharper, more student-feasible target. Temperature on the teacher controls how much of the soft structure survives.
 
 **Q: Where does KL appear in the VAE/ELBO, and why is it the same object conceptually?**
 
 The evidence lower bound is a reconstruction term minus a KL that pulls the approximate posterior toward the prior:
 
-$$\text{ELBO}=\mathbb{E}_{q(z\mid x)}\big[\log p(x\mid z)\big]-\text{KL}\!\big(q(z\mid x)\,\|\,p(z)\big).$$
+$$\text{ELBO}=\mathbb{E}_{q(z\mid x)}\big[\log p(x\mid z)\big]-\text{KL}\big(q(z\mid x) \Vert p(z)\big).$$
 
-Maximizing the ELBO is equivalent to minimizing $\text{KL}(q(z\mid x)\,\|\,p(z\mid x))$, the reverse KL between the variational and true posteriors, which is why VAEs inherit mode-seeking, sometimes-collapsing latents. The structural parallel to RLHF is exact: "fit the data / earn reward" versus "stay near a prior / reference," with a coefficient ($\beta$-VAE's $\beta$, RLHF's $\beta$) trading the two. In both cases the KL is a regularizer anchoring an optimized distribution to a fixed reference distribution. Recognizing this shared shape is often what the interviewer is testing.
+Maximizing the ELBO is equivalent to minimizing $\text{KL}(q(z\mid x) \Vert p(z\mid x))$, the reverse KL between the variational and true posteriors, which is why VAEs inherit mode-seeking, sometimes-collapsing latents. The structural parallel to RLHF is exact: "fit the data / earn reward" versus "stay near a prior / reference," with a coefficient ($\beta$-VAE's $\beta$, RLHF's $\beta$) trading the two. In both cases the KL is a regularizer anchoring an optimized distribution to a fixed reference distribution. Recognizing this shared shape is often what the interviewer is testing.
 
 **Q: Explain temperature's effect on the sampled distribution and its relationship to entropy and KL.**
 
@@ -495,11 +495,11 @@ Human raters and preference datasets tend to prefer longer, more detailed answer
 
 **Q: How is KL used as a live training diagnostic during RLHF, and what do specific patterns mean?**
 
-Practitioners monitor the running $\text{KL}(\pi_\theta\,\|\,\pi_\text{ref})$ per step as the primary health signal: it is the odometer of how far the policy has moved from the SFT model. A KL that spikes suddenly usually signals the policy has found a reward-model exploit and is racing off-distribution, often visible alongside a rising proxy reward but degrading sample quality. A KL near zero means the policy is barely learning ($\beta$ too high or learning rate too low), while a steadily climbing KL with plateauing gold reward is the over-optimization signature and a cue to stop or raise $\beta$. Many implementations use an adaptive KL controller that adjusts $\beta$ to hold KL near a target value, turning the diagnostic into a setpoint. Watching KL against reward, rather than reward alone, is how you distinguish real alignment gains from Goodhart.
+Practitioners monitor the running $\text{KL}(\pi_\theta \Vert \pi_\text{ref})$ per step as the primary health signal: it is the odometer of how far the policy has moved from the SFT model. A KL that spikes suddenly usually signals the policy has found a reward-model exploit and is racing off-distribution, often visible alongside a rising proxy reward but degrading sample quality. A KL near zero means the policy is barely learning ($\beta$ too high or learning rate too low), while a steadily climbing KL with plateauing gold reward is the over-optimization signature and a cue to stop or raise $\beta$. Many implementations use an adaptive KL controller that adjusts $\beta$ to hold KL near a target value, turning the diagnostic into a setpoint. Watching KL against reward, rather than reward alone, is how you distinguish real alignment gains from Goodhart.
 
 **Q: Why is KL divergence asymmetric and not a true distance, and does that matter for choosing forward vs reverse?**
 
-KL is not a metric: it is non-negative and zero only when the two distributions match, but $\text{KL}(p\,\|\,q)\neq\text{KL}(q\,\|\,p)$ in general and it violates the triangle inequality. That asymmetry is not a defect to be smoothed away; it is precisely the degree of freedom you exploit. Because the expectation is taken under the first argument, swapping the order swaps which regions dominate the penalty, giving the zero-avoiding versus zero-forcing behaviors above. If you genuinely want symmetry you use the Jensen-Shannon divergence, $\text{JS}(p,q)=\tfrac12\text{KL}(p\,\|\,m)+\tfrac12\text{KL}(q\,\|\,m)$ with $m=\tfrac12(p+q)$, which is symmetric and bounded, but most alignment objectives deliberately keep the asymmetric KL so they can control coverage-versus-decisiveness. The lesson for interviews: when someone says "KL," always ask which distribution the expectation is under, because that single choice determines the model's behavior.
+KL is not a metric: it is non-negative and zero only when the two distributions match, but $\text{KL}(p \Vert q)\neq\text{KL}(q \Vert p)$ in general and it violates the triangle inequality. That asymmetry is not a defect to be smoothed away; it is precisely the degree of freedom you exploit. Because the expectation is taken under the first argument, swapping the order swaps which regions dominate the penalty, giving the zero-avoiding versus zero-forcing behaviors above. If you genuinely want symmetry you use the Jensen-Shannon divergence, $\text{JS}(p,q)=\tfrac12\text{KL}(p \Vert m)+\tfrac12\text{KL}(q \Vert m)$ with $m=\tfrac12(p+q)$, which is symmetric and bounded, but most alignment objectives deliberately keep the asymmetric KL so they can control coverage-versus-decisiveness. The lesson for interviews: when someone says "KL," always ask which distribution the expectation is under, because that single choice determines the model's behavior.
 
 **Q: In the PPO objective the KL is a soft penalty, but PPO also has a clipping term. Are these two the same trust region?**
 
@@ -520,7 +520,7 @@ Data parallel (DDP) replicates the full model, optimizer, and gradients on every
 
 **Q: Why does optimizer state, not the parameters, usually dominate training memory?**
 
-Adam keeps two extra fp32 tensors per parameter, the first and second moments, and mixed-precision training also keeps an fp32 master copy of the weights. So per parameter you pay $4$ bytes master weight, $4$ bytes momentum, and $4$ bytes variance, which is $4 + 4 + 4 = 12$ bytes, versus $2$ bytes for the bf16 param used in compute. That means optimizer plus master state is roughly $6\times$ the size of the bf16 model itself, dwarfing the params. This is exactly why ZeRO targets optimizer state first: sharding it across $N$ ranks divides the single largest memory consumer with almost no compute cost. A $7\text{B}$ model needs about $7\text{B}\times 2\,\text{bytes} = 14\,\text{GB}$ in bf16 but around $7\text{B}\times 12\,\text{bytes} = 84\,\text{GB}$ just for Adam plus master weights.
+Adam keeps two extra fp32 tensors per parameter, the first and second moments, and mixed-precision training also keeps an fp32 master copy of the weights. So per parameter you pay $4$ bytes master weight, $4$ bytes momentum, and $4$ bytes variance, which is $4 + 4 + 4 = 12$ bytes, versus $2$ bytes for the bf16 param used in compute. That means optimizer plus master state is roughly $6\times$ the size of the bf16 model itself, dwarfing the params. This is exactly why ZeRO targets optimizer state first: sharding it across $N$ ranks divides the single largest memory consumer with almost no compute cost. A $7\text{B}$ model needs about $7\text{B}\times 2 \text{bytes} = 14 \text{GB}$ in bf16 but around $7\text{B}\times 12 \text{bytes} = 84 \text{GB}$ just for Adam plus master weights.
 
 **Q: Explain ZeRO stages 1, 2, and 3 and what you pay for each.**
 
@@ -643,15 +643,15 @@ Static batching groups a fixed set of requests, runs them together, and cannot s
 
 A small, cheap draft model proposes $k$ tokens autoregressively, then the large target model verifies all $k$ in a single forward pass (one pass scores all $k$ positions in parallel, which is cheap because verification is compute-bound, not memory-bound per token). A modified rejection-sampling rule accepts each drafted token with probability
 
-$$p_\text{accept}=\min\!\left(1,\ \frac{p_\text{target}(x)}{p_\text{draft}(x)}\right)$$
+$$p_\text{accept}=\min\left(1,\ \frac{p_\text{target}(x)}{p_\text{draft}(x)}\right)$$
 
-and, on the first rejection, resamples from an adjusted residual distribution $p_\text{resid}(x)\propto\max\!\big(0,\ p_\text{target}(x)-p_\text{draft}(x)\big)$, which is mathematically equivalent to sampling directly from the target model. So the output is distributionally identical to plain target decoding, no quality is traded away. The win is latency: multiple tokens can be emitted per target forward pass, lowering inter-token latency and end-to-end latency.
+and, on the first rejection, resamples from an adjusted residual distribution $p_\text{resid}(x)\propto\max\big(0,\ p_\text{target}(x)-p_\text{draft}(x)\big)$, which is mathematically equivalent to sampling directly from the target model. So the output is distributionally identical to plain target decoding, no quality is traded away. The win is latency: multiple tokens can be emitted per target forward pass, lowering inter-token latency and end-to-end latency.
 
 **Q: When does speculative decoding help and when does it hurt?**
 
 It helps when the acceptance rate is high, meaning the draft model agrees with the target often, so several tokens land per verification and you amortize the target's expensive memory-bound step across them. With per-token acceptance probability $\alpha$ and $k$ drafted tokens, the expected number of tokens accepted per target pass is
 
-$$\mathbb{E}[\text{tokens per pass}]=\frac{1-\alpha^{\,k+1}}{1-\alpha}$$
+$$\mathbb{E}[\text{tokens per pass}]=\frac{1-\alpha^{ k+1}}{1-\alpha}$$
 
 so the speedup grows with $\alpha$ and saturates as $k$ increases. It hurts when acceptance is low: you pay for the draft passes plus a target pass but keep only one or two tokens, so throughput can drop below plain decoding, and it consumes extra memory and scheduling overhead. It also helps most at low batch sizes where decode is memory-bound and the target has spare compute to absorb parallel verification for free; at large batch sizes the system is already compute-saturated, so the extra verification FLOPs compete with real work and the benefit shrinks. Net: it trades compute (cheap when idle) for latency, and only pays off when drafts are accurate and the GPU is otherwise underutilized.
 
@@ -787,13 +787,13 @@ and that noise acts as implicit regularization that biases training toward flatt
 
 **Q: SGD, momentum, Adam, and AdamW: what does each add, and when can Adam generalize worse than plain SGD?**
 
-Plain SGD follows the raw stochastic gradient $\theta_{t+1} = \theta_t - \eta\, g_t$ and can crawl through ravines and stall in flat directions. Momentum accumulates an exponential moving average of gradients,
+Plain SGD follows the raw stochastic gradient $\theta_{t+1} = \theta_t - \eta g_t$ and can crawl through ravines and stall in flat directions. Momentum accumulates an exponential moving average of gradients,
 
-$$v_t = \mu v_{t-1} + g_t, \qquad \theta_{t+1} = \theta_t - \eta\, v_t,$$
+$$v_t = \mu v_{t-1} + g_t, \qquad \theta_{t+1} = \theta_t - \eta v_t,$$
 
 damping oscillation across steep directions and accelerating along consistent ones, like a heavy ball. Adam adds per-parameter adaptive step sizes by dividing by a running estimate of gradient magnitude,
 
-$$m_t = \beta_1 m_{t-1} + (1-\beta_1) g_t, \qquad v_t = \beta_2 v_{t-1} + (1-\beta_2) g_t^2, \qquad \theta_{t+1} = \theta_t - \eta\, \frac{\hat{m}_t}{\sqrt{\hat{v}_t} + \epsilon},$$
+$$m_t = \beta_1 m_{t-1} + (1-\beta_1) g_t, \qquad v_t = \beta_2 v_{t-1} + (1-\beta_2) g_t^2, \qquad \theta_{t+1} = \theta_t - \eta \frac{\hat{m}_t}{\sqrt{\hat{v}_t} + \epsilon},$$
 
 which handles badly scaled or sparse gradients and needs less learning-rate tuning. Adam's per-coordinate rescaling can converge to sharper minima and it entangles weight decay with the adaptive denominator, so on vision benchmarks well-tuned SGD with momentum often generalizes better. AdamW fixes the decay entanglement by applying weight decay directly to the parameters, $\theta_{t+1} = \theta_t - \eta\bigl(\frac{\hat{m}_t}{\sqrt{\hat{v}_t}+\epsilon} + \lambda \theta_t\bigr)$, decoupling regularization from the adaptive scaling, which is why it is the default for transformers.
 
@@ -827,13 +827,13 @@ Empirically the local minima that do exist tend to cluster near the global minim
 
 **Q: If second-order and natural-gradient methods use curvature to take better-informed steps, why are they rarely used at scale?**
 
-Second-order methods precondition the gradient with (an approximation of) the inverse Hessian, $\theta_{t+1} = \theta_t - \eta\, H^{-1} g_t$, and natural gradient uses the inverse Fisher information $F^{-1} g_t$, which rescales steps by curvature so they behave well even in badly conditioned or reparameterized landscapes and can need far fewer iterations. The catch is cost: the exact matrix is $O(N^2)$ in parameter count to store and $O(N^3)$ to invert, which is hopeless for models with millions to billions of weights. Approximations like K-FAC, L-BFGS, or diagonal/block schemes reduce this but add complexity, memory, and stability risk, and they interact poorly with the heavy gradient noise of mini-batch training since curvature estimates become unreliable. Adaptive first-order methods like Adam capture a cheap diagonal slice of this curvature information (the $\sqrt{v_t}$ denominator) and recover much of the benefit at a fraction of the cost, so they win in practice.
+Second-order methods precondition the gradient with (an approximation of) the inverse Hessian, $\theta_{t+1} = \theta_t - \eta H^{-1} g_t$, and natural gradient uses the inverse Fisher information $F^{-1} g_t$, which rescales steps by curvature so they behave well even in badly conditioned or reparameterized landscapes and can need far fewer iterations. The catch is cost: the exact matrix is $O(N^2)$ in parameter count to store and $O(N^3)$ to invert, which is hopeless for models with millions to billions of weights. Approximations like K-FAC, L-BFGS, or diagonal/block schemes reduce this but add complexity, memory, and stability risk, and they interact poorly with the heavy gradient noise of mini-batch training since curvature estimates become unreliable. Adaptive first-order methods like Adam capture a cheap diagonal slice of this curvature information (the $\sqrt{v_t}$ denominator) and recover much of the benefit at a fraction of the cost, so they win in practice.
 
 **Q: When and why is gradient clipping used, and what is the difference between clipping by value and by norm?**
 
 Clipping bounds the update size to guard against rare, huge gradients (from exploding gradients in deep/recurrent nets or from a pathological batch) that would otherwise throw the parameters into a bad region in a single step. Clip-by-value caps each coordinate independently, which can distort the gradient's direction because different coordinates get scaled differently. Clip-by-norm rescales the whole gradient vector when its global norm exceeds a threshold $\tau$, preserving direction while shrinking magnitude:
 
-$$g \leftarrow g \cdot \min\!\left(1, \frac{\tau}{\lVert g \rVert_2}\right).$$
+$$g \leftarrow g \cdot \min\left(1, \frac{\tau}{\lVert g \rVert_2}\right).$$
 
 This is why clip-by-global-norm is the common choice for RNNs and transformers. It is a targeted stability fix rather than a routine optimizer feature: it rarely helps well-conditioned problems and mostly matters where occasional gradient spikes occur. The threshold $\tau$ is a hyperparameter, and setting it too low throttles learning by clipping normal steps.
 
@@ -857,7 +857,7 @@ often with warmup to survive the larger early steps. This lets you use hardware 
 
 Adam initializes its first- and second-moment moving averages at zero, so early in training those exponential averages are biased toward zero because few gradients have accumulated. The bias-correction terms divide each moment by one minus the decay raised to the step count,
 
-$$\hat{m}_t = \frac{m_t}{1 - \beta_1^{\,t}}, \qquad \hat{v}_t = \frac{v_t}{1 - \beta_2^{\,t}},$$
+$$\hat{m}_t = \frac{m_t}{1 - \beta_1^{ t}}, \qquad \hat{v}_t = \frac{v_t}{1 - \beta_2^{ t}},$$
 
 which rescales the early estimates up to their unbiased values and fades to a no-op as $t$ grows. The second-moment estimate sits in the denominator of the update, so an underestimated (too small) $v_t$ inflates the effective step size exactly when the estimates are least reliable, risking instability. Without correction the first several hundred steps take erratically large or misdirected steps, which is why omitting it tends to require a separate warmup or a smaller initial rate. It is a cheap fix that makes the early training transient well-behaved.
 
@@ -871,7 +871,7 @@ which keeps layer inputs in a consistent range so downstream gradients stay well
 
 **Q: What does weight decay actually regularize, and why is L2 penalty not the same as weight decay under Adam?**
 
-Weight decay shrinks parameters toward zero each step, $\theta_{t+1} = (1 - \eta\lambda)\,\theta_t - \eta\, g_t$, which biases the model toward smaller-norm solutions that tend to be smoother and generalize better. For plain SGD this is mathematically identical to adding an L2 penalty $\frac{\lambda}{2}\lVert\theta\rVert^2$ to the loss, since the gradient of that penalty is exactly $\lambda\theta$. Under Adam the equivalence breaks: an L2 penalty enters the gradient $g_t$ and then gets divided by the adaptive denominator $\sqrt{\hat{v}_t}+\epsilon$, so parameters with large historical gradients get decayed less, which is not what you want from a norm regularizer. AdamW restores the intended behavior by applying the $(1-\eta\lambda)$ shrink directly to $\theta$, outside the adaptive rescaling. This decoupling is precisely why AdamW, not Adam-plus-L2, is the transformer default.
+Weight decay shrinks parameters toward zero each step, $\theta_{t+1} = (1 - \eta\lambda) \theta_t - \eta g_t$, which biases the model toward smaller-norm solutions that tend to be smoother and generalize better. For plain SGD this is mathematically identical to adding an L2 penalty $\frac{\lambda}{2}\lVert\theta\rVert^2$ to the loss, since the gradient of that penalty is exactly $\lambda\theta$. Under Adam the equivalence breaks: an L2 penalty enters the gradient $g_t$ and then gets divided by the adaptive denominator $\sqrt{\hat{v}_t}+\epsilon$, so parameters with large historical gradients get decayed less, which is not what you want from a norm regularizer. AdamW restores the intended behavior by applying the $(1-\eta\lambda)$ shrink directly to $\theta$, outside the adaptive rescaling. This decoupling is precisely why AdamW, not Adam-plus-L2, is the transformer default.
 
 **Q: What is the difference between the loss landscape's conditioning and its non-convexity, and which one does Adam actually help with?**
 
@@ -910,7 +910,7 @@ Temperature $T$ divides the logits before the softmax, so probability is $p_i=\f
 
 **Q: Compare top-k and top-p (nucleus) sampling and explain why top-p adapts better.**
 
-Top-k keeps the $k$ highest-probability tokens, renormalizes over them, and samples; the cutoff is a fixed count regardless of how the probability mass is spread. Top-p, or nucleus sampling, instead keeps the smallest set of tokens whose cumulative probability reaches $p$, that is the nucleus $\{$smallest set with $\sum p\ge p\}$, then renormalizes and samples. The advantage is adaptivity: when the distribution is peaked, only a few tokens reach mass $p$ so the nucleus is small and safe, but when the distribution is flat and many tokens are plausible, the nucleus grows to include them. Fixed top-k cannot do this, so a small $k$ throws away good options on flat distributions while a large $k$ admits junk on peaked ones. That is why top-p is generally preferred as a single truncation knob, though the two can be composed.
+Top-k keeps the $k$ highest-probability tokens, renormalizes over them, and samples; the cutoff is a fixed count regardless of how the probability mass is spread. Top-p, or nucleus sampling, instead keeps the smallest set of tokens whose cumulative probability reaches $p$, that is the nucleus $\lbrace $smallest set with $\sum p\ge p\rbrace $, then renormalizes and samples. The advantage is adaptivity: when the distribution is peaked, only a few tokens reach mass $p$ so the nucleus is small and safe, but when the distribution is flat and many tokens are plausible, the nucleus grows to include them. Fixed top-k cannot do this, so a small $k$ throws away good options on flat distributions while a large $k$ admits junk on peaked ones. That is why top-p is generally preferred as a single truncation knob, though the two can be composed.
 
 **Q: What is min-p sampling and what problem does it target?**
 
@@ -932,7 +932,7 @@ The takeaway: greedy and beam trade adaptivity for determinism and suit peaked t
 
 **Q: Explain repetition, frequency, and presence penalties and how no-repeat-ngram differs.**
 
-A repetition penalty divides or reduces the logits of tokens that already appeared, discouraging verbatim reuse; it is typically applied as a multiplicative factor on prior-token logits. Frequency penalty scales the reduction by how many times a token has occurred, so the adjustment is roughly $z_i \leftarrow z_i - \alpha\, c_i$ where $c_i$ is the count, pushing heavily repeated tokens down more, while presence penalty applies a flat reduction $z_i \leftarrow z_i - \beta\,\mathbb{1}[c_i>0]$ the moment a token has appeared at all, regardless of count. No-repeat-ngram is a hard constraint rather than a soft nudge: it sets the probability of any token that would complete a previously seen n-gram to zero, guaranteeing no repeated n-gram of that size. The tradeoff is that hard n-gram blocking can damage legitimately repeating text such as names, code, or structured formats, whereas soft penalties bias without forbidding. Overly strong penalties of either kind degrade fluency by forcing awkward word choices.
+A repetition penalty divides or reduces the logits of tokens that already appeared, discouraging verbatim reuse; it is typically applied as a multiplicative factor on prior-token logits. Frequency penalty scales the reduction by how many times a token has occurred, so the adjustment is roughly $z_i \leftarrow z_i - \alpha c_i$ where $c_i$ is the count, pushing heavily repeated tokens down more, while presence penalty applies a flat reduction $z_i \leftarrow z_i - \beta \mathbb{1}[c_i>0]$ the moment a token has appeared at all, regardless of count. No-repeat-ngram is a hard constraint rather than a soft nudge: it sets the probability of any token that would complete a previously seen n-gram to zero, guaranteeing no repeated n-gram of that size. The tradeoff is that hard n-gram blocking can damage legitimately repeating text such as names, code, or structured formats, whereas soft penalties bias without forbidding. Overly strong penalties of either kind degrade fluency by forcing awkward word choices.
 
 **Q: Why is greedy decoding deterministic while sampling is not, and what role does the seed play?**
 
@@ -1003,9 +1003,9 @@ There is no fixed loss surface being descended: the generator and discriminator 
 
 The ELBO for a datapoint $x$ is
 
-$$\mathcal{L}=\mathbb{E}_{q(z\mid x)}[\log p(x\mid z)]-\text{KL}\!\big(q(z\mid x)\,\|\,p(z)\big),\qquad \mathcal{L}\le \log p(x).$$
+$$\mathcal{L}=\mathbb{E}_{q(z\mid x)}[\log p(x\mid z)]-\text{KL}\big(q(z\mid x) \Vert p(z)\big),\qquad \mathcal{L}\le \log p(x).$$
 
-The first term is a reconstruction term: it rewards the decoder for assigning high probability to the original $x$ when it decodes latents drawn from the encoder. The second term is a regularizer: $\text{KL}\!\big(q(z\mid x)\,\|\,p(z)\big)$ pulls the encoded latent distribution toward a simple prior, usually a standard Gaussian $p(z)=\mathcal{N}(0,I)$, which keeps the latent space smooth and samplable. Maximizing the ELBO trades reconstruction fidelity against latent regularity, and the gap between the ELBO and the true log-likelihood equals $\text{KL}\!\big(q(z\mid x)\,\|\,p(z\mid x)\big)$, so a better encoder tightens the bound.
+The first term is a reconstruction term: it rewards the decoder for assigning high probability to the original $x$ when it decodes latents drawn from the encoder. The second term is a regularizer: $\text{KL}\big(q(z\mid x) \Vert p(z)\big)$ pulls the encoded latent distribution toward a simple prior, usually a standard Gaussian $p(z)=\mathcal{N}(0,I)$, which keeps the latent space smooth and samplable. Maximizing the ELBO trades reconstruction fidelity against latent regularity, and the gap between the ELBO and the true log-likelihood equals $\text{KL}\big(q(z\mid x) \Vert p(z\mid x)\big)$, so a better encoder tightens the bound.
 
 **Q: What is the reparameterization trick and why is it necessary?**
 
@@ -1021,7 +1021,7 @@ Posterior collapse is when the approximate posterior $q(z\mid x)$ reverts to the
 
 **Q: Describe the forward and reverse processes in a diffusion model.**
 
-The forward process is fixed and requires no learning: it gradually adds Gaussian noise to the data over many steps according to a schedule $\{\beta_t\}$, so that after enough steps any datapoint becomes approximately pure standard Gaussian noise. Because the noise is Gaussian and the steps compose, you can jump to any noise level in closed form, $q(x_t\mid x_0)=\mathcal{N}\!\big(x_t;\sqrt{\bar\alpha_t}\,x_0,\,(1-\bar\alpha_t)I\big)$ with $\bar\alpha_t=\prod_{s\le t}(1-\beta_s)$, and sample a noisy $x_t$ directly from the clean $x_0$. The reverse process is what you learn: a network $\epsilon_\theta$ is trained to undo one step of noising, typically by predicting the noise that was added via the loss $\mathbb{E}_{x_0,\epsilon,t}\big[\lVert \epsilon-\epsilon_\theta(x_t,t)\rVert^2\big]$, and running $p_\theta(x_{t-1}\mid x_t)$ from pure noise back down to step zero generates a sample. The regression loss is stable, and the multi-step reverse chain is what gives high quality and mode coverage at the cost of many network evaluations at sampling time.
+The forward process is fixed and requires no learning: it gradually adds Gaussian noise to the data over many steps according to a schedule $\lbrace \beta_t\rbrace $, so that after enough steps any datapoint becomes approximately pure standard Gaussian noise. Because the noise is Gaussian and the steps compose, you can jump to any noise level in closed form, $q(x_t\mid x_0)=\mathcal{N}\big(x_t \sqrt{\bar\alpha_t} x_0, (1-\bar\alpha_t)I\big)$ with $\bar\alpha_t=\prod_{s\le t}(1-\beta_s)$, and sample a noisy $x_t$ directly from the clean $x_0$. The reverse process is what you learn: a network $\epsilon_\theta$ is trained to undo one step of noising, typically by predicting the noise that was added via the loss $\mathbb{E}_{x_0,\epsilon,t}\big[\lVert \epsilon-\epsilon_\theta(x_t,t)\rVert^2\big]$, and running $p_\theta(x_{t-1}\mid x_t)$ from pure noise back down to step zero generates a sample. The regression loss is stable, and the multi-step reverse chain is what gives high quality and mode coverage at the cost of many network evaluations at sampling time.
 
 ```mermaid
 graph LR
@@ -1045,7 +1045,7 @@ Latent diffusion first trains an autoencoder that compresses images into a much 
 
 **Q: What is score matching at a high level, and how does it connect to diffusion?**
 
-The score is the gradient of the log density with respect to $x$, $\nabla_x\log p(x)$, and it points toward regions of higher data probability; score matching learns this vector field without ever computing the intractable normalizing constant of the density. If you know the score everywhere you can generate samples by starting from noise and following the score uphill with small stochastic steps (Langevin dynamics), $x_{k+1}=x_k+\tfrac{\eta}{2}\nabla_x\log p(x_k)+\sqrt{\eta}\,\epsilon_k$. Diffusion connects to this directly: predicting the noise added at a given level is mathematically equivalent, up to scaling, to estimating the score of the noised data distribution at that noise level ($\nabla_{x_t}\log q(x_t)=-\epsilon/\sqrt{1-\bar\alpha_t}$), so a diffusion denoiser is a score model trained across a range of noise scales. This unification is why the two lines of work (denoising diffusion and score-based generative modeling) are understood as the same underlying method.
+The score is the gradient of the log density with respect to $x$, $\nabla_x\log p(x)$, and it points toward regions of higher data probability; score matching learns this vector field without ever computing the intractable normalizing constant of the density. If you know the score everywhere you can generate samples by starting from noise and following the score uphill with small stochastic steps (Langevin dynamics), $x_{k+1}=x_k+\tfrac{\eta}{2}\nabla_x\log p(x_k)+\sqrt{\eta} \epsilon_k$. Diffusion connects to this directly: predicting the noise added at a given level is mathematically equivalent, up to scaling, to estimating the score of the noised data distribution at that noise level ($\nabla_{x_t}\log q(x_t)=-\epsilon/\sqrt{1-\bar\alpha_t}$), so a diffusion denoiser is a score model trained across a range of noise scales. This unification is why the two lines of work (denoising diffusion and score-based generative modeling) are understood as the same underlying method.
 
 **Q: What is classifier-free guidance and what tradeoff does its scale control?**
 
@@ -1061,7 +1061,7 @@ An autoregressive model factorizes the joint probability of a sequence exactly v
 
 **Q: What is the difference between an autoencoder and a variational autoencoder, and why can't you sample from a plain autoencoder?**
 
-A plain autoencoder learns a deterministic encoder that maps $x$ to a single latent code and a decoder that reconstructs $x$, trained only to minimize reconstruction error. Nothing constrains the geometry of its latent space, so the codes for the training set can occupy an arbitrary, hole-filled region with no known distribution to draw from; if you sample a random point and decode it you usually land in an empty gap and get garbage. A VAE fixes this by making the encoder output a distribution $q(z\mid x)$ and adding the KL term $\text{KL}\!\big(q(z\mid x)\,\|\,p(z)\big)$ that pulls all encodings toward a known prior $p(z)=\mathcal{N}(0,I)$, so the aggregate latent space matches a distribution you can sample from. That regularization is exactly what turns a compression tool into a generative model: you can draw $z\sim\mathcal{N}(0,I)$ and decode it. The price is that pulling toward a simple prior blurs reconstructions relative to a deterministic autoencoder of the same capacity.
+A plain autoencoder learns a deterministic encoder that maps $x$ to a single latent code and a decoder that reconstructs $x$, trained only to minimize reconstruction error. Nothing constrains the geometry of its latent space, so the codes for the training set can occupy an arbitrary, hole-filled region with no known distribution to draw from; if you sample a random point and decode it you usually land in an empty gap and get garbage. A VAE fixes this by making the encoder output a distribution $q(z\mid x)$ and adding the KL term $\text{KL}\big(q(z\mid x) \Vert p(z)\big)$ that pulls all encodings toward a known prior $p(z)=\mathcal{N}(0,I)$, so the aggregate latent space matches a distribution you can sample from. That regularization is exactly what turns a compression tool into a generative model: you can draw $z\sim\mathcal{N}(0,I)$ and decode it. The price is that pulling toward a simple prior blurs reconstructions relative to a deterministic autoencoder of the same capacity.
 
 **Q: Diffusion and autoregressive models both bound or give exact likelihood, so why is diffusion parallel over positions while autoregressive is serial?**
 
@@ -1079,7 +1079,7 @@ The common wrong answer is that more relevant context is always better, so quali
 
 **Q: Model A has lower perplexity than model B on your held-out text, so it will be the better chat assistant, right?**
 
-Wrong: perplexity ranks models on next-token likelihood over a corpus, and that is only weakly coupled to whether users prefer the assistant's answers. Perplexity is $\exp$ of the average per-token cross-entropy, $\text{PPL} = \exp\!\big(-\frac{1}{N}\sum_{i} \log p(x_i \mid x_{<i})\big)$, so it rewards spreading probability well over generic text and is dominated by the many easy, high-frequency tokens rather than the few decision-point tokens that determine if a response is correct, helpful, or safe. A model tuned by RLHF often has higher perplexity than its base because alignment sharpens the distribution and sacrifices likelihood on generic web text, yet it is vastly preferred by users. Perplexity is also sensitive to tokenizer and domain, so cross-model comparison is only valid on identical tokenization. Use it as a pretraining smoke test, not as a proxy for chat quality, which needs preference evals or task benchmarks.
+Wrong: perplexity ranks models on next-token likelihood over a corpus, and that is only weakly coupled to whether users prefer the assistant's answers. Perplexity is $\exp$ of the average per-token cross-entropy, $\text{PPL} = \exp\big(-\frac{1}{N}\sum_{i} \log p(x_i \mid x_{<i})\big)$, so it rewards spreading probability well over generic text and is dominated by the many easy, high-frequency tokens rather than the few decision-point tokens that determine if a response is correct, helpful, or safe. A model tuned by RLHF often has higher perplexity than its base because alignment sharpens the distribution and sacrifices likelihood on generic web text, yet it is vastly preferred by users. Perplexity is also sensitive to tokenizer and domain, so cross-model comparison is only valid on identical tokenization. Use it as a pretraining smoke test, not as a proxy for chat quality, which needs preference evals or task benchmarks.
 
 **Q: A mixture-of-experts model has 8x the parameters of a dense model, so where exactly is it cheaper, and where is it not?**
 

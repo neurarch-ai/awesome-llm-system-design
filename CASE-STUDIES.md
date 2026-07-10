@@ -50,11 +50,11 @@ flowchart TD
 
 $$\text{recall@}k = \frac{1}{|Q|}\sum_{q \in Q}\frac{|R_q^{k}\cap G_q|}{|G_q|}$$
 
-$$\text{RRF}(d) = \sum_{r\in\{\text{bm25},\,\text{vec}\}}\frac{1}{k_{\text{rrf}} + \text{rank}_r(d)}$$
+$$\text{RRF}(d) = \sum_{r\in\lbrace \text{bm25}, \text{vec}\rbrace }\frac{1}{k_{\text{rrf}} + \text{rank}_r(d)}$$
 
-$$F_1^{\text{source}} = \frac{2\,P\,R}{P+R},\qquad P = \frac{\text{relevant retrieved}}{\text{retrieved}},\quad R = \frac{\text{relevant retrieved}}{\text{relevant}}$$
+$$F_1^{\text{source}} = \frac{2 P R}{P+R},\qquad P = \frac{\text{relevant retrieved}}{\text{retrieved}},\quad R = \frac{\text{relevant retrieved}}{\text{relevant}}$$
 
-$$C_{\text{rerank}} \approx \frac{1}{75}\,C_{\text{gen}} \;\Rightarrow\; \text{keep top-}m \ll n \text{ candidates before generation}$$
+$$C_{\text{rerank}} \approx \frac{1}{75} C_{\text{gen}} \ \Rightarrow\ \text{keep top-}m \ll n \text{ candidates before generation}$$
 
 ```mermaid
 quadrantChart
@@ -144,7 +144,7 @@ $$\textbf{index memory (uncompressed)} = n_{vectors} \times dim \times bytes_{pe
 
 $$\textbf{PQ compression ratio} = \frac{dim \times 4}{m \times \lceil b/8 \rceil}, \quad m\ \text{subspaces},\ b\ \text{bits/code}$$
 
-$$\textbf{ScaNN anisotropic loss} = \eta \, \lVert r_{\parallel} \rVert^{2} + \lVert r_{\perp} \rVert^{2}, \quad r = x - \tilde{x},\ \eta > 1$$
+$$\textbf{ScaNN anisotropic loss} = \eta \lVert r_{\parallel} \rVert^{2} + \lVert r_{\perp} \rVert^{2}, \quad r = x - \tilde{x},\ \eta > 1$$
 
 $$\textbf{recall vs latency (graph)} = f(ef,\ M) \uparrow \ \Rightarrow\ recall \uparrow,\ latency \uparrow$$
 
@@ -322,9 +322,9 @@ $$\textbf{decode step time} \approx \frac{P \cdot b_w + N \cdot \text{KV}_{\text
 
 $$\textbf{KV-cache bytes per token} = 2 \cdot L \cdot n_{kv} \cdot d_{head} \cdot b_{kv}$$
 
-$$\textbf{speculative acceptance speedup} = \frac{1 - \alpha^{k+1}}{(1 - \alpha)\,(1 + c\,k)}$$
+$$\textbf{speculative acceptance speedup} = \frac{1 - \alpha^{k+1}}{(1 - \alpha) (1 + c k)}$$
 
-$$\textbf{arithmetic intensity vs roofline} \;\Rightarrow\; \text{tokens/s} = \min\!\left(\frac{\text{FLOPs}}{\text{op count}},\; \frac{\text{bandwidth}}{\text{bytes moved}}\right)$$
+$$\textbf{arithmetic intensity vs roofline} \ \Rightarrow\ \text{tokens/s} = \min\left(\frac{\text{FLOPs}}{\text{op count}},\ \frac{\text{bandwidth}}{\text{bytes moved}}\right)$$
 
 where $P$ = weight params, $b_w$ = weight bytes/param, $N$ = batched sequences, $L$ = layers, $n_{kv}$ = KV heads (MQA drives to 1), $b_{kv}$ = KV bytes/element, $\alpha$ = draft acceptance rate, $k$ = draft length, $c$ = per-token verify overhead.
 
@@ -479,13 +479,13 @@ flowchart TD
 
 **The math that separates them.**
 
-$$\textbf{Cascade expected cost:}\quad \mathbb{E}[C] = c_1 + (1-p_1)\,c_2 + (1-p_1)(1-p_2)\,c_3$$
+$$\textbf{Cascade expected cost:}\quad \mathbb{E}[C] = c_1 + (1-p_1) c_2 + (1-p_1)(1-p_2) c_3$$
 
-$$\textbf{Router expected savings:}\quad S = f_{\text{weak}}\,(c_{\text{big}} - c_{\text{small}}) - c_{\text{router}}$$
+$$\textbf{Router expected savings:}\quad S = f_{\text{weak}} (c_{\text{big}} - c_{\text{small}}) - c_{\text{router}}$$
 
 $$\textbf{Cache serve when:}\quad \max_{k}\ \cos(e_q, e_k) \ge \tau,\quad \tau \in (0,1)$$
 
-$$\textbf{Prompt compression ratio:}\quad \rho = \frac{n_{\text{orig}}}{n_{\text{comp}}},\quad \text{net win iff } c_{\text{big}}\,(n_{\text{orig}}-n_{\text{comp}}) > c_{\text{small}}\,n_{\text{orig}}$$
+$$\textbf{Prompt compression ratio:}\quad \rho = \frac{n_{\text{orig}}}{n_{\text{comp}}},\quad \text{net win iff } c_{\text{big}} (n_{\text{orig}}-n_{\text{comp}}) > c_{\text{small}} n_{\text{orig}}$$
 
 ```mermaid
 quadrantChart
@@ -555,9 +555,9 @@ flowchart TD
 
 $$\textbf{context growth per turn:}\quad T_n = T_0 + \sum_{i=1}^{n}\bigl(o_i + a_i\bigr)$$
 
-$$\textbf{per-ticket cost:}\quad C = \sum_{s=1}^{S} p\,(T_{s-1} + I_s) + g\,O_s$$
+$$\textbf{per-ticket cost:}\quad C = \sum_{s=1}^{S} p (T_{s-1} + I_s) + g O_s$$
 
-$$\textbf{multi-agent token multiple:}\quad \frac{C_{multi}}{C_{single}} \approx k \cdot \bar{r} \;\;(\text{Anthropic: about }15\times)$$
+$$\textbf{multi-agent token multiple:}\quad \frac{C_{multi}}{C_{single}} \approx k \cdot \bar{r} \ \ (\text{Anthropic: about }15\times)$$
 
 $$\textbf{MoE active fraction:}\quad f_{active} = \frac{\text{top-}k}{E},\qquad C_{token} \propto f_{active}$$
 
@@ -637,13 +637,13 @@ flowchart LR
 
 **The math that separates them.**
 
-$$\textbf{image tokens} \;=\; \left\lfloor \tfrac{H}{p} \right\rfloor \left\lfloor \tfrac{W}{p} \right\rfloor \quad (\text{Pixtral: } 1024^2, p{=}16 \Rightarrow 4096)$$
+$$\textbf{image tokens} \ =\ \left\lfloor \tfrac{H}{p} \right\rfloor \left\lfloor \tfrac{W}{p} \right\rfloor \quad (\text{Pixtral: } 1024^2, p{=}16 \Rightarrow 4096)$$
 
-$$\textbf{tiled token count} \;=\; T \cdot \tfrac{H_t W_t}{p^2} \;+\; \text{tags} \quad (\text{grows linearly in tiles } T)$$
+$$\textbf{tiled token count} \ =\ T \cdot \tfrac{H_t W_t}{p^2} \ +\ \text{tags} \quad (\text{grows linearly in tiles } T)$$
 
-$$\textbf{prefill compute is quadratic} \;=\; O\!\big((n_\text{text}+n_\text{img})^2 \, d\big)$$
+$$\textbf{prefill compute is quadratic} \ =\ O\big((n_\text{text}+n_\text{img})^2 d\big)$$
 
-$$\textbf{KV bytes} \;=\; 2 \cdot L \cdot (n_\text{text}+n_\text{img}) \cdot d_\text{kv} \cdot b_\text{prec}$$
+$$\textbf{KV bytes} \ =\ 2 \cdot L \cdot (n_\text{text}+n_\text{img}) \cdot d_\text{kv} \cdot b_\text{prec}$$
 
 ```mermaid
 quadrantChart
@@ -734,7 +734,7 @@ $$\mathcal{L}_{DPO} = -\mathbb{E}_{(x,y_w,y_l)} \left[ \log \sigma \left( \beta 
 
 **RLHF KL-penalized objective (LinkedIn):**
 
-$$\max_{\pi_\theta}\ \mathbb{E}_{x,\, y \sim \pi_\theta}\big[ r_\phi(x,y) \big] - \beta\, \mathrm{KL}\!\left[ \pi_\theta(y \mid x)\ \|\ \pi_{ref}(y \mid x) \right]$$
+$$\max_{\pi_\theta}\ \mathbb{E}_{x, y \sim \pi_\theta}\big[ r_\phi(x,y) \big] - \beta \mathrm{KL}\left[ \pi_\theta(y \mid x)\ \Vert \ \pi_{ref}(y \mid x) \right]$$
 
 **QLoRA memory (Mercari, 4-bit frozen base):**
 
@@ -828,10 +828,10 @@ $$\kappa = \frac{p_o - p_e}{1 - p_e}$$
 $$F_1 = 2 \cdot \frac{\text{precision} \cdot \text{recall}}{\text{precision} + \text{recall}}$$
 
 **Position-bias averaging (both orderings)**
-$$s(A,B) = \tfrac{1}{2}\big[\, j(A \prec B) + \big(1 - j(B \prec A)\big) \,\big]$$
+$$s(A,B) = \tfrac{1}{2}\big[ j(A \prec B) + \big(1 - j(B \prec A)\big) \big]$$
 
 **Per-slice regression gate inequality**
-$$\text{ship} \iff \min_{g \in \text{segments}} \big( s_g^{\text{cand}} - s_g^{\text{base}} \big) \ge -\,\epsilon, \quad \epsilon \sim \sigma_{\text{judge}}$$
+$$\text{ship} \iff \min_{g \in \text{segments}} \big( s_g^{\text{cand}} - s_g^{\text{base}} \big) \ge - \epsilon, \quad \epsilon \sim \sigma_{\text{judge}}$$
 
 ```mermaid
 quadrantChart
@@ -909,13 +909,13 @@ flowchart LR
 
 **The math that separates them.**
 
-$$\textbf{Cascade expected cost: } \; \mathbb{E}[C] = c_{\text{cheap}} + p_{\text{escalate}} \cdot c_{\text{guardLLM}}$$
+$$\textbf{Cascade expected cost: } \ \mathbb{E}[C] = c_{\text{cheap}} + p_{\text{escalate}} \cdot c_{\text{guardLLM}}$$
 
-$$\textbf{Recall at fixed FPR operating point: } \; \text{Recall}@\text{FPR}=0.01 = \frac{TP}{TP+FN} \;\; \text{s.t.} \;\; \frac{FP}{FP+TN}=0.01$$
+$$\textbf{Recall at fixed FPR operating point: } \ \text{Recall}@\text{FPR}=0.01 = \frac{TP}{TP+FN} \ \ \text{s.t.} \ \ \frac{FP}{FP+TN}=0.01$$
 
-$$\textbf{Attack success under layered defense: } \; \text{ASR} = \prod_{i=1}^{L}\bigl(1 - r_i\bigr) \;\;\Rightarrow\;\; 0.86 \to 0.044$$
+$$\textbf{Attack success under layered defense: } \ \text{ASR} = \prod_{i=1}^{L}\bigl(1 - r_i\bigr) \ \ \Rightarrow\ \ 0.86 \to 0.044$$
 
-$$\textbf{Async race adds no wall clock: } \; T_{\text{total}} = \max\bigl(T_{\text{guard}},\, T_{\text{gen}}\bigr) \;\; \text{vs series } \; T_{\text{guard}} + T_{\text{gen}}$$
+$$\textbf{Async race adds no wall clock: } \ T_{\text{total}} = \max\bigl(T_{\text{guard}}, T_{\text{gen}}\bigr) \ \ \text{vs series } \ T_{\text{guard}} + T_{\text{gen}}$$
 
 ```mermaid
 quadrantChart
@@ -997,11 +997,11 @@ flowchart TD
 
 $$\textbf{judge-human agreement (kappa):}\quad \kappa=\frac{p_o-p_e}{1-p_e}$$
 
-$$\textbf{faithfulness = grounded claim fraction:}\quad G(a)=\frac{1}{|C(a)|}\sum_{c\in C(a)}\mathbf{1}[\,\text{context}\models c\,]$$
+$$\textbf{faithfulness = grounded claim fraction:}\quad G(a)=\frac{1}{|C(a)|}\sum_{c\in C(a)}\mathbf{1}[ \text{context}\models c ]$$
 
-$$\textbf{cosine input-drift score:}\quad d_t=1-\frac{\bar{e}_t\cdot \bar{e}_{\text{ref}}}{\lVert \bar{e}_t\rVert\,\lVert \bar{e}_{\text{ref}}\rVert}$$
+$$\textbf{cosine input-drift score:}\quad d_t=1-\frac{\bar{e}_t\cdot \bar{e}_{\text{ref}}}{\lVert \bar{e}_t\rVert \lVert \bar{e}_{\text{ref}}\rVert}$$
 
-$$\textbf{sampling rate sets observing cost:}\quad \mathbb{E}[\text{cost}_{\text{obs}}]=s\cdot \lambda\cdot c_{\text{judge}},\qquad t_{\text{detect}}\approx \frac{k}{s\,\lambda\,r_{\text{fail}}}$$
+$$\textbf{sampling rate sets observing cost:}\quad \mathbb{E}[\text{cost}_{\text{obs}}]=s\cdot \lambda\cdot c_{\text{judge}},\qquad t_{\text{detect}}\approx \frac{k}{s \lambda r_{\text{fail}}}$$
 
 ```mermaid
 quadrantChart
