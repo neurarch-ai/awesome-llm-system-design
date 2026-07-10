@@ -13,6 +13,7 @@ mechanism, then the tradeoff. Formulas are written in LaTeX and render on GitHub
 | **Training and optimization** | [Optimization and gradient descent](#optimization-and-gradient-descent) · [Training, fine-tuning, and overfitting](#training-fine-tuning-and-overfitting) · [Distributed training at scale](#distributed-training-at-scale) |
 | **Alignment and post-training** | [Alignment, objectives, and KL divergence](#alignment-objectives-and-kl-divergence) |
 | **Inference and serving** | [Inference, quantization, and serving math](#inference-quantization-and-serving-math) · [Decoding and sampling](#decoding-and-sampling) |
+| **Scale and hardware** | [Scaling: rooflines, parallelism, and the arithmetic of large models](#scaling-rooflines-parallelism-and-the-arithmetic-of-large-models) |
 | **Gotchas** | [Commonly asked, commonly missed](#commonly-asked-commonly-missed) |
 
 ---
@@ -1124,3 +1125,94 @@ The assumption that perfect retrieval guarantees a correct answer ignores the ge
 **Q: You doubled your training batch size to use the GPUs better, kept everything else the same, and final validation quality got worse. Why can a bigger batch hurt?**
 
 The naive view is that a larger batch gives a less noisy gradient, so it can only help. Two things bite. First, at a fixed number of epochs, doubling the batch halves the number of optimizer steps, so the model simply takes fewer weight updates and undertrains unless you also raise the learning rate or train longer. Second, there is a generalization gap: large-batch training tends to converge to sharper minima, and the gradient noise that small batches inject acts as an implicit regularizer that large batches remove, so test performance drops even when training loss matches. The coupling is that the gradient-noise scale goes as $\propto \text{lr} / \text{batch}$, so growing the batch without scaling the learning rate (and adding warmup) both starves you of steps and removes the beneficial noise. Bigger batches are a throughput win only when paired with LR scaling, warmup, and enough total steps, and even then only up to the critical batch size.
+
+## Scaling: rooflines, parallelism, and the arithmetic of large models
+
+**Q: State the roofline model precisely and derive the ridge point. What are the actual numbers for a TPU v5e and an H100?**
+
+Split a kernel's wall-clock into compute time $T_{\text{math}} = \frac{\text{FLOPs}}{C}$ and memory time $T_{\text{comms}} = \frac{\text{bytes}}{W_{\text{hbm}}}$, where $C$ is peak FLOPs/s and $W_{\text{hbm}}$ is HBM bandwidth. A kernel that can overlap the two runs in $\max(T_{\text{math}}, T_{\text{comms}})$, so it is compute-bound when $T_{\text{math}} > T_{\text{comms}}$ and memory-bound otherwise. Rearranging, the crossover is the arithmetic intensity (FLOPs per byte moved) equal to the ridge point:
+
+$$I_{\text{ridge}} = \frac{C}{W_{\text{hbm}}}$$
+
+For a TPU v5e, $C \approx 1.97 \times 10^{14}$ and $W_{\text{hbm}} \approx 8.2 \times 10^{11}$, giving $I_{\text{ridge}} \approx 240$ FLOPs/byte. For an H100, $C \approx 9.89 \times 10^{14}$ and $W \approx 3.35 \times 10^{12}$, giving $\approx 295$. Below the ridge you are wasting compute waiting on memory; above it you are saturating the matrix units. Every scaling decision is a fight to push the workload's intensity across this line.
+
+**Q: Why is a large matmul compute-bound while attention during decode is memory-bandwidth bound? Show the intensities.**
+
+For $[B, D] \times [D, F]$ the work is $2BDF$ FLOPs and the traffic is $2(BD + DF + BF)$ bytes, so the intensity is
+
+$$I_{\text{matmul}} = \frac{2BDF}{2(BD + DF + BF)} \approx B \quad \text{when } B \ll D, F$$
+
+so a matmul's intensity is essentially the token batch size, and it clears the ridge point as soon as $B$ exceeds a couple hundred. Attention at decode is the opposite: with a cached sequence of length $S$ and a single new query token ($T = 1$), the attention intensity is $\frac{ST}{S + T} \approx 1$, because you stream the entire per-token KV history from HBM but do only one dot product per cached key. That intensity is fixed near $1$ regardless of $S$, which is why decode attention is "basically always" memory-bound, whereas the MLP matmuls in the same step can be pushed compute-bound by batching.
+
+**Q: What batch size do you need to become compute-bound, and how does quantizing weights to int8 move that threshold?**
+
+Since a matmul's intensity is $\approx B$, you become compute-bound exactly when $B$ exceeds the ridge point: roughly $B > 240$ tokens on a TPU v5e and $B > 295$ on an H100 in bf16. Below that you are paying to stream weights from HBM and the MXU/tensor cores sit partly idle. If you store weights in int8 while still accumulating in bf16, each weight byte carries the same FLOPs but costs half the bytes to load, so the memory side of the roofline halves and the critical batch size drops to about $B > 120$. This is the mechanism behind "weight-only int8 speeds up decode": at small batch you are memory-bound, and halving weight bytes nearly halves step time. Once $B$ is already past the ridge (large-batch serving or prefill), int8 weights buy little because you were compute-bound already.
+
+**Q: Justify the $6ND$ rule for training FLOPs. Where does the $6$ come from?**
+
+A dense transformer with $N$ non-embedding parameters trained on $D$ tokens costs about $6ND$ FLOPs, and the constant decomposes by pass. Each parameter participates in one multiply-accumulate per token in the forward pass, and a multiply-accumulate is $2$ FLOPs, giving $2ND$ forward. The backward pass computes two gradients per matmul, the gradient with respect to the input and the gradient with respect to the weights, each roughly as expensive as the forward matmul, giving $4ND$. Sum to $6ND$:
+
+$$\text{FLOPs}_{\text{train}} \approx \underbrace{2ND}_{\text{forward}} + \underbrace{4ND}_{\text{backward}} = 6ND$$
+
+Inference or a pure forward pass is therefore about $2ND$. The rule ignores attention score FLOPs and nonlinearities, which is why it is a "non-embedding parameter" count times tokens, and it underlies both compute-budget planning and MFU.
+
+**Q: In a transformer layer, how do FLOPs split between attention and the MLP, and when does attention stop being negligible?**
+
+Per token, the MLP does $\approx 6DF$ training FLOPs (two projections up and down, times the $6$ factor), and with $F \approx 4D$ the MLP is $\approx 24D^2$ per token, scaling with the square of the model width. Attention's projection matmuls (Q, K, V, O) scale like $D^2$ as well but with a smaller constant, and the score/value matmuls scale like $S \cdot D$ per token where $S$ is sequence length. So at fixed sequence length and large $D$, the MLP dominates and attention is a small fraction of total FLOPs, which is why the $6ND$ approximation drops attention. Attention stops being negligible when the sequence gets long: the $QK^\top$ and score-times-$V$ terms grow with $S$, so at very long context the $O(S^2)$ attention compute can rival or exceed the MLP, which is exactly the regime where FlashAttention and sparse patterns matter.
+
+**Q: Give the four parallelism axes with what each shards, its collective, and its per-layer communication volume.**
+
+Each axis shards a different tensor and pays a different collective:
+
+| Axis | Shards | Collective(s) | Comm volume / layer | Batch-dependent? |
+| --- | --- | --- | --- | --- |
+| Data / DP | batch (params, grads, opt replicated) | AllReduce of grads | $\approx 8DF$ (param bytes, once per step) | no |
+| FSDP / ZeRO-3 | params, grads, opt, all along batch | AllGather (fwd) + ReduceScatter (bwd) | same total as DP's AllReduce | no |
+| Tensor / Megatron | weights on $d_{\text{ff}}$, activations on $d_{\text{model}}$ | AllGather + ReduceScatter of activations | $\approx 4BD$ | yes |
+| Expert (MoE) | experts across devices | two all-to-all (dispatch + combine) | $\propto$ tokens $\times D \times$ capacity | yes |
+
+Data and FSDP move param-sized bytes once per step, which overlaps with the backward compute and tolerates slow links, so they are your outermost axes. Tensor parallel moves activation bytes twice per layer on the critical path, so it must sit on the fastest interconnect. Expert parallel's all-to-all routes each token to its chosen experts and back, so its volume tracks tokens routed rather than parameters.
+
+**Q: FSDP versus tensor parallelism: they both shard weights, so what is the real communication difference?**
+
+FSDP's traffic is proportional to parameter bytes and is independent of batch size, and both of its collectives (AllGather of weights before a layer, ReduceScatter of gradients after) sit off the critical path because you can prefetch the next layer's weights while the current layer computes. Tensor parallel's traffic is $\approx 4BD$ per layer, proportional to the activation batch, and its AllGather/ReduceScatter are on the critical path inside every layer with nothing to hide them behind. That difference sets the scaling ceiling: FSDP stays compute-bound as long as the per-device batch $B/X$ exceeds the ICI arithmetic intensity ($\approx 2550$ tokens on TPU v5p), while tensor parallel becomes comms-bound once the degree $Y$ exceeds $F / 2550$, which caps it at roughly $8$ to $16$ way regardless of batch. So FSDP is the throughput workhorse and tensor parallel is a bounded tool to shrink per-device memory and activation size for very wide layers.
+
+**Q: Why is tensor parallelism kept within one tightly-coupled node while data and pipeline parallel cross nodes? Use the interconnect intensities.**
+
+The deciding quantity is the interconnect's own arithmetic intensity, $C / W_{\text{link}}$, the number of FLOPs you must do per byte crossing that link to stay compute-bound. On-package/in-pod links (NVLink, TPU ICI) give a small ratio (on TPU v5p ICI, $\approx 2550$), so per-layer tensor-parallel collectives can be hidden. The cross-pod data-center network is far slower: its ratio is $\approx 73{,}000$ on TPU v5p, meaning you would need $\sim 73$k tokens of work per byte to cover it. Tensor parallel puts a collective in every layer on the critical path, so it can only live where $C / W_{\text{link}}$ is tiny, hence inside a node. Data and pipeline parallel communicate once per step or only boundary activations, so their few, large, overlappable transfers tolerate the slow fabric, which is why they are the axes that span nodes and pods.
+
+**Q: Derive the pipeline bubble fraction and explain how micro-batching shrinks it.**
+
+Pipeline parallel splits the model into $p$ sequential stages, so at the start of a step the later stages idle waiting for the first micro-batch to arrive and at the end the earlier stages idle draining, and that idle time is the bubble. With $m$ micro-batches flowing through $p$ stages, the fill-and-drain overhead is $p - 1$ micro-batch slots out of $m + p - 1$ total, so the bubble fraction is
+
+$$f_{\text{bubble}} = \frac{p - 1}{m + p - 1}$$
+
+Increasing $m$ (splitting the global batch into more, smaller micro-batches) drives $f_{\text{bubble}} \to 0$ because the steady-state region where all stages are busy grows relative to the fixed fill/drain. The costs are that many micro-batches mean many in-flight activation sets to store, and very small micro-batches can drop below the compute-bound batch threshold. Interleaved and "bubble-free" schedules further overlap the forward, input-gradient, and weight-gradient matmuls to hide the remainder.
+
+**Q: Give the optimizer and activation memory budget, and explain why activation checkpointing trades compute for memory.**
+
+For an $N$-parameter model, Adam mixed-precision training holds the bf16 weights ($2N$ bytes), an fp32 master copy ($4N$), plus fp32 first and second moments ($4N + 4N$), so weights and optimizer state alone are $\approx 14$ to $16N$ bytes, which is why pure data parallel (state replicated on every device) caps out around $9$B parameters per TPU v5p chip and motivates sharding the state with ZeRO/FSDP. Separately, the forward pass must keep every layer's activations for the backward pass, and that activation memory grows with $\text{layers} \times \text{batch} \times \text{seqlen}$, often dwarfing weights at long context. Activation checkpointing (rematerialization) stores only a few tensors per layer and recomputes the rest during backprop, cutting activation memory (classically from $O(L)$ toward $O(\sqrt{L})$) at the price of one extra forward pass, about a third more FLOPs. Because large-scale training is usually compute-rich relative to memory, paying that recompute to unlock a bigger batch or longer sequence is normally a net throughput win.
+
+**Q: Write the KV-cache byte formula and explain why long-context decode is memory-bound.**
+
+Per sequence, the cache holds keys and values for every past token at every layer:
+
+$$\text{KV bytes} = 2 \cdot b \cdot n_{\text{layers}} \cdot n_{\text{kv}} \cdot d_{\text{head}} \cdot T$$
+
+where the leading $2$ counts K and V, $b$ is bytes per element, $n_{\text{kv}}$ the number of KV heads, and $T$ the context length. For LLaMA-2 13B at $T = 8192$ in bf16 this is about $6.7$ GB for a single sequence, comparable to a large fraction of the weights. At decode each step streams the whole cache plus the weights from HBM to emit one token, so step time is $\frac{B \cdot \text{KV} + \text{params}}{W_{\text{hbm}}}$ and throughput is $\frac{B \cdot W_{\text{hbm}}}{B \cdot \text{KV} + \text{params}}$: bandwidth divided by bytes, not FLOPs. Because the cache scales linearly with $T$ and with batch, long context makes KV traffic dominate the denominator and caps how many sequences you can co-batch, which is precisely why GQA/MQA/MLA (shrinking $n_{\text{kv}}$) and KV quantization ($b$) are the levers that raise the throughput ceiling.
+
+**Q: Decompose a decode step into attention and MLP terms, and explain the latency-versus-throughput frontier.**
+
+A useful model of decode step time is
+
+$$T_{\text{step}} = \underbrace{\frac{B \cdot \text{KV}}{W_{\text{hbm}}}}_{\text{attention, always bandwidth-bound}} + \underbrace{\max\left(\frac{2 B \cdot \text{params}}{C}, \frac{\text{params}}{W_{\text{hbm}}}\right)}_{\text{MLP: compute vs bandwidth}}$$
+
+At tiny batch the MLP term is the constant weight-streaming cost ($\text{params} / W_{\text{hbm}}$), so latency is low and roughly flat as you add requests, and throughput climbs almost linearly because you amortize that fixed weight load over more tokens. Once $B$ crosses the compute-bound threshold ($\approx 240$ concurrent tokens on TPU v5e), the MLP flips to the $2B \cdot \text{params} / C$ branch, so further batching stops adding throughput while it keeps adding per-token latency, and the attention term keeps growing with $B$ too as the KV caches pile up. The frontier is therefore: small batch for latency, batch up to the ridge for throughput, and no free lunch beyond it because you are either compute-saturated or out of KV memory.
+
+**Q: What is disaggregated (prefill/decode-split) serving and what does it buy quantitatively?**
+
+Prefill and decode have opposite roofline profiles: prefill is a big matrix-matrix pass over the whole prompt that is compute-bound even at batch $1$ (its attention intensity is $\approx T/2$, past the ridge for prompts over a few hundred tokens), while decode is memory-bound and needs large batches to be efficient. Colocating them on one server means a long prefill stalls other users' token streams and forces one batch size to serve two conflicting workloads. Disaggregated serving runs prefill on a dedicated pool that optimizes time-to-first-token at low batch, ships the resulting KV cache across the network to a generation pool, and the generation pool batches many caches together to sit near the compute-bound decode sweet spot. The cost is transferring KV caches between pools, but it lets each stage run at its own optimal batch size and removes prefill-induced jitter from inter-token latency.
+
+**Q: How do TPU and GPU rooflines and topologies differ, and how does that change parallelism choices?**
+
+The per-chip rooflines are close in shape but differ in constants: a TPU v5e sits near a $240$ FLOP/byte ridge ($1.97 \times 10^{14}$ FLOPs/s over $8.2 \times 10^{11}$ B/s HBM), while an H100 sits near $295$ ($9.89 \times 10^{14}$ over $3.35 \times 10^{12}$), so the H100 has both higher compute and higher HBM bandwidth but needs a slightly larger batch to be compute-bound. The bigger difference is interconnect topology. TPUs wire chips into a dense 2D/3D torus (ICI) with uniform, high bandwidth across the whole pod, so tensor and data parallel can stretch along mesh axes and the "within a fast island" boundary is large. GPUs give very fast NVLink only within an $8$-GPU node and drop to much slower InfiniBand across nodes, so tensor parallel is effectively capped at the NVLink island (degree $\le 8$) and everything above that must be data/pipeline parallel on the slow fabric. The roofline math is the same; the topology is what sets where each parallelism axis is allowed to live.
