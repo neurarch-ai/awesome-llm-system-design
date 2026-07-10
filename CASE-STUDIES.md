@@ -12,10 +12,10 @@ writeups. Then the systems themselves. For the full per-case teardown of any one
 see [CASE-TEARDOWNS.md](CASE-TEARDOWNS.md); browse the same systems
 [by company](CASE-STUDIES-BY-COMPANY.md) or [by industry](CASE-STUDIES-BY-INDUSTRY.md).
 
-208 systems across the taxonomy, and growing.
+209 systems across the taxonomy, and growing.
 
 ---
-### [RAG serving](topics/01-rag-serving.md) · 21 systems
+### [RAG serving](topics/01-rag-serving.md) · 22 systems
 
 **What they share.** Every team embeds the query, retrieves candidate context from an index, assembles a tight grounded prompt, and lets the LLM answer so knowledge updates without retraining; they diverge on the retrieval unit (chunk, query API, graph community, table) and on how hard they push fusion, reranking, and eval.
 
@@ -101,6 +101,7 @@ quadrantChart
 - **MongoDB** [Taking RAG to Production with the MongoDB Documentation AI Chatbot](https://www.mongodb.com/developer/products/atlas/taking-rag-to-production-documentation-ai-chatbot/): Atlas Vector Search docs chatbot, chunking and embedding-model choices, moved from prototype to production. *(deployment)*
 - **Grab** [Leveraging RAG-powered LLMs for Analytical Tasks](https://engineering.grab.com/transforming-the-analytics-landscape-with-RAG-powered-LLM): Data-Arks middleware retrieves context to ground report-generation and fraud-investigation bots for analysts. *(product design)*
 - **Mercado Libre** [Beyond the Hype: Real-World Lessons from Working with Large Language Models](https://medium.com/mercadolibre-tech/beyond-the-hype-real-world-lessons-and-insights-from-working-with-large-language-models-6d637e39f8f8): RAG over technical docs plus table-doc generation and structured extraction; raw LLMs need context and iteration. *(eval bar)*
+- **Thomson Reuters** [Better Customer Support Using Retrieval-Augmented Generation (RAG) at Thomson Reuters](https://medium.com/tr-labs-ml-engineering-blog/better-customer-support-using-retrieval-augmented-generation-rag-at-thomson-reuters-4d140a6044c3): RAG over domain knowledge to ground customer-support answers in a regulated domain. *(deployment)*
 
 ---
 

@@ -1,6 +1,6 @@
 # Case studies, by industry
 
-The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by industry so you can see which the same LLM problem patterns recur in your domain. 208 case studies across 11 industries.
+The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by industry so you can see which the same LLM problem patterns recur in your domain. 209 case studies across 11 industries.
 
 ---
 
@@ -242,10 +242,11 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | Airbnb | [Automation Platform v2: improving conversational AI](https://medium.com/airbnb-engineering/automation-platform-v2-improving-conversational-ai-at-airbnb-d86c9386e0cb) | Agent Orchestration |
 | Booking.com | [LLM Evaluation: practical tips at Booking.com](https://booking.ai/llm-evaluation-practical-tips-at-booking-com-1b038a0d6662) | Evaluation System |
 
-## Professional, legal, and education (5)
+## Professional, legal, and education (6)
 
 | Company | Case study | Topic |
 | --- | --- | --- |
+| Thomson Reuters | [Better Customer Support Using Retrieval-Augmented Generation (RAG) at Thomson Reuters](https://medium.com/tr-labs-ml-engineering-blog/better-customer-support-using-retrieval-augmented-generation-rag-at-thomson-reuters-4d140a6044c3) | RAG Serving |
 | Thomson Reuters | [Efficiently evaluating LLMs for legal tasks](https://legal.thomsonreuters.com/blog/evaluating-llms-legal-tasks/) | Evaluation System |
 | Thomson Reuters | [Inside CoCounsel's guardrails](https://legal.thomsonreuters.com/blog/why-your-legal-ai-needs-more-than-the-open-web-a-look-inside-cocounsels-guardrails/) | Safety And Guardrails |
 | Thomson Reuters | [Scaling LLM research with Amazon SageMaker HyperPod](https://aws.amazon.com/blogs/machine-learning/scaling-thomson-reuters-language-model-research-with-amazon-sagemaker-hyperpod/) | Post Training Pipeline |
