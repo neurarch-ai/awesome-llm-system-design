@@ -19,6 +19,25 @@ see [CASE-TEARDOWNS.md](CASE-TEARDOWNS.md); browse the same systems
 
 **What they share.** Every team embeds the query, retrieves candidate context from an index, assembles a tight grounded prompt, and lets the LLM answer so knowledge updates without retraining; they diverge on the retrieval unit (chunk, query API, graph community, table) and on how hard they push fusion, reranking, and eval.
 
+**The reference pipeline.** Before the divergences, fix the skeleton every design starts from. Online, a query is embedded, matched against the index, reranked down to a short shortlist, packed into a grounded context, and generated with citations. Offline, the corpus is chunked, embedded, and indexed on a freshness loop that re-embeds only changed documents. Everything below is a variation on which stage gets the investment.
+
+```mermaid
+flowchart LR
+  Q["query"] --> E["embed query"]
+  E --> R["retrieve top-n<br/>(vector, often + lexical)"]
+  R --> RR["rerank to top-m"]
+  RR --> C["assemble grounded context"]
+  C --> G["LLM generate + cite"]
+  G --> A["grounded answer"]
+  subgraph offline["offline + freshness loop"]
+    D["documents"] --> CH["chunk"]
+    CH --> EM["embed"]
+    EM --> IX["vector index"]
+  end
+  IX -.->|"serves top-n"| R
+  D -.->|"doc changes re-embed"| CH
+```
+
 ```mermaid
 flowchart TD
   Q["query"] --> D1{"retrieval unit?"}
@@ -56,6 +75,12 @@ $$F_1^{\text{source}} = \frac{2 P R}{P+R},\qquad P = \frac{\text{relevant retrie
 
 $$C_{\text{rerank}} \approx \frac{1}{75} C_{\text{gen}} \ \Rightarrow\ \text{keep top-}m \ll n \text{ candidates before generation}$$
 
+$$\text{sim}(q, d) = \frac{\langle e_q, e_d \rangle}{\Vert e_q \Vert \ \Vert e_d \Vert}, \qquad R_q^{k} = \text{top-}k \ \text{by} \ \text{sim}(q, \cdot)$$
+
+$$n_{\text{chunks}} = \left\lceil \frac{L}{s - o} \right\rceil, \qquad T_{\text{prompt}} \approx m \cdot s + T_{\text{query}}$$
+
+$$Q_{\text{e2e}} \ \le \ \text{recall@}k \ \times \ Q_{\text{gen} \mid \text{retrieved}}$$
+
 ```mermaid
 quadrantChart
   title "RAG serving: retrieval sophistication vs eval rigor"
@@ -77,6 +102,20 @@ quadrantChart
   "Glean": [0.85, 0.60]
   "MS GraphRAG": [0.88, 0.68]
 ```
+
+**Interview watch-outs.** The questions that recur across these systems, and the answer that separates a shallow pass from a real one.
+
+- **Retrieval recall is the ceiling, not the generator.** Trap: "recall is low, so we need a stronger LLM." Wrong: swap the generator or turn up its context window and hope. Right: recall@k upper-bounds end-to-end quality ($Q_{\text{e2e}} \le \text{recall@}k \times Q_{\text{gen}}$), so if the right chunk was never retrieved, no generator recovers it. Look at chunking and the embedding model first, and measure retrieval recall separately from answer correctness (Dropbox source F1, NVIDIA two-stage).
+
+- **Chunking is a design decision, not a default.** Trap: "fixed 512-token chunks" stated in one breath. Wrong: split mid-sentence or mid-table, destroying the embedding and the answer. Right: chunk on structure first (headings, paragraphs, code, tables), size-cap second, add overlap so boundary-spanning answers survive, and state the tradeoff: smaller chunks raise precision but need more of them, larger chunks dilute the vector and inflate prompt cost ($T_{\text{prompt}} \approx m \cdot s$). Uber tags table-bearing chunks so the splitter cannot cut a table mid-row.
+
+- **Lost in the middle: more context is not more quality.** Trap: "just stuff the top 50 chunks in, the model will find it." Wrong: a long prompt buries the relevant passage, raises latency and cost, and can lower accuracy. Right: rerank hard and keep a tight top-m; a cross-encoder over the shortlist costs roughly one seventy-fifth of the generator per passage ($C_{\text{rerank}} \approx \tfrac{1}{75} C_{\text{gen}}$), so fewer, higher-precision chunks cut cost and dilution at once (NVIDIA, Dropbox).
+
+- **Grounding and abstention beat confident wrong.** Trap: always answer. Wrong: return a fluent answer even when the top rerank score is weak, inviting hallucination. Right: abstain below a score threshold, instruct the model to cite chunk IDs, and verify each cited chunk actually appears in the assembled prompt before returning. Treat retrieved text as data, not instructions (prompt-injection from a wiki page is a real attack surface).
+
+- **Eval is two evals, wired to a regression gate.** Trap: "we tried some queries and it looked good." Wrong: report one end-to-end accuracy number. Right: build a retrieval eval (recall@k against labeled query-doc pairs) and an answer eval (groundedness and correctness, LLM-as-judge plus a human sample), and gate any change to chunking, embedding, or prompt on both. Open-ended sensemaking needs multi-axis grading (MS GraphRAG: comprehensiveness, diversity, faithfulness), not a single scalar.
+
+- **Access control constrains retrieval, so enforce it inside search.** Trap: filter permissions after retrieval. Wrong: post-filter the top-k, which both leaks and empties results when the visible set is small. Right: push per-user ACLs into the vector search so results come back pre-authorized (Glean permission-aware ranking); the scariest RAG bug is a correct, well-cited answer sourced from a document the asker should never see.
 
 **The systems**
 
@@ -109,6 +148,29 @@ quadrantChart
 
 **What they share.** Every system runs the same skeleton: offline, embed the corpus and build an ANN index; online, embed the query, retrieve approximate neighbors, and rescore a shortlist at higher precision. The divergence is not the spine but four knobs: which ANN structure, how hard vectors are compressed, whether a lexical channel runs alongside, and how heavy the final rerank is.
 
+**The reference pipeline.** The spine every writeup here instantiates: encode once offline into an index, then at query time embed, retrieve approximate neighbors, optionally fuse a lexical channel, and rescore the shortlist at full precision. Compression lives at the index build; the rescore exists precisely because compressed first-phase scores are approximate.
+
+```mermaid
+flowchart LR
+  subgraph Offline
+    D["corpus"] --> E["embed (encoder-only / two-tower)"]
+    E --> C["quantize (PQ / int8 / truncate dim)"]
+    C --> IDX["build ANN index (HNSW / IVF / Vamana)"]
+  end
+  subgraph Online
+    Q["query"] --> EQ["embed query"]
+    EQ --> AN["ANN retrieve (approx neighbors)"]
+    Q --> LX["lexical BM25 / SPLADE"]
+    AN --> HY["hybrid fuse (RRF)"]
+    LX --> HY
+    HY --> RS["rescore shortlist (full-precision / cross-encoder)"]
+    RS --> RES["top-k"]
+  end
+  IDX -.-> AN
+```
+
+**The choices, side by side.**
+
 ```mermaid
 flowchart LR
   D["corpus"] --> E["embed (encoder-only / two-tower)"]
@@ -129,7 +191,7 @@ flowchart LR
   LR --> RES
 ```
 
-**The choices, side by side.**
+**The choices, in a table.**
 
 | Decision | Options (who) | What decides it |
 | --- | --- | --- |
@@ -142,11 +204,15 @@ flowchart LR
 
 $$\textbf{index memory (uncompressed)} = n_{vectors} \times dim \times bytes_{per\ elem}$$
 
-$$\textbf{PQ compression ratio} = \frac{dim \times 4}{m \times \lceil b/8 \rceil}, \quad m\ \text{subspaces},\ b\ \text{bits/code}$$
+$$\textbf{PQ code size (bytes/vector)} = m \times \lceil b/8 \rceil, \quad m\ \text{subspaces},\ b\ \text{bits/code}$$
+
+$$\textbf{PQ compression ratio} = \frac{dim \times 4}{m \times \lceil b/8 \rceil}, \quad \text{vs float32 baseline}$$
 
 $$\textbf{ScaNN anisotropic loss} = \eta \lVert r_{\parallel} \rVert^{2} + \lVert r_{\perp} \rVert^{2}, \quad r = x - \tilde{x},\ \eta > 1$$
 
 $$\textbf{recall vs latency (graph)} = f(ef,\ M) \uparrow \ \Rightarrow\ recall \uparrow,\ latency \uparrow$$
+
+$$\textbf{IVF probe cost} \approx nprobe \times \frac{n_{vectors}}{n_{lists}} \times cost_{per\ code}, \quad nprobe \uparrow \Rightarrow recall \uparrow,\ latency \uparrow$$
 
 ```mermaid
 quadrantChart
@@ -164,6 +230,15 @@ quadrantChart
   Microsoft DiskANN: [0.22, 0.88]
   LinkedIn Matryoshka: [0.45, 0.70]
 ```
+
+**Interview watch-outs.**
+
+- **Pick the index for the memory regime, not by reputation.** `HNSW` is best recall-at-latency but stores the graph plus full vectors in RAM, so it fits when the corpus fits. `IVF-PQ` clusters then compresses, trading recall for a large RAM cut at billion scale. `ScaNN` wins CPU-bound recall-vs-QPS by tuning quantization to the inner-product ranking goal. `DiskANN` (Vamana on SSD) holds a billion vectors on one box by routing with DRAM-resident codes and hitting SSD only for final candidates. Naming the four and their regimes is the senior signal.
+- **Quantization costs recall, so always name the rescore.** PQ, int8, and 4-bit codes make first-phase scores approximate; the fix is a full-precision (or cross-encoder) rescore over the top few hundred. Claiming compression is free is the classic miss.
+- **Hybrid is the expected unprompted answer.** Pure dense misses exact matches (SKUs, error codes, rare tokens); fuse a lexical channel (BM25 or SPLADE) with reciprocal rank fusion. Hybrid reliably beats either alone.
+- **MIPS is not Euclidean nearest neighbor.** For two-tower inner-product search, minimizing average reconstruction error is the wrong objective; ScaNN penalizes error parallel to the vector to preserve the high inner products that decide ranking. Reusing a Euclidean-tuned quantizer for MIPS quietly loses recall.
+- **Matryoshka serves two stages from one model.** Nested embeddings let a 2048-dim prefix drive cheap ANN retrieval and the full 4096-dim vector feed the ranker, no separate models to train or keep aligned. Truncating dimension is a recall-vs-cost knob without re-embedding.
+- **Model upgrades are a full re-index, not a mix.** Change the embedding model and every vector must be re-embedded; old and new vectors cannot share one space. Multi-version embedders multiply storage linearly, so a swap is a storage-and-cost event. Build the new index alongside, dual-read, then cut over.
 
 **The systems**
 
@@ -194,6 +269,27 @@ quadrantChart
 ### [Long-context and the KV cache](topics/02-long-context-and-kv-cache.md) · 20 systems
 
 **What they share.** Every system runs one two-phase loop: prefill builds a KV cache once, then decode reuses that cache one token at a time, memory-bandwidth bound. All the divergence is in how each entry is shrunk, reused, or dropped against the same `kv_bytes` formula.
+
+**The reference pipeline.** Prefill is compute-bound: it processes the whole prompt in parallel and fills the cache in one pass, setting first-token latency. Decode is memory-bandwidth-bound: each step reads the entire model plus the whole cache to emit one token, then appends one K and one V entry, so the cache grows by one slot per step and inter-token latency tracks cache size.
+
+```mermaid
+flowchart LR
+  subgraph PRE[Prefill compute-bound, one pass]
+    P[Prompt tokens] --> PF[Parallel forward]
+    PF --> K0[(KV cache: S prompt entries)]
+  end
+  subgraph DEC[Decode memory-bound, one token per step]
+    K0 --> S1[Step 1: read all KV, emit token]
+    S1 --> K1[(KV cache: S plus 1)]
+    K1 --> S2[Step 2: read all KV, emit token]
+    S2 --> K2[(KV cache: S plus 2)]
+    K2 --> SN[Step n ...]
+    SN --> KN[(KV cache: S plus n)]
+  end
+  KN --> O[Output tokens]
+```
+
+**How they diverge.**
 
 ```mermaid
 flowchart LR
@@ -230,25 +326,31 @@ flowchart LR
 
 **KV cache bytes (the term everyone attacks):**
 $$ \mathrm{kv\_bytes} \approx 2 \cdot L \cdot S \cdot h_{kv} \cdot d_{head} \cdot b \cdot B $$
+where `L` is layers, `S` is sequence length, `h_kv` is KV heads, `d_head` is head dim, `b` is bytes per element, `B` is batch. Worked example: `L=32`, `S=100000`, `h_kv=8`, `d_head=128`, `b=2` (FP16), `B=1` gives about `2 x 32 x 100000 x 8 x 128 x 2 = 13.1` GB for a single 100k-token sequence, which is why long context, not weights, fills the GPU.
 
 **GQA sharing ratio (32 query, 8 KV heads):**
-$$ r_{GQA} = \frac{h_{kv}}{h_q} = \frac{8}{32} = \frac{1}{4} $$
+$$ r_{GQA} = \frac{h_{kv}}{h_{q}} = \frac{8}{32} = \frac{1}{4} $$
+so the cache drops to one quarter of MHA; the group size `h_q / h_kv = 4` is the direct quality-versus-memory dial.
 
-**MLA latent compression (cache $d_c$, not K and V):**
-$$ r_{MLA} = \frac{d_c}{2 \cdot h_{kv} \cdot d_{head}} \approx 0.07 \quad (\text{about } 93\% \text{ smaller}) $$
+**MLA latent compression (cache `d_c`, not K and V):**
+$$ r_{MLA} = \frac{d_{c}}{2 \cdot h_{kv} \cdot d_{head}} \approx 0.07 \quad (\text{about } 93\% \text{ smaller}) $$
 
 **Low-bit KV vs FP8 (NVFP4 halves memory):**
 $$ r_{quant} = \frac{b_{lo}}{b_{hi}} = \frac{4}{8} = \frac{1}{2} \Rightarrow 2\times \text{ context, batch, concurrency} $$
+
+**Decode arithmetic intensity (why decode is memory-bound):**
+$$ I_{decode} = \frac{\mathrm{FLOPs}}{\mathrm{bytes\ read}} \approx \frac{2 \cdot N_{active}}{2 \cdot N_{active} + \mathrm{kv\_bytes}} \ll I_{roofline} $$
+Per decode step you read every active weight (`N_active` params) and the whole KV cache but do only about `2` FLOPs per byte read, far below the hundreds of FLOPs per byte a modern GPU needs to be compute-bound. Prefill amortizes the same weight read across `S` tokens at once, so its intensity is roughly `S` times higher and it lands compute-bound. That gap is the entire reason KV-cache size, not raw compute, sets decode cost.
 
 ```mermaid
 quadrantChart
   title Memory saved vs quality retained
   x-axis Low memory saved --> High memory saved
   y-axis Low quality retained --> High quality retained
-  quadrant-1 aggressive and safe
-  quadrant-2 conservative and safe
-  quadrant-3 conservative and risky
-  quadrant-4 aggressive and risky
+  quadrant-1 "aggressive and safe"
+  quadrant-2 "conservative and safe"
+  quadrant-3 "conservative and risky"
+  quadrant-4 "aggressive and risky"
   MHA: [0.05, 0.97]
   GQA: [0.45, 0.92]
   MLA: [0.9, 0.9]
@@ -257,6 +359,15 @@ quadrantChart
   StreamingLLM: [0.8, 0.55]
   H2O evict: [0.75, 0.58]
 ```
+
+**Interview watch-outs.**
+
+- **Decode is memory-bound, prefill is compute-bound.** Say this explicitly and back it with the arithmetic-intensity ratio above: decode reads the whole model plus cache to emit one token (about 2 FLOPs per byte), prefill amortizes that read across the whole prompt. The fix you pick depends on which phase is the wall, so profile prefill versus decode before optimizing.
+- **KV cache, not weights, dominates long context.** Plug real numbers into `kv_bytes`; a single 100k-token sequence can cost more than 10 GB. Interviewers want to see you reach for `h_kv`, `d_head`, and `b` (GQA, MLA, quantization) rather than shrinking the model.
+- **Paged attention raises concurrency, not single-request latency.** PagedAttention kills fragmentation so more sequences pack into HBM; it buys aggregate tokens per second, and the win only materializes when there are queued requests to fill the freed memory. Do not claim it speeds one request.
+- **Quantization tradeoffs are eval-gated, and format and target matter.** NVFP4 halves memory versus FP8 and dequantizes to FP8 before the attention math to hold accuracy; low-bit formats differ (NVFP4 beats MXFP4 by finer block scaling), keys are often more sensitive than values, and low-bit schemes keep a full-precision recent window. Never ship 4-bit KV on vibes; gate on your own long-context eval.
+- **Prefix and prompt caching skip prefill, so they help long-prompt short-output shapes.** Exact-prefix matching means one differing early token misses the whole cache, so put the stable system prompt and shared docs first; multi-tenant caches must be isolated and are volatile, so hit rate is workload-dependent (a 30% hit can still yield large throughput gains).
+- **Eviction and windowing trade recall for a fixed budget.** StreamingLLM sinks plus a sliding window stream to millions of tokens but genuinely lose the middle; H2O keeps recent plus heavy-hitters; MixAttention needs full-attention layers placed deep. All of these can regress on reading comprehension and retrieval, so validate on those tasks, not just commonsense.
 
 **The systems**
 
@@ -287,6 +398,22 @@ quadrantChart
 
 **What they share.** Every stack lands a request on a router, feeds a continuous (iteration-level) batching scheduler that reshapes the batch each token step, runs prefill then memory-bandwidth-bound decode, and streams tokens back while an SLO-driven autoscaler adds or drops replicas. What differs is only which stage each team pushed hardest.
 
+**The reference pipeline.** Strip the branding and every system is the same skeleton: a request lands on a router, joins a continuous-batching scheduler that reshapes the batch every token step, runs a compute-bound prefill that fills the KV cache, then loops the bandwidth-bound decode that reads weights plus the growing KV cache once per token, and streams tokens out. The KV cache is the shared spine every optimization touches (paging, sharing, quantizing, offloading, or handing it off between disaggregated pools).
+
+```mermaid
+flowchart LR
+  REQ["request (high QPS)"] --> RT["router (SLO gate, replica pick)"]
+  RT --> SCH["continuous-batching scheduler (retire EOS, admit waiting)"]
+  SCH --> PRE["prefill (compute-bound, one parallel pass over prompt)"]
+  PRE -->|"writes KV"| KV["KV cache (paged blocks)"]
+  KV -->|"read per step"| DEC["decode (bandwidth-bound, one token per pass)"]
+  DEC -->|"appends KV"| KV
+  DEC --> STREAM["token stream (SSE / gRPC)"]
+  AUTO["autoscaler (SLO-driven)"] -.-> SCH
+```
+
+**The divergence.** Same skeleton, but each team pushed one stage hardest. This is where the systems split.
+
 ```mermaid
 flowchart TD
   REQ["request (high QPS)"] --> RT["router"]
@@ -314,19 +441,27 @@ flowchart TD
 | batching | `continuous` + PagedAttention (vLLM/Anyscale) vs `static` vs `token-budget pack` (Baseten BEI) | Output-length variance: high variance rewards iteration-level scheduling; variable prompt length rewards packing to a token budget over a request count |
 | latency lever | `speculative decoding` (LinkedIn n-gram, Together ATLAS, Fireworks) vs `disaggregated prefill/decode` (NVIDIA Dynamo) | Draft acceptance rate vs whether prefill and decode SLOs genuinely conflict; disaggregation needs fast interconnect for the KV handoff |
 | parallelism | TP (in-node, per-layer all-reduce) vs PP (across nodes, stage boundaries) vs EP (MoE expert sharding) | TP for latency and to fit the model on fast links; PP to scale past a node; EP once experts outnumber a GPU |
-| quantization | `int8` weight + KV (Character.AI) vs `FP8` on H100 (Baseten, Modal) vs `4-bit` for fit / cold-start | Decode is bandwidth-bound so fewer bytes read = more tokens/s; every precision drop passes a quality eval (Baseten holds cosine similarity > 99%) |
+| quantization | `int8` weight + KV (Character.AI) vs `FP8` on H100 (Baseten, Modal) vs `4-bit` for fit / cold-start | Decode is bandwidth-bound so fewer bytes read = more tokens/s; every precision drop passes a quality eval (Baseten holds cosine similarity over 99%) |
 
 **The math that separates them.**
 
-$$\textbf{decode step time} \approx \frac{P \cdot b_w + N \cdot \text{KV}_{\text{bytes}}}{\text{HBM bandwidth}}$$
+$$\textbf{arithmetic intensity} = \frac{\text{FLOPs performed}}{\text{bytes moved from HBM}}$$
+
+$$\textbf{roofline tokens/s} = \min\!\left(\frac{\text{peak FLOPs}}{\text{FLOPs per token}},\ \frac{\text{HBM bandwidth}}{\text{bytes read per token}}\right)$$
+
+Prefill has high arithmetic intensity (one parallel pass over many prompt tokens amortizes the weight read) so it sits on the compute side of the roofline. Decode has intensity near 1 (it reads the whole model to emit a single token) so it sits on the bandwidth side. That single fact drives every lever below.
+
+$$\textbf{decode step time} \approx \frac{P \cdot b_w + N \cdot \text{KV}_{\text{bytes}}}{\text{HBM bandwidth}} \qquad \text{tokens/s} = \frac{1}{\text{decode step time}}$$
+
+$$\textbf{weight-read floor} = \frac{P \cdot b_w}{\text{HBM bandwidth}} \quad \text{(per step, paid even at batch size 1)}$$
 
 $$\textbf{KV-cache bytes per token} = 2 \cdot L \cdot n_{kv} \cdot d_{head} \cdot b_{kv}$$
 
-$$\textbf{speculative acceptance speedup} = \frac{1 - \alpha^{k+1}}{(1 - \alpha) (1 + c k)}$$
+$$\textbf{expected tokens per target pass} = \frac{1 - \alpha^{k+1}}{1 - \alpha}$$
 
-$$\textbf{arithmetic intensity vs roofline} \ \Rightarrow\ \text{tokens/s} = \min\left(\frac{\text{FLOPs}}{\text{op count}},\ \frac{\text{bandwidth}}{\text{bytes moved}}\right)$$
+$$\textbf{speculative speedup} = \frac{1 - \alpha^{k+1}}{(1 - \alpha)\,(1 + c\,k)}$$
 
-where $P$ = weight params, $b_w$ = weight bytes/param, $N$ = batched sequences, $L$ = layers, $n_{kv}$ = KV heads (MQA drives to 1), $b_{kv}$ = KV bytes/element, $\alpha$ = draft acceptance rate, $k$ = draft length, $c$ = per-token verify overhead.
+where $P$ = weight params, $b_w$ = weight bytes/param, $N$ = batched sequences, $L$ = layers, $n_{kv}$ = KV heads (MQA drives to 1), $d_{head}$ = head dim, $b_{kv}$ = KV bytes/element, $\alpha$ = draft acceptance rate, $k$ = draft length, $c$ = per-token verify overhead as a fraction of a target step. The weight-read floor is why batching helps: it is amortized across all $N$ sequences in the batch, so throughput climbs with batch size until the KV term or compute catches up. Speculative speedup goes net-negative when $\alpha$ is low enough that $(1 + c\,k)$ outweighs the tokens gained (Fireworks measured a generic draft at $\alpha \approx 0.29$ slowing inference $1.5\times$).
 
 ```mermaid
 quadrantChart
@@ -345,6 +480,15 @@ quadrantChart
   "Fireworks": [0.35, 0.18]
   "NVIDIA Dynamo": [0.60, 0.85]
 ```
+
+**Interview watch-outs.**
+
+- **Throughput and latency are one knob, not two.** Tokens/sec/GPU is the cost metric; p99 TTFT and p99 TPOT are the SLO metrics, and bigger batches trade the second for the first. Say which one the question optimizes before you reach for a lever, and quote goodput (requests that met SLO) rather than raw throughput when there is a latency ceiling.
+- **Continuous batching is the scheduling win, PagedAttention is the memory win.** Do not fold them into one "23x" claim: iteration-level scheduling gets roughly 8x by retiring finished sequences and admitting waiting ones every token step; PagedAttention adds the non-contiguous KV blocks that cut memory waste below 4%. Against optimized static batching the honest number is closer to 5-6x.
+- **Speculative decoding is a latency optimization, never a quality trade.** Correct rejection-sampling verification reproduces the target distribution exactly, so the win is entirely in the acceptance rate. It shines at low-to-moderate batch and can go net-negative at high batch (the GPU is already saturated, so verify overhead outweighs saved steps) or on novel text where drafts miss. Break-even is roughly where accepted tokens exceed $(1 + c\,k)$.
+- **Disaggregate only when prefill and decode SLOs genuinely conflict.** Splitting the pools lets each phase pick its own parallelism (prefill low TP and compute-bound, decode high TP and bandwidth-bound) and stops prefill bursts from spiking TPOT, but it moves the KV cache between machines. Name the handoff cost: without NVLink or a fast fabric it becomes the new bottleneck. For one small model at moderate QPS, a single pool with chunked prefill is simpler and usually enough.
+- **Quantization pays because decode is bandwidth-bound, not because it is "smaller."** Fewer weight bytes read per step is directly more tokens/s, and KV quantization additionally raises the batch size continuous batching can sustain. Every precision drop goes behind a quality eval before it ships (Baseten gates FP8 at cosine similarity over 99%), never on assumption.
+- **Under overload, shed load rather than admit everything.** Reserve KV-cache budget per admitted sequence so a new admission cannot OOM the running ones, and return a 429-style signal with a retry hint so the tail stays bounded. Trying to serve every request is how p99 explodes for everyone; controlled rejection protects the ones already admitted.
 
 **The systems**
 
@@ -370,6 +514,30 @@ quadrantChart
 ### [Realtime streaming chat](topics/10-realtime-streaming-chat.md) · 17 systems
 
 **What they share.** Every system carries the same spine: an LLM emits tokens, a transport streams them out, the client renders incrementally, and session memory feeds history back into the next turn. The forks are transport, whether the medium is text or voice, and how each fights per-hop latency.
+
+**The reference pipeline.** Text chat and voice differ mostly in what wraps the LLM. Text streams tokens straight over SSE or WebSocket to an incremental renderer. Voice bolts an STT front end and a TTS back end onto the same LLM, with a turn-detection stage deciding when the user has stopped so the model can start. Both loops read from and write back to session memory each turn.
+
+```mermaid
+flowchart LR
+  subgraph text["text path (SSE / WS)"]
+    U1["user text"] --> L1["LLM decode<br/>(token stream)"]
+    L1 -->|"SSE / WebSocket"| R1["client render<br/>(incremental)"]
+  end
+  subgraph voice["voice path (WebRTC)"]
+    U2["user audio"] --> STT["STT<br/>(transcribe)"]
+    STT --> TD["turn detection<br/>(endpointing)"]
+    TD --> L2["LLM decode"]
+    L2 --> TTS["TTS<br/>(streaming synth)"]
+    TTS --> P2["client playback"]
+  end
+  MEM["session memory<br/>(transcript + summary,<br/>fed back per turn)"]
+  L1 --> MEM
+  L2 --> MEM
+  MEM --> L1
+  MEM --> L2
+```
+
+**Where they diverge.**
 
 ```mermaid
 flowchart LR
@@ -403,11 +571,21 @@ flowchart LR
 
 $$\textbf{End-to-end text latency:}\quad T_{\text{felt}} = T_{\text{TTFT}} + (N-1)\cdot t_{\text{inter}}$$
 
+where `N` is tokens generated and `t_inter` is the inter-token gap. Users judge `T_TTFT`; the tail rides on the per-token term.
+
+$$\textbf{Inter-token step time:}\quad t_{\text{inter}} = \frac{1}{\text{tok/sec}} = t_{\text{decode}} + t_{\text{transport}}$$
+
+so a stream feels smooth only when the decode step plus one transport hop stays under the human reading rate (roughly 20 to 40 ms per token feels fluid).
+
 $$\textbf{Voice pipeline latency sum:}\quad L_{\text{voice}} = L_{\text{STT}} + L_{\text{turn}} + L_{\text{LLM}} + L_{\text{TTS}} + L_{\text{net}}$$
+
+componentized voice adds every stage, so a 300 ms endpoint plus a 200 ms STT plus a 400 ms first-token plus a 135 ms TTS first-byte already crowds a 1 second conversational budget before network.
 
 $$\textbf{Eager speculation cost tradeoff:}\quad C_{\text{LLM}} = C_{\text{base}}\cdot(1 + p_{\text{resume}}),\quad p_{\text{resume}} \approx 0.5 \text{ to } 0.7$$
 
 $$\textbf{Per-turn prefill grows with history:}\quad T_{\text{prefill}} \propto (1 - h_{\text{cache}})\cdot L_{\text{ctx}}$$
+
+as context `L_ctx` grows each turn, only the prefix-cache hit rate `h_cache` (which needs sticky routing) keeps prefill from climbing with it.
 
 ```mermaid
 quadrantChart
@@ -426,6 +604,15 @@ quadrantChart
   LiveKit WebRTC: [0.4, 0.85]
   Vercel text: [0.55, 0.5]
 ```
+
+**Interview watch-outs.**
+
+- **Transport: SSE vs WebSocket vs WebRTC.** Default to SSE for text (one-directional tokens over plain HTTP); reach for WebSocket only when you need duplex mid-stream signaling (live interrupts, multiplexed streams, auth via subprotocol); switch to WebRTC/UDP for voice, because ordered TCP stalls all buffered audio on a single lost packet (head-of-line blocking). Naming WebSocket for audio is the classic trap.
+- **Session memory and the growing-context bill.** Every turn re-processes the whole transcript in prefill, so turn five costs more than turn one. State where memory lives (stateless client transcript vs server session store), then cut cost with prefix caching plus summarization or truncation. If you claim prefix caching, say the sticky-routing requirement in the same breath.
+- **Sticky routing or the cache never hits.** Prefix caching only helps if the follow-up turn lands on the replica holding the cached KV. Route sessions consistently, but keep the cache best-effort so a hot session can still migrate under load.
+- **Backpressure and cancellation are capacity, not hygiene.** Each stream pins an inference slot for its whole generation. Propagate user cancel and client disconnect to the engine and free the slot immediately; orphaned streams silently eat GPU. Bound buffering for slow consumers.
+- **Voice latency budget.** Componentized STT-LLM-TTS sums every hop, so you cannot spend independently; a conversational feel needs the whole chain under roughly one second. Know each stage's floor (AssemblyAI ~300ms endpoint, Cartesia ~135ms TTS first-byte) and where fused speech-to-speech trades tunability for a shorter sum.
+- **Eager end-of-turn trades tokens for latency.** Starting the LLM on a medium-confidence transcript shaves hundreds of ms but throws away 50 to 70 percent more calls when the user resumes, so the LLM (and downstream TTS) call must be genuinely cancelable. Graceful degradation under overload (queue, shed, fall back to a smaller model) should degrade visibly, never hang.
 
 **The systems**
 
@@ -452,6 +639,26 @@ quadrantChart
 ### [Cost optimization and model routing](topics/11-cost-optimization-and-model-routing.md) · 9 systems
 
 **What they share.** Every lever moves a query left on one quality-cost frontier by matching cheap paths to easy work and reserving the frontier model for the hard tail. All sit upstream of the model call in a gateway, and all live or die on one knob calibrated against a quality eval.
+
+**The reference pipeline.** Every design below is a specialization of one request path: a gateway fronts the providers, a cache short-circuits repeats, a router or cascade picks a tier, and only the surviving hard queries reach the frontier model. Read each teardown as swapping in one box on this spine.
+
+```mermaid
+flowchart LR
+  REQ["request"] --> GW["gateway / proxy<br/>budget, fallback, logging"]
+  GW --> CACHE{"cache hit?<br/>exact or semantic"}
+  CACHE -->|"hit"| RESP["response"]
+  CACHE -->|"miss"| PICK{"router pre-call<br/>or cascade post-answer"}
+  PICK -->|"easy"| T1["tier 1<br/>cheap model"]
+  PICK -->|"hard"| T2["tier 2<br/>frontier model"]
+  T1 --> ESC{"escalate?<br/>confidence low"}
+  ESC -->|"no"| RESP
+  ESC -->|"yes"| T2
+  T2 --> RESP
+  RESP --> STORE["write-through cache"]
+  STORE -.-> CACHE
+```
+
+**Where they diverge.** The same spine forks on four independent choices, each with its own deciding constraint.
 
 ```mermaid
 flowchart TD
@@ -481,11 +688,29 @@ flowchart TD
 
 $$\textbf{Cascade expected cost:}\quad \mathbb{E}[C] = c_1 + (1-p_1) c_2 + (1-p_1)(1-p_2) c_3$$
 
+where $c_i$ is the cost of stage $i$ and $p_i$ is the probability its answer is accepted.
+
 $$\textbf{Router expected savings:}\quad S = f_{\text{weak}} (c_{\text{big}} - c_{\text{small}}) - c_{\text{router}}$$
+
+where $f_{\text{weak}}$ is the fraction of traffic the weak model handles at bar.
 
 $$\textbf{Cache serve when:}\quad \max_{k}\ \cos(e_q, e_k) \ge \tau,\quad \tau \in (0,1)$$
 
 $$\textbf{Prompt compression ratio:}\quad \rho = \frac{n_{\text{orig}}}{n_{\text{comp}}},\quad \text{net win iff } c_{\text{big}} (n_{\text{orig}}-n_{\text{comp}}) > c_{\text{small}} n_{\text{orig}}$$
+
+$$\textbf{Cache effective cost:}\quad \mathbb{E}[C_{\text{cache}}] = h\, c_{\text{hit}} + (1-h)(c_{\text{embed}} + c_{\text{model}})$$
+
+where $h$ is the hit rate; caching pays only when $h\, (c_{\text{model}} - c_{\text{hit}}) > c_{\text{embed}}$, so the break-even hit rate is:
+
+$$\textbf{Cache-hit break-even:}\quad h^{*} = \frac{c_{\text{embed}}}{c_{\text{model}} - c_{\text{hit}}}$$
+
+$$\textbf{Blended cost across tiers:}\quad \mathbb{E}[C_{\text{route}}] = c_{\text{router}} + \sum_{i} f_i\, c_i,\quad \sum_{i} f_i = 1$$
+
+where $f_i$ is the fraction of traffic sent to tier $i$; right-sizing shifts mass to small $c_i$ without crossing the quality bar.
+
+$$\textbf{Self-host vs API break-even:}\quad Q^{*} = \frac{c_{\text{gpu/hour}}}{3600\, \cdot\, t_{\text{tok}}\, \cdot\, c_{\text{api/tok}}}$$
+
+above QPS $Q^{*}$ the fixed GPU beats per-token API price, where $t_{\text{tok}}$ is tokens per request and $c_{\text{api/tok}}$ is the API price per token.
 
 ```mermaid
 quadrantChart
@@ -504,6 +729,15 @@ quadrantChart
   "LLMLingua 20x": [0.7, 0.7]
 ```
 
+**Interview watch-outs.**
+
+- **Routing vs cascade is a latency trade, not a quality trade.** A router decides once, blind, before any generation, so it fits a tight SLO but cannot know it mis-routed; a cascade sees a real answer before spending more, catching its own mistakes at the cost of a first call plus a scorer. Say which constraint forces the choice; if you have slack, route first then cascade within a bucket.
+- **Semantic cache staleness and scope are the silent killers.** A loose $\tau$ returns a near-neighbor's answer to a different question (confidently, cheaply wrong), and no TTL serves a moved fact forever. Never share-cache personalized or tenant-scoped answers; that is a data leak, not a cost win. Tune $\tau$ on labeled should-hit / should-not pairs, not by eyeballing hit rate.
+- **A cost number without a paired quality number is meaningless.** "The bill dropped 40%" is unanswerable without per-bucket quality tracking; a green cost dashboard is the exact signature of a router dumping newly-hard queries on the small model. Always quote cost saved and quality retained together, and load the eval set with the hard tail.
+- **The right-sizing knob is where the money actually is.** Most bills are one frontier model wired in for simplicity doing classification, routing, extraction, and embeddings it never needed. Match model size to task before reaching for clever caching or compression; the blended-cost formula moves most when you shift traffic mass, not when you shave a few tokens.
+- **Compression and quantization only pay in their regime.** LLMLingua nets out only when input tokens dominate and context is redundant; FP8 and batching only help models you host above the break-even QPS. On a per-token API your levers are routing, caching, compression, and right-sizing, nothing that changes tokens-per-GPU.
+- **Every knob drifts.** Route threshold, cascade cutoff, cache $\tau$, and compression ratio are all optimal once and wrong later as traffic shifts. Re-sweep the frontier periodically and alert on per-bucket quality, not aggregate spend; the router and the scorer are themselves models that regress.
+
 **The systems**
 
 - **Stanford** [FrugalGPT: Using LLMs While Reducing Cost and Improving Performance](https://arxiv.org/abs/2305.05176): An LLM cascade defers to pricier models only when the cheap response scores unreliable. *(eval bar)*
@@ -521,6 +755,25 @@ quadrantChart
 ### [Agent orchestration](topics/03-agent-orchestration.md) · 22 systems
 
 **What they share.** Every system turns a user goal into a plan, then runs a tool-calling loop that acts, observes, and revises with managed context, bolting on a verification pass before the answer ships. They split on whether one context holds the whole job or an orchestrator fans work to parallel subagents.
+
+**The reference pipeline.** Strip away the vendor names and every design is the same four-beat loop: plan the approach, call a tool, observe the result, reflect on whether it moved the goal, then either loop again or answer. Verification wraps the exit, and a hard step cap wraps the whole thing so a wandering loop cannot run forever.
+
+```mermaid
+flowchart TD
+  G["user goal"] --> PLAN["plan<br/>decompose + pick approach"]
+  PLAN --> CALL["tool call<br/>choose tool + args"]
+  CALL --> GATE{"gate: schema + policy"}
+  GATE -->|reject| REFLECT
+  GATE -->|allow| OBS["observe<br/>append tool result to state"]
+  OBS --> REFLECT["reflect<br/>did this move the goal?"]
+  REFLECT --> D{"done or step cap?"}
+  D -->|"keep going"| CALL
+  D -->|"finish"| VERIFY{"verify<br/>self-test / citation / policy"}
+  VERIFY -->|retry| PLAN
+  VERIFY -->|ok| ANS["answer / escalate"]
+```
+
+**The choices, side by side.** Where the reference loop stays fixed, the productionized systems diverge on topology, planning style, tool interface, and memory.
 
 ```mermaid
 flowchart TD
@@ -542,7 +795,7 @@ flowchart TD
   VOK --> OUT["answer / escalate"]
 ```
 
-**The choices, side by side.**
+**The choices in a table.**
 
 | Decision | Options (who) | What decides it |
 | --- | --- | --- |
@@ -553,15 +806,33 @@ flowchart TD
 
 **The math that separates them.**
 
-$$\textbf{context growth per turn:}\quad T_n = T_0 + \sum_{i=1}^{n}\bigl(o_i + a_i\bigr)$$
+$$\textbf{context growth per turn:}\quad T_n = T_0 + \sum_{i=1}^{n}\bigl(a_i + o_i\bigr)$$
 
-$$\textbf{per-ticket cost:}\quad C = \sum_{s=1}^{S} p (T_{s-1} + I_s) + g O_s$$
+where $T_0$ is the system prompt plus goal, $a_i$ is the model's action tokens on step $i$, and $o_i$ is the observed tool-result tokens. The sum is why every step re-pays for the whole history at prefill.
 
-$$\textbf{multi-agent token multiple:}\quad \frac{C_{multi}}{C_{single}} \approx k \cdot \bar{r} \ \ (\text{Anthropic: about }15\times)$$
+$$\textbf{per-turn context cost:}\quad C_n = p\cdot T_{n-1} + p\cdot a_n^{in} + g\cdot a_n^{out}$$
+
+with prefill price $p$ and generation price $g$: the $p\cdot T_{n-1}$ term grows linearly in $n$, so a long loop is dominated by re-reading its own transcript unless you compress or prefix-cache.
+
+$$\textbf{per-task cost:}\quad C = \sum_{s=1}^{S}\Bigl(p\,(T_{s-1} + I_s) + g\,O_s\Bigr)$$
+
+summed over $S$ loop steps, with $I_s$ input and $O_s$ output tokens for step $s$: this is the number an interviewer wants bounded by a step cap.
+
+$$\textbf{multi-agent token multiple:}\quad \frac{C_{multi}}{C_{single}} \approx k \cdot \bar{r} \quad(\text{Anthropic: about } 15\times)$$
+
+for $k$ subagents each doing $\bar{r}$ relative work: parallel fan-out buys wall-clock latency, not tokens.
 
 $$\textbf{MoE active fraction:}\quad f_{active} = \frac{\text{top-}k}{E},\qquad C_{token} \propto f_{active}$$
 
+a cheaper per-token reasoning step (top-$k$ of $E$ experts) compounds across every call in the loop.
+
 $$\textbf{verified success:}\quad P_{ship} = P_{task}\cdot\bigl(1 - (1 - P_{catch})^{R}\bigr)$$
+
+task success $P_{task}$ times the chance one of $R$ verification retries catches the error ($P_{catch}$ per pass): more retries raise ship quality but multiply cost by roughly $R$.
+
+$$\textbf{error compounding:}\quad P_{ok}(n) = \prod_{i=1}^{n} q_i \le q^{\,n}$$
+
+with per-step success $q_i$ (bounded above by the worst step $q$): an $n$-step loop at $q = 0.95$ per step lands near $0.95^{n}$, so a 10-step task is already below $0.60$ without gates that stop a bad step from propagating.
 
 ```mermaid
 quadrantChart
@@ -579,6 +850,14 @@ quadrantChart
   "Ramp self-test VM": [0.82, 0.78]
   "Anthropic multi-agent": [0.85, 0.55]
 ```
+
+**Interview watch-outs.**
+- **Single vs multi-agent is a judgment signal.** Default to one well-tooled agent and reach for an orchestrator only when subtasks are genuinely separable or need isolated context windows. Saying "multi-agent" reflexively reads as hype; naming the 15x token multiple and the hard-to-debug join step reads as experience.
+- **Error compounding is the reason loops fail, not model quality.** Per-step success below 1 multiplies out ($q^{n}$), so a long horizon quietly rots. The fix is gates and checkpoints between steps so one bad step cannot propagate, plus a step cap as the runaway backstop.
+- **Cost is steps times growing transcript, not a flat per-call price.** The prefill term $p\cdot T_{n-1}$ rises every turn. Control it with summarization / compression, prefix caching of the system prompt, and model tiering (cheap model for routing, expensive one only for the hard decision).
+- **Latency and cost are different knobs.** Parallel tool calls and subagent fan-out cut wall-clock time but raise tokens; compression and tiering cut tokens. Do not conflate "faster" with "cheaper" in the same breath.
+- **Verification must be code where money moves.** A policy gate in deterministic code (schema, limit, authorization) beats a prompt that says "only refund under $50", because tool results are untrusted and prompt injection rides in through them. Self-tests and citation passes cover correctness; the gate covers safety.
+- **Bound everything and make it auditable.** A hard step cap and token budget per task are non-negotiable, and every step (reasoning, proposed call, gate decision, result) should be logged so the loop is debuggable and the eval can score end-to-end task success plus per-step tool choice.
 
 **The systems**
 
@@ -611,6 +890,21 @@ quadrantChart
 
 **What they share.** Every vision-language system is the same spine: a modality encoder turns an image into a feature grid, a connector maps those features into the LLM embedding space, and one decoder generates over an interleaved text-plus-image token sequence. They differ almost entirely in the connector and in how many tokens an image is allowed to become.
 
+**The reference pipeline.** Read the spine left to right before arguing about any single design: the encoder is a bounded, batchable pass that runs once per image; the projector is where the token budget is set; the decoder is the autoregressive, memory-bound stage where every image token lands in prefill and the KV cache. Most design decisions are just different answers to "how big is the block the projector hands the decoder."
+
+```mermaid
+flowchart LR
+  IMG["image"] --> ENC["modality encoder (ViT)<br/>feature grid, runs once per image"]
+  ENC --> PROJ["projector / connector<br/>sets image-token budget"]
+  TXT["text"] --> TOK["tokenizer"]
+  TOK --> TT["text tokens"]
+  PROJ --> ITOK["image tokens"]
+  ITOK --> SEQ["interleaved sequence"]
+  TT --> SEQ
+  SEQ --> DEC["LLM decoder<br/>prefill + KV cache + autoregressive decode"]
+  DEC --> OUT["answer"]
+```
+
 ```mermaid
 flowchart LR
   IMG["image / video / audio"] --> ENC["modality encoder (ViT)"]
@@ -637,13 +931,17 @@ flowchart LR
 
 **The math that separates them.**
 
-$$\textbf{image tokens} \ =\ \left\lfloor \tfrac{H}{p} \right\rfloor \left\lfloor \tfrac{W}{p} \right\rfloor \quad (\text{Pixtral: } 1024^2, p{=}16 \Rightarrow 4096)$$
+$$\textbf{image tokens} \ =\ \left\lfloor \frac{H}{p} \right\rfloor \left\lfloor \frac{W}{p} \right\rfloor \quad (\text{Pixtral: } 1024^2, \ p{=}16 \ \Rightarrow\ 4096)$$
 
-$$\textbf{tiled token count} \ =\ T \cdot \tfrac{H_t W_t}{p^2} \ +\ \text{tags} \quad (\text{grows linearly in tiles } T)$$
+$$\textbf{tiled token count} \ =\ T \cdot \frac{H_t \, W_t}{p^2} \ +\ \text{tags} \quad (\text{grows linearly in tiles } T)$$
 
-$$\textbf{prefill compute is quadratic} \ =\ O\big((n_\text{text}+n_\text{img})^2 d\big)$$
+$$\textbf{sequence length} \ =\ n \ =\ n_\text{text} + n_\text{img}, \quad n_\text{img} \ \gg\ n_\text{text} \ \text{ for a high-res image}$$
 
-$$\textbf{KV bytes} \ =\ 2 \cdot L \cdot (n_\text{text}+n_\text{img}) \cdot d_\text{kv} \cdot b_\text{prec}$$
+$$\textbf{prefill compute is quadratic} \ =\ O\big((n_\text{text}+n_\text{img})^2 \, d\big) \quad (\text{image tokens dominate first-token latency})$$
+
+$$\textbf{KV bytes} \ =\ 2 \cdot L \cdot (n_\text{text}+n_\text{img}) \cdot d_\text{kv} \cdot b_\text{prec} \quad (\text{image tokens inflate every layer's cache})$$
+
+$$\textbf{multi-image cost} \ =\ \sum_{i=1}^{k} n_{\text{img},i} \quad (\text{k images stack linearly into prefill and KV})$$
 
 ```mermaid
 quadrantChart
@@ -662,6 +960,15 @@ quadrantChart
   "Pixtral native": [0.80, 0.85]
   "NVLM tiled + tags": [0.88, 0.90]
 ```
+
+**Interview watch-outs.**
+
+- **Projector design is the whole answer.** MLP passes a variable resolution-scaled block (detail scales with cost); resampler / cross-attn (Q-Former, perceiver) compress to a fixed few (cost bounded, detail capped). Name the tradeoff, do not just name the connector.
+- **Image-token budget, not model size, drives cost.** A single 1024x1024 image is 4096 tokens in Pixtral; those tokens hit prefill (quadratic) and the KV cache (every layer). "An image costs many tokens in the priciest stage" is the line that scores.
+- **Resolution and tiling are a quality-cost knob, not a default.** Tiling recovers OCR-level detail but multiplies tokens, and unordered tiles need tile-tags (NVLM) to preserve spatial layout. Max resolution only when the task needs it.
+- **Fixed-cap connectors bound cost but lose detail.** BLIP-2 (32 tokens) and Idefics2 (64/320) cap per-request cost; call out that dense documents and OCR are exactly where that cap hurts.
+- **Serving is two workloads, not one.** The encoder is bounded, batchable, and cacheable by image hash (vLLM V1 embedding + prefix cache; ROCm DP encoder + TP decoder); the decoder is autoregressive and memory-bound. Scale each independently and route text-only requests past the encoder.
+- **Variable token counts break naive batching.** Dynamic-resolution models (Qwen2-VL, Pixtral) make requests heterogeneous in size, so continuous batching and KV planning must handle variable-length visual blocks, and worst-case large images still need a cap.
 
 **The systems**
 
@@ -690,6 +997,23 @@ quadrantChart
 ### [Post-training pipeline](topics/05-post-training-pipeline.md) · 19 systems
 
 **What they share.** Every team rides one post-training spine (base to curated data to SFT to optional preference tuning to eval gate to serve) and differs only in which knobs the task forced them to turn. Most ship SFT alone; DPO/RLHF appears only where a quality axis SFT could not capture actually mattered.
+
+**The reference pipeline.** The canonical shape is a loop, not a line: curate a small clean dataset, supervised fine-tune (usually a LoRA/QLoRA adapter), optionally align with DPO or RLHF, then gate every candidate on a held-out eval before it reaches a user. Production output feeds the next dataset version. Preference tuning is optional and comes after SFT, never instead of it.
+
+```mermaid
+flowchart TD
+  BASE["base model<br/>open or vendor weights"] --> CUR["data curation<br/>production logs + human labels + synthetic<br/>dedup, filter, decontaminate, version"]
+  CUR --> SFT["SFT (supervised fine-tuning)<br/>LoRA / QLoRA adapter on (prompt, response)"]
+  SFT --> ALIGN{"align beyond SFT?"}
+  ALIGN -->|"format / tone / skill only"| GATE
+  ALIGN -->|"prefer one valid answer, safety"| PREF["preference tuning<br/>DPO on (chosen, rejected) pairs<br/>or RLHF: reward model + KL-penalized RL"]
+  PREF --> GATE{"eval gate<br/>offline quality + safety + regression vs prod"}
+  GATE -->|"pass"| SERVE["serve<br/>base + hot-swappable adapters"]
+  GATE -->|"fail"| CUR
+  SERVE -->|"production logs (flywheel)"| CUR
+```
+
+**Where they diverge.** Given that spine, the real decisions are adaptation depth, whether to align past SFT, and the label source.
 
 ```mermaid
 flowchart TD
@@ -728,17 +1052,25 @@ flowchart TD
 
 $$W = W_0 + \frac{\alpha}{r} B A, \quad B \in \mathbb{R}^{d \times r},\ A \in \mathbb{R}^{r \times k},\ r \ll \min(d,k)$$
 
+The base $W_0$ is frozen; only $B$ and $A$ train. Trainable parameters drop from $d k$ to $r(d+k)$, so at $r \ll \min(d,k)$ an adapter touches well under 1 percent of the matrix.
+
 **DPO preference loss (Anyscale, Spotify):**
 
 $$\mathcal{L}_{DPO} = -\mathbb{E}_{(x,y_w,y_l)} \left[ \log \sigma \left( \beta \log \frac{\pi_\theta(y_w \mid x)}{\pi_{ref}(y_w \mid x)} - \beta \log \frac{\pi_\theta(y_l \mid x)}{\pi_{ref}(y_l \mid x)} \right) \right]$$
 
+A classification-style loss over (chosen $y_w$, rejected $y_l$) pairs, no separate reward model. The $\beta$ term controls how far the policy $\pi_\theta$ may move from the reference $\pi_{ref}$; small $\beta$ (Anyscale used 0.03) keeps it close and stable.
+
 **RLHF KL-penalized objective (LinkedIn):**
 
-$$\max_{\pi_\theta}\ \mathbb{E}_{x, y \sim \pi_\theta}\big[ r_\phi(x,y) \big] - \beta \mathrm{KL}\left[ \pi_\theta(y \mid x)\ \Vert \ \pi_{ref}(y \mid x) \right]$$
+$$\max_{\pi_\theta}\ \mathbb{E}_{x, y \sim \pi_\theta}\big[ r_\phi(x,y) \big] - \beta \, \mathrm{KL}\left[ \pi_\theta(y \mid x)\ \Vert \ \pi_{ref}(y \mid x) \right]$$
+
+Maximize a learned reward $r_\phi$ while the KL penalty pins the policy near the SFT reference $\pi_{ref}$. Drop the KL term and the policy reward-hacks $r_\phi$ into degenerate text; this is the same $\pi_{ref}$-anchoring DPO folds into its loss in closed form.
 
 **QLoRA memory (Mercari, 4-bit frozen base):**
 
 $$M \approx \underbrace{4\text{-bit} \cdot N_{base}}_{\text{frozen, }\sim 0.5\text{ byte/param}} + \underbrace{16\text{-bit} \cdot 2 r (d+k) L}_{\text{trainable adapter} \ll N_{base}}$$
+
+Quantizing the frozen base to roughly 0.5 byte per parameter is what fits a billions-parameter model plus its adapter on a single GPU.
 
 ```mermaid
 quadrantChart
@@ -758,6 +1090,15 @@ quadrantChart
   "Anyscale iter-DPO": [0.78, 0.72]
   "LinkedIn RLHF+DPO": [0.85, 0.85]
 ```
+
+**Interview watch-outs.**
+
+- **Rank is not the knob you think.** LoRA rank $r$ bounds adapter capacity, but raising it rarely fixes a bad result; Anyscale's rank-64 LoRA lost to full fine-tune not for lack of rank but because the constrained subspace pushed token likelihoods out of distribution. Reach for full FT when the behavior shift is large, not for a bigger rank.
+- **SFT overfits and forgets.** Over-training on a narrow set degrades general ability (catastrophic forgetting). Keep learning rates modest, epochs few (one to three), and mix in some general data; a small adapter perturbs the base less than a full re-train.
+- **The KL / beta term is load-bearing.** In RLHF the KL penalty (and in DPO the $\beta$) is what stops the policy from drifting off the reference and reward-hacking into gibberish. Too small a $\beta$ over-steers into sycophancy or evasiveness; know that DPO's $\beta$ plays the same anchoring role as RLHF's explicit KL.
+- **Data quality dominates volume.** A few thousand curated examples beat tens of thousands of scraped ones; the model imitates exactly what you show it, mistakes included. Dedup, balance, and decontaminate so the eval set never leaks into training, or the numbers are fiction.
+- **Preference tuning can regress safety.** DPO/RLHF shifts what the model is willing to say, so re-run safety and refusal eval after alignment, not just task accuracy. Do not propose RLHF for a format-and-tone problem; that is over-engineering, and good SFT alone usually wins.
+- **The flywheel can collapse.** Training on the model's own unfiltered output narrows diversity over time. Keep a human-labeled core, quarantine low-quality production logs through a calibrated judge, and gate every candidate on a held-out set before it ships.
 
 **The systems**
 
@@ -787,6 +1128,33 @@ quadrantChart
 
 **What they share.** Every system runs the same two-loop skeleton: an offline suite (checkable task metrics plus an LLM-as-judge) gates the change, then an online loop checks the gate was honest and feeds back to recalibrate the judge. The judge is trusted only after it is validated against human labels.
 
+**The reference pipeline.** Strip away the vendor names and one loop remains: a golden suite scores every candidate, a human-calibrated judge covers the open-ended cases, a regression gate blocks anything that drops below the baseline per slice, and only survivors reach an online A/B whose real outcome recalibrates the offline score.
+
+```mermaid
+flowchart TD
+  A["candidate<br/>(model + prompt + config)"] --> B["offline golden suite<br/>versioned inputs + refs"]
+  B --> C1["task metric<br/>(exact / F1 / pass-fail)"]
+  B --> C2["LLM-as-judge<br/>(open-ended, rubric)"]
+  C2 --> V{"judge validated<br/>vs human labels?"}
+  V -->|"kappa below bar"| RB["fix rubric, do not gate"]
+  V -->|"kappa above bar"| C3["trusted judge score"]
+  C1 --> D["aggregate + slice by segment"]
+  C3 --> D
+  D --> G{"regression gate<br/>per-slice score >= baseline - eps?"}
+  G -->|"fail"| R["block deploy / roll back"]
+  G -->|"pass"| H["ship to canary"]
+  H --> J["online A/B<br/>candidate vs control"]
+  J --> K["outcome + guardrail metrics<br/>(completion, edits, latency, cost)"]
+  K --> L{"outcome ok and<br/>guardrails hold?"}
+  L -->|"no"| R
+  L -->|"yes"| S["full rollout"]
+  K -.->|"offline-online gap<br/>recalibrate"| D
+```
+
+**The choices, side by side.**
+
+Below the shared skeleton, four decisions fork.
+
 ```mermaid
 flowchart TD
   A["candidate<br/>(model + prompt)"] --> B["offline suite<br/>golden set + LLM-as-judge"]
@@ -810,8 +1178,6 @@ flowchart TD
   G -.-> B
 ```
 
-**The choices, side by side.**
-
 | Decision | Options (who) | What decides it |
 | --- | --- | --- |
 | offline signal | `golden set + task metric` (GitHub broken-repo pass/fail, GitLab Cosine/Cross similarity) vs `LLM-as-judge` (Spotify, Booking.com, Uber) | Is the answer checkable? Executable / labeled task uses a metric; open-ended (relevance, tone, faithfulness) needs a judge |
@@ -822,16 +1188,30 @@ flowchart TD
 **The math that separates them.**
 
 **Judge-human agreement (Cohen's kappa)**
+
+Here `p_o` is the observed agreement rate between judge and human labels, and `p_e` is the agreement expected by chance from the label marginals. A judge is trusted for gating only once kappa clears a bar (Pinterest reports 73.7 percent exact match as its analog).
+
 $$\kappa = \frac{p_o - p_e}{1 - p_e}$$
 
-**Retrieval / precision-recall (F1)**
+**Retrieval quality (precision, recall, F1)**
+
+With `tp` true positives, `fp` false positives, `fn` false negatives at cutoff k, precision is the fraction of returned docs that are relevant and recall is the fraction of relevant docs returned. F1 is their harmonic mean, which stays low unless both are high.
+
+$$\text{precision} = \frac{tp}{tp + fp}, \qquad \text{recall} = \frac{tp}{tp + fn}$$
+
 $$F_1 = 2 \cdot \frac{\text{precision} \cdot \text{recall}}{\text{precision} + \text{recall}}$$
 
 **Position-bias averaging (both orderings)**
+
+Here `j(A before B)` is the judge probability that A wins when A is shown first. Averaging the score with the flipped ordering cancels the judge's fixed preference for whichever answer comes first.
+
 $$s(A,B) = \tfrac{1}{2}\big[ j(A \prec B) + \big(1 - j(B \prec A)\big) \big]$$
 
 **Per-slice regression gate inequality**
-$$\text{ship} \iff \min_{g \in \text{segments}} \big( s_g^{\text{cand}} - s_g^{\text{base}} \big) \ge - \epsilon, \quad \epsilon \sim \sigma_{\text{judge}}$$
+
+The candidate ships only if no segment `g` drops more than the tolerance `eps` below its baseline. Gating on the worst slice, not the average, is what stops a change that lifts the mean while tanking one segment. Set `eps` from the judge's measured variance `sigma`, never by guessing.
+
+$$\text{ship} \iff \min_{g \in \text{segments}} \big( s_g^{\text{cand}} - s_g^{\text{base}} \big) \ge - \epsilon, \qquad \epsilon \sim \sigma_{\text{judge}}$$
 
 ```mermaid
 quadrantChart
@@ -850,6 +1230,15 @@ quadrantChart
   "Online A/B": [0.82, 0.90]
   "Human expert A/B": [0.92, 0.95]
 ```
+
+**Interview watch-outs.**
+
+- **LLM-judge verbosity bias.** Judges reward longer, more confident-sounding answers even when they are not better. Optimizing hard against the judge (Goodhart) produces padded outputs the judge loves and users do not. Control for length in the rubric and keep the online edit/thumbs rate as the real tiebreaker.
+- **No ground truth online.** Offline scores are a prediction, not proof. Name the online outcome metrics a judge is structurally blind to (task completion, user edits, session length, retention) and treat a large offline-online gap as the signal to recalibrate the suite, not to trust the judge harder.
+- **Uncalibrated judge.** An LLM judge is a measurement instrument, and an uncalibrated instrument lies. Say you would collect a few hundred human labels and report judge-human agreement (Cohen's kappa) before gating anything, and fix the rubric first if it misses.
+- **Contamination.** If eval cases or near-duplicates leaked into a model's training data, it looks great offline and fails in production. This is why a private, freshly-sampled golden set beats a famous public benchmark for gating your own feature, and why stage-one public benchmarks stay a coarse capability filter only.
+- **Regression gates that only watch the average.** A single aggregate metric hides a segment that fell off a cliff. Gate per slice (language, length, tier, query type), keep a held-out set you never tune on, and set the tolerance from the judge's measured variance so noise does not flap the build.
+- **Judge drift and position bias.** The judge is a hosted model that can change under you and favors whichever answer is shown first. Pin the judge model version, version the judge prompt, re-score a fixed calibration set to detect drift, and run both orderings averaged to cancel position bias.
 
 **The systems**
 
@@ -876,7 +1265,29 @@ quadrantChart
 
 ### [Safety and guardrails](topics/07-safety-and-guardrails.md) · 19 systems
 
-**What they share.** Every system wraps the model in a layered pipeline: untrusted input hits an input guard, the model runs, then output guards inspect the generation, with classifiers trained on the enforced policy and the highest-risk cases routed to humans.
+**What they share.** Every system wraps the model in a layered pipeline: untrusted input hits an input guard, the model runs, then output guards inspect the generation, with classifiers trained on the enforced policy and the highest-risk cases routed to humans. The differences are in where the effort concentrates, not in the skeleton.
+
+**The reference pipeline.** Strip the branding and the same three-stage spine appears: an input filter scores the request, the model generates, an output filter scores the generation, and a policy router turns each verdict into refuse, safe-complete, escalate, or log. Deterministic checks run before the model-based ones so the expensive classifier only sees what survives the cheap tier.
+
+```mermaid
+flowchart LR
+  U["untrusted input<br/>(user, docs, tool output)"] --> CH["cheap tier<br/>(regex, blocklist, PII)"]
+  CH --> IF["input filter<br/>(guard classifier)"]
+  IF -->|block| PR
+  IF -->|pass| L["LLM"]
+  L --> OF["output filter<br/>(moderation, grounding, PII)"]
+  OF -->|block| PR
+  OF -->|pass| PR{"policy router"}
+  PR -->|clearly disallowed| RF["refuse"]
+  PR -->|mixed request| SC["safe-complete"]
+  PR -->|high-stakes ambiguity| HR["escalate to human"]
+  PR -->|low-risk borderline| LG["log and allow"]
+  RF --> USR["user"]
+  SC --> USR
+  LG --> USR
+```
+
+**Where the systems diverge.**
 
 ```mermaid
 flowchart LR
@@ -903,7 +1314,7 @@ flowchart LR
 | --- | --- | --- |
 | guard model | `small distilled classifier` (Roblox 750k RPS, Cloudflare) vs `guard-LLM 7B` (Meta Llama Guard, Google ShieldGemma, NVIDIA NeMo) vs `synthetic-policy classifier` (Anthropic) | request volume and latency budget: billions/day forces distilled; taxonomy flexibility favors instruction-tuned 7B |
 | placement | `input filter` (Cloudflare edge) vs `output filter` (Thomson Reuters grounding) vs `both` (Anthropic, Meta, Microsoft, Salesforce, NeMo) | trust boundary: input-only misses unsafe generations; RAG/agents need output grounding too |
-| jailbreak / injection defense | `trained classifier` (Anthropic 86%→4.4%) vs `spotlighting + code gates` (Microsoft) vs `PII masking + prompt defense` (Salesforce) vs `input blocklist-free zero-shot` (Cloudflare) | direct jailbreak yields to output classifiers; indirect injection needs structural isolation and least-privilege action gates |
+| jailbreak / injection defense | `trained classifier` (Anthropic 86% to 4.4%) vs `spotlighting + code gates` (Microsoft) vs `PII masking + prompt defense` (Salesforce) vs `input blocklist-free zero-shot` (Cloudflare) | direct jailbreak yields to output classifiers; indirect injection needs structural isolation and least-privilege action gates |
 | policy routing | `hard block` vs `safe-complete` vs `graded score` (OpenAI G-Eval 1-5, Grab likelihood tier) vs `escalate to human` (Roblox, Thomson Reuters) | stakes and false-positive cost: graded scores enable rewrite; regulated domains escalate ambiguity |
 | latency hiding | `cascade cheap-to-expensive` (Grab, Meta) vs `async race vs generation` (OpenAI) vs `separate batched vLLM tier` (NeMo, Cloudflare 2s timeout) | critical-path budget; async leaks tokens before block fires, so it needs side-effect-free generation |
 
@@ -911,9 +1322,19 @@ flowchart LR
 
 $$\textbf{Cascade expected cost: } \ \mathbb{E}[C] = c_{\text{cheap}} + p_{\text{escalate}} \cdot c_{\text{guardLLM}}$$
 
+Most traffic clears on the cheap tier, so the expensive guard-LLM cost is paid only on the small escalated fraction. Roblox flags roughly 0.01 percent of messages, which is why a distilled front tier dominates the economics.
+
 $$\textbf{Recall at fixed FPR operating point: } \ \text{Recall}@\text{FPR}=0.01 = \frac{TP}{TP+FN} \ \ \text{s.t.} \ \ \frac{FP}{FP+TN}=0.01$$
 
+$$\textbf{Precision at a recall floor: } \ \text{Precision}@\text{Recall}=r_0 = \frac{TP}{TP+FP} \ \ \text{s.t.} \ \ \frac{TP}{TP+FN} \ge r_0$$
+
+Fixing a recall floor (catch at least a fraction r0 of violations) and reading off precision tells you the over-block cost of that safety guarantee: low precision at the floor means most blocks are false alarms.
+
 $$\textbf{Attack success under layered defense: } \ \text{ASR} = \prod_{i=1}^{L}\bigl(1 - r_i\bigr) \ \ \Rightarrow\ \ 0.86 \to 0.044$$
+
+$$\textbf{KL-anchored refusal objective: } \ \max_{\pi} \ \mathbb{E}_{x \sim D}\bigl[R_{\text{safe}}(x, \pi)\bigr] - \beta \cdot \text{KL}\bigl(\pi \ \| \ \pi_{\text{ref}}\bigr)$$
+
+The refusal reward pushes the policy to decline unsafe prompts, while the KL term to the reference model penalizes drift; a large beta keeps benign behavior intact, which is how Anthropic held the production refusal delta near 0.38 percent while cutting jailbreaks.
 
 $$\textbf{Async race adds no wall clock: } \ T_{\text{total}} = \max\bigl(T_{\text{guard}}, T_{\text{gen}}\bigr) \ \ \text{vs series } \ T_{\text{guard}} + T_{\text{gen}}$$
 
@@ -933,6 +1354,15 @@ quadrantChart
   "OpenAI async race": [0.3, 0.75]
   "Microsoft spotlighting+gates": [0.55, 0.82]
 ```
+
+**Interview watch-outs.**
+
+- **Classifier vs guard-LLM independence.** A trained classifier is a separate decision, so talking the base model out of its rules does not move the verdict. An LLM-judge guardrail (OpenAI cookbook, Meta Llama Guard) inherits the base model's persuadability, so do not claim independence for a guard that shares the same failure modes.
+- **Jailbreak vs injection are different threats.** A jailbreak talks the model out of its safety behavior and yields to output classifiers plus refusal training. Indirect prompt injection rides in untrusted content and needs structural isolation plus code-side action gates. Saying "no prompt fully prevents injection, so I shrink the blast radius" is the signal.
+- **Latency budget shapes the whole design.** Every guard is time on the critical path. Reach for a cascade (cheap tier first, guard-LLM only on ambiguous inputs), an async race, or a separate batched vLLM tier. State a budget (for example under 100ms p50 for the fast checks) rather than stacking model calls in series.
+- **Async can leak side effects.** Racing the guard against generation only hides latency when generation has no side effects before the block fires. If the model can act mid-stream, parallelism can leak an unsafe action or surface unsafe tokens before the verdict lands.
+- **Over-refusal is a real failure.** Report the benign refusal-rate delta, not just the adversarial catch rate; the 86 percent to 4.4 percent headline is on an adversarial set, and the 0.38 percent production refusal change is what proves low over-blocking. Aggressive thresholds route legitimate users around the product.
+- **Fail closed, and log.** A guard that errors and silently allows the request is worse than no guard; default risky paths to caution on error. A 2s edge timeout returning partial results is a deliberate fail-open choice that must be intentional, and every block decision needs an audit trail to tune thresholds and defend the system.
 
 **The systems**
 
@@ -961,6 +1391,32 @@ quadrantChart
 ### [Production monitoring and observability](topics/12-production-monitoring-and-observability.md) · 7 systems
 
 **What they share.** Every system emits a cheap synchronous trace per request (inputs, retrieved context, output, latency, tokens, cost) then fans expensive quality checks off that stream asynchronously and sampled, so serving is never taxed. The dividing lines are what quality signal they trust, how fast it detects, and whether they build the judge or adopt a platform.
+
+**The reference pipeline.** Strip the vendor names and every design is the same loop: serve and answer the user on the hot path, emit a trace with spans off to the side, then run the expensive checks (online judge, grounding, drift) asynchronously on a sample of that stream, roll the results into rates, and alert on the delta after any model or prompt change. Human labels loop back to calibrate the judge rather than dead-ending as an audit.
+
+```mermaid
+flowchart TD
+  U["user request"] --> S["serving chain<br/>retrieve, prompt, generate, tools"]
+  S --> R["response to user"]
+  S --> T["emit trace + spans<br/>context, output, latency, tokens, cost"]
+  R --> FB["user feedback<br/>thumbs + implicit"]
+  FB --> T
+  T --> Q["trace store / log pipeline"]
+  Q --> M["cheap metrics on all traffic<br/>latency, TTFT, cost, error rate"]
+  Q --> J["async LLM-judge on a sample<br/>faithfulness, relevance"]
+  Q --> G["grounding / contradiction check<br/>answer vs retrieved context"]
+  Q --> DR["drift monitor<br/>input embeddings vs reference window"]
+  Q --> HR["sampled human-review queue"]
+  M --> A["rate + delta alerts, dashboards"]
+  J --> A
+  G --> A
+  DR --> A
+  HR --> L["human labels"]
+  L -.->|"recalibrate"| J
+  A --> RE["frozen eval replay<br/>on every model / prompt change"]
+```
+
+**How they diverge.**
 
 ```mermaid
 flowchart TD
@@ -995,13 +1451,29 @@ flowchart TD
 
 **The math that separates them.**
 
-$$\textbf{judge-human agreement (kappa):}\quad \kappa=\frac{p_o-p_e}{1-p_e}$$
+$$\textbf{judge-human agreement (Cohen kappa):}\quad \kappa=\frac{p_o-p_e}{1-p_e}$$
 
-$$\textbf{faithfulness = grounded claim fraction:}\quad G(a)=\frac{1}{|C(a)|}\sum_{c\in C(a)}\mathbf{1}[ \text{context}\models c ]$$
+where p_o is the observed agree rate between judge and human and p_e is the agree rate expected by chance. kappa = 1 is perfect, kappa = 0 is chance; alert only on a judge whose kappa clears your bar.
 
-$$\textbf{cosine input-drift score:}\quad d_t=1-\frac{\bar{e}_t\cdot \bar{e}_{\text{ref}}}{\lVert \bar{e}_t\rVert \lVert \bar{e}_{\text{ref}}\rVert}$$
+$$\textbf{judge quality against human labels:}\quad F_1=\frac{2\,P\,R}{P+R},\qquad P=\frac{TP}{TP+FP},\quad R=\frac{TP}{TP+FN}$$
 
-$$\textbf{sampling rate sets observing cost:}\quad \mathbb{E}[\text{cost}_{\text{obs}}]=s\cdot \lambda\cdot c_{\text{judge}},\qquad t_{\text{detect}}\approx \frac{k}{s \lambda r_{\text{fail}}}$$
+with TP a hallucination the judge and human both flag, FP a clean answer the judge wrongly flags. Datadog reports 0.810 F1 on HaluBench and RAGTruth; the honest number is the human-labeled set, not the synthetic one.
+
+$$\textbf{faithfulness = grounded claim fraction:}\quad G(a)=\frac{1}{|C(a)|}\sum_{c\in C(a)}\mathbf{1}[\,\text{context}\models c\,]$$
+
+C(a) is the set of atomic claims in answer a; the indicator is 1 when the retrieved context entails claim c. Ungrounded rate per response is 1 minus G(a).
+
+$$\textbf{cosine input-drift score:}\quad d_t=1-\frac{\bar{e}_t\cdot \bar{e}_{\text{ref}}}{\lVert \bar{e}_t\rVert\,\lVert \bar{e}_{\text{ref}}\rVert}$$
+
+e-bar_t is the mean embedding of the current window, e-bar_ref the reference window; d_t near 0 is no drift, d_t rising means traffic is moving under you.
+
+$$\textbf{hallucination-spike detection (rate z-score):}\quad z_t=\frac{r_t-r_{\text{ref}}}{\sqrt{\,r_{\text{ref}}(1-r_{\text{ref}})/n_t\,}}$$
+
+r_t is the ungrounded rate in the current window of n_t judged traces, r_ref the baseline rate; page when z_t exceeds your threshold, so you alert on the delta and not a single flagged event. Smaller n_t (heavier sampling) widens the denominator and demands a larger true jump before it is visible.
+
+$$\textbf{sampling rate sets cost and detection latency:}\quad \mathbb{E}[\text{cost}_{\text{obs}}]=s\cdot \lambda\cdot c_{\text{judge}},\qquad t_{\text{detect}}\approx\frac{k}{s\,\lambda\,r_{\text{fail}}}$$
+
+s is the sampled fraction, lambda the request rate, c_judge the per-call judge cost, r_fail the failure rate, and k the count of failures needed for confidence. Cost is linear in s while detection latency is inverse in s: halving the sample halves the bill but doubles the time to catch a regression.
 
 ```mermaid
 quadrantChart
@@ -1019,6 +1491,15 @@ quadrantChart
   "Grounding check": [0.35, 0.48]
   "Drift detection": [0.75, 0.18]
 ```
+
+**Interview watch-outs.**
+
+- Online eval has no labels, so quality is estimated from proxies (LLM-judge faithfulness, grounding against retrieved context, implicit user signals); say up front that accuracy the pre-ship way does not exist online, and that any proxy is a number that lies until it is calibrated against a rolling human sample (report kappa or F1, not just a raw score).
+- Detect a hallucination spike on a trended rate, never a single event: score groundedness per response against the logged context, compute the z-score of the ungrounded rate versus baseline, and alert on the delta after any retrieval or model change. A single flagged answer is noise; a rate shift is the signal.
+- Tracing granularity is a real decision, not a default: agents and multi-hop RAG need a span per tool call (args, result, error) to localize failure, while a single-shot copilot can log per message and stitch on a conversation id. Too coarse and you cannot find where it broke; too fine and log volume and retention explode. The retrieved context is the single load-bearing field, drop it and grounding is unrecoverable after the fact.
+- Cost is the constraint that shapes the whole design: judging every request roughly doubles the bill, so expensive checks are sampled and run async off the hot path while only cheap span-derived metrics run on 100 percent of traffic. Be ready to trade sampling rate against detection latency (cost is linear in s, latency is inverse in s) and to reach for a small fine-tuned encoder when an LLM judge is too costly per sampled trace.
+- Sample the tail, not uniformly: stratify and oversample the risky slice (negative or no feedback, high edit or retry rate, low judge or retrieval score, guardrail near-misses, new input clusters) plus a uniform baseline. Uniform random spends the human budget on easy common cases and misses the rare failure that is burning.
+- Watch the signals quality metrics miss: a rising refusal or block rate is silent degradation because blocked answers never get scored, and a "drop-in better" model that doubles TTFT or triples cost is a regression even if answers improve. Track guardrail firing rates, latency percentiles (p50/p95/p99, not the mean), TTFT, and cost per request as first-class, and remember the observability store is your largest pool of unredacted user data, so redact and gate access.
 
 **The systems**
 
