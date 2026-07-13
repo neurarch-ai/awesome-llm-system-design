@@ -114,6 +114,20 @@ quadrantChart
   "Character.AI serving": [0.20, 0.92]
 ```
 
+**When to use which.** Place the problem in one stage, then let the dominant cost there pick the method and the metric.
+
+| Reach for | When | Instead of |
+|---|---|---|
+| Data-prep investment (FineWeb, Dolma) | Your edge is a proprietary corpus and eval-leakage is the risk to kill | Assuming architecture, not data, sets the capability ceiling |
+| From-scratch compute-optimal pretrain (Chinchilla, Llama 3) | Lab-scale compute and no open base covers the need | Mid-training, when an open base would have sufficed |
+| Mid-training on an open base (OLMo, Qwen3) | Limited budget, you need a domain or longer context, not new general weights | A full pretrain that only inherits the base's flaws anyway |
+| RLHF reward model plus PPO (OpenAI) or DPO (Meta) | Reward is a human preference; DPO to skip training a separate Bradley-Terry reward model | Rule-based RL, which needs a verifiable checker you do not have |
+| Rule-based RL / GRPO (DeepSeek-R1) | The reward is verifiable (math, code) so a checker replaces human labels | Paying for human preference labels on machine-checkable tasks |
+| KL penalty to the reference policy | Every preference method, to stop reward-hacking into verbose sycophancy | Dropping the leash and letting the policy forget the base |
+| Chinchilla 20 tok/param sizing | Minimizing one-off training compute | Overtraining, which you want only when serving cost dominates |
+| Overtrain a smaller model past Chinchilla, plus paged KV / GQA / INT8+MQA serving (vLLM, Mistral, Character.AI) | You serve billions of tokens and the KV cache, not FLOPs, caps throughput | Compute-optimal sizing that leaves an expensive model to serve forever |
+| RAG at inference | Facts are fresh or private and change often | Fine-tuning them into weights, which goes stale and hallucinates |
+
 **Interview watch-outs.**
 
 - **Do not default to "pretrain a model" or "just fine-tune GPT."** Name the five stages and place the problem in one. It is almost never a from-scratch pretrain; it is usually post-training (make an open base follow our instructions) or mid-training (teach it our domain or a longer context). Owning weights is a serving-and-maintenance commitment, not a one-time train.
@@ -244,6 +258,20 @@ quadrantChart
   "ZeRO / FSDP": [0.12, 0.88]
 ```
 
+**When to use which.** Pick the recipe by which layer you own, then let the constraint at that layer pick the method and the comparison metric.
+
+| Reach for | When | Instead of |
+|---|---|---|
+| Web-only hard-filtered data (RefinedWeb, FineWeb) | Careful web processing alone can hit your quality bar | A curated mix you lack the license or breadth to assemble |
+| Curated multi-domain mix (The Pile, Dolma) | You need an open, documented recipe and domain coverage beyond raw web | Web-only, when transparency and domain balance matter more than scale |
+| Heuristics plus a learned classifier (FineWeb-Edu, CCNet perplexity) | Fewer better tokens must beat raw volume on hard benchmarks | Heuristics only (C4, Gopher), which cap on transparency, not power |
+| MinHash plus LSH fuzzy dedup (FineWeb, RefinedWeb) | Near-duplicates dominate and you dedup within and across dumps at scale, tuning the LSH banding S-curve | Exact or suffix-array dedup, which misses fuzzy near-duplicates |
+| SentencePiece BPE / unigram | Multilingual or non-whitespace languages need reversible subwording | Byte-level BPE tuned for a mostly-English mix |
+| Bits-per-byte to compare models | Ranking bases built on different tokenizers | Perplexity, which is incomparable once the tokenizer changes |
+| Chinchilla 20 tok/param split | Minimizing training compute for the run itself | Overtraining a smaller model, which you want when inference dominates |
+| MoE plus FP8 (DeepSeek-V3) | You want frontier capacity per active FLOP on a constrained budget | A dense transformer, when VRAM to hold all experts is the wall |
+| Tensor/pipeline (Megatron) or ZeRO/FSDP sharding | The layer is too big for one GPU (Megatron) or the optimizer memory wall binds (ZeRO/FSDP) | Picking a parallelism scheme before naming which constraint binds |
+
 **Interview watch-outs.**
 
 - **Do not skip the data funnel.** Model quality is bounded by data quality long before architecture. Raw Common Crawl is mostly boilerplate, spam, and near-duplicates, so the keep rate is single digits, and extraction plus quality filtering plus dedup are the work, not a preprocessing footnote. RefinedWeb's thesis is that this alone can match curated corpora.
@@ -356,6 +384,20 @@ quadrantChart
   "Qwen2.5 128K": [0.70, 0.82]
   "LongRoPE 2M": [0.90, 0.95]
 ```
+
+**When to use which.** Name the axis first, then let the reach you need pick how non-uniform the rescale must be and how you prove it.
+
+| Reach for | When | Instead of |
+|---|---|---|
+| Domain-adaptive pretraining with replay plus re-warm (DAPT, Code Llama) | You are shifting the prior to a domain or language, not extending length | Length tools, which do nothing for catastrophic forgetting |
+| Re-warm the LR to a modest peak | Continued pretraining from a fully-decayed base | Resuming at zero (stalls) or at the original peak (forgets everything) |
+| Linear position interpolation (Chen et al.) | A quick baseline or a tiny extension where local-resolution loss is tolerable | Calling it a real long-context method, it blurs the high-frequency dimensions |
+| NTK-aware / ABF base scaling (Code Llama, Yi) | Moderate extension where scaling the base spares local ordering | Uniform PI, which divides every frequency by the same s |
+| YaRN ramp plus attention temperature (Qwen2.5) | Larger extension needing entropy correction, roughly 0.1% of pretrain tokens | Plain NTK-ABF, when the softmax-temperature fix is what preserves quality |
+| LongRoPE per-dimension search (Microsoft) | Extreme reach beyond 2M tokens justifies the search and short-context recovery cost | Hand-set ramp bands, which cannot find the best per-dim rescale that far out |
+| RULER-style multi-hop eval | Proving effective context matches the configured length | A single edge-anchored needle test, which passes while real recall is shorter |
+| GQA, KV quantization, paging, sliding-window attention | Prefill is quadratic and the KV cache linear at the target length | Ignoring serving cost, leaving the model prefill-bound and KV-bound at once |
+| Long context for one big document, RAG over the corpus | The task is a single long document | Extending length to replace retrieval, where mid-context recall decays |
 
 **Interview watch-outs.**
 
@@ -480,6 +522,20 @@ quadrantChart
   "Anyscale iter-DPO": [0.78, 0.72]
   "LinkedIn RLHF+DPO": [0.85, 0.85]
 ```
+
+**When to use which.** Match each adaptation and alignment fork, plus the loss or memory term that governs it, to the situation that should trigger it.
+
+| Reach for | When | Instead of |
+|---|---|---|
+| LoRA or QLoRA adapter (Mercari, Cloudflare, Grab warm-start) | The behavior shift is small or you serve many tenants on one base | Full fine-tune, which costs more and blocks hot-swappable adapters |
+| Full fine-tune (Anyscale, Shopify Flow) | The shift is large or a LoRA adapter drifts out of distribution | Raising LoRA rank, which rarely fixes an OOD result |
+| SFT only (Grammarly, Mercari, Shopify, Grab) | You need format, tone, or a missing skill and nothing more | DPO or RLHF, which is over-engineering for a tone problem |
+| DPO on (chosen, rejected) pairs (Anyscale, Spotify) | A quality axis SFT cannot capture matters and you want no separate reward model | Full RLHF, when a classification-style loss suffices |
+| RLHF with a reward model plus KL penalty (LinkedIn) | Safety or preference needs an explicit learned reward and online RL | DPO, when a closed-form preference loss is not enough |
+| A small beta or KL term | Pinning the policy near the reference to stop reward-hacking | A large beta, which over-steers into sycophancy or evasion |
+| Synthetic plus LLM-as-judge curation (Anyscale, Shopify) | The task axis can be scored automatically and real logs are thin | Dense human labels, when a calibrated judge can grade at scale |
+| Live-slice eval gate (Shopify 1 percent activation) | Offline metrics like BLEU overstate readiness | Shipping on offline numbers, which hide production regressions |
+| The QLoRA 4-bit memory math | Fitting a billions-parameter base plus its adapter on one GPU | 16-bit full weights, which will not fit the GPU |
 
 **Interview watch-outs.**
 
@@ -610,6 +666,20 @@ quadrantChart
   H2O evict: [0.75, 0.58]
 ```
 
+**When to use which.** Match each cache lever, and the ratio that quantifies it, to the wall you actually hit.
+
+| Reach for | When | Instead of |
+|---|---|---|
+| GQA (Google, Llama-3) | You want most of the cache cut with a cheap conversion and near-MHA quality | MHA baseline, whose full kv_bytes fills HBM on long context |
+| MLA (DeepSeek) | You control training and want about 93 percent smaller cache (r_MLA near 0.07) | GQA, when a train-time redesign is on the table for max savings |
+| MQA (Character.AI) | Memory is the hard wall and you accept a lower quality floor | GQA, when one quarter of the cache is not aggressive enough |
+| PagedAttention (vLLM) | Fragmentation caps concurrency and requests are queued to fill freed HBM | Static allocation, which strands memory and OOMs under load |
+| RadixAttention or prefix cache (SGLang, Anthropic, Databricks) | A system prompt or shared doc repeats across requests | Rebuilding prefill each request when the prefix is stable |
+| StreamingLLM sink plus window, or H2O evict | The stream is effectively infinite and the middle is expendable | Full attention, when the cache budget is fixed and mid-context recall is optional |
+| Low-bit KV quant, NVFP4 (NVIDIA) or int4/int2 (KIVI) | You passed a long-context eval and want the r_quant 2x on context or batch | Shipping 4-bit KV on vibes, which silently regresses retrieval |
+| The kv_bytes formula on real numbers | Diagnosing what fills the GPU before picking a lever | Blaming weights, when a 100k sequence alone costs over 10 GB |
+| Decode arithmetic intensity I_decode | Deciding whether to attack bandwidth or compute | Optimizing prefill, when decode is the memory-bound wall |
+
 **Interview watch-outs.**
 
 - **Decode is memory-bound, prefill is compute-bound.** Say this explicitly and back it with the arithmetic-intensity ratio above: decode reads the whole model plus cache to emit one token (about 2 FLOPs per byte), prefill amortizes that read across the whole prompt. The fix you pick depends on which phase is the wall, so profile prefill versus decode before optimizing.
@@ -732,6 +802,20 @@ quadrantChart
   "Fireworks": [0.35, 0.18]
   "NVIDIA Dynamo": [0.60, 0.85]
 ```
+
+**When to use which.** Each serving lever, and the roofline number that tells you if it pays, mapped to the workload that should trigger it.
+
+| Reach for | When | Instead of |
+|---|---|---|
+| Continuous batching plus PagedAttention (vLLM, Anyscale) | Output lengths vary and you want the GPU saturated every token step | Static batching, held hostage by the longest sequence |
+| Token-budget packing (Baseten BEI) | Prompt lengths vary widely across the batch | Packing by request count, which wastes the token budget |
+| Speculative decoding (LinkedIn, Together, Fireworks) | Draft acceptance is high and the batch is low-to-moderate | Disaggregation, when the one-token-per-pass floor is the latency wall |
+| Disaggregated prefill/decode (NVIDIA Dynamo) | Prefill and decode SLOs genuinely conflict and the interconnect is fast | One pool, when a KV handoff over slow fabric would dominate |
+| TP vs PP vs EP | TP to fit on fast links for latency, PP to scale past a node, EP once experts outnumber a GPU | Reaching for the wrong axis and paying needless cross-node cost |
+| FP8 or int8 quant behind a quality eval (Baseten, Character.AI) | Decode is bandwidth-bound and cosine similarity holds over 99 percent | Dropping precision on assumption, which can silently regress |
+| Roofline tokens/s and arithmetic intensity | Deciding whether a stage is compute-bound or bandwidth-bound | Guessing which lever helps before you profile |
+| The speculative-speedup formula | Checking a draft actually pays before shipping it | Assuming any draft helps (a generic draft at alpha near 0.29 slowed Fireworks 1.5x) |
+| Load shedding with a 429 backpressure signal | Under overload, with per-sequence KV reserved so admissions cannot OOM | Admitting everything, which explodes p99 for every request |
 
 **Interview watch-outs.**
 
@@ -858,6 +942,19 @@ quadrantChart
   "LLMLingua 20x": [0.7, 0.7]
 ```
 
+**When to use which.** Pick the lever by the binding constraint, and pick the formula that proves it paid.
+
+| Reach for | When | Instead of |
+|---|---|---|
+| Blind pre-call router (RouteLLM, Anyscale, IBM) | Tight latency SLO with no slack for a second call, traffic splits cleanly into easy and hard | A cascade, which spends a first call plus a scorer before it can escalate |
+| Cascade scorer (FrugalGPT) | You have latency slack and want the system to catch its own mis-routes by scoring a real answer | A blind router that cannot know it sent a hard query to the weak model |
+| Semantic cache (embed plus tau) | Free-text repeats and paraphrases are common and replies are not tenant-scoped or personalized | Exact hashing, which almost never fires on free text |
+| Exact hash cache (Cloudflare) | Identical requests recur (fixed prompts, shared system messages) and any wrong-neighbor answer is unacceptable | A loose semantic tau that can leak a near-neighbor's answer |
+| LLMLingua compression | Input tokens dominate cost and context is long, verbose, and redundant | Context trim or nothing, when the small-LM pass would be pure overhead |
+| Fine-tuned small model plus FP8 self-host (Anyscale, Baseten) | Task is narrow and QPS clears the self-host break-even Q* where fixed GPU beats API price | One frontier model wired in for every classification, extraction, and routing call |
+| Cache-hit break-even h* check | Deciding whether a semantic cache pays at all before shipping it | Eyeballing raw hit rate, which hides that embedding cost can exceed the saving |
+| Blended-cost formula across tiers | Proving right-sizing shifted traffic mass, cost quoted with per-bucket quality | A single aggregate bill number with no quality attached |
+
 **Interview watch-outs.**
 
 - **Routing vs cascade is a latency trade, not a quality trade.** A router decides once, blind, before any generation, so it fits a tight SLO but cannot know it mis-routed; a cascade sees a real answer before spending more, catching its own mistakes at the cost of a first call plus a scorer. Say which constraint forces the choice; if you have slack, route first then cascade within a bucket.
@@ -976,6 +1073,22 @@ quadrantChart
   LiveKit WebRTC: [0.4, 0.85]
   Vercel text: [0.55, 0.5]
 ```
+
+**When to use which.**
+
+Pick the transport, pipeline shape, and turn detection by the medium and the latency budget, then let the latency formulas set where you spend.
+
+| Reach for | When | Instead of |
+|---|---|---|
+| SSE | One-directional text tokens over plain HTTP (Vercel, OpenAI text) | WebSocket, unless you need duplex signaling |
+| WebSocket | Duplex mid-stream signaling: interrupts, multiplexed streams (Cloudflare DO, Slack, Discord) | SSE when the channel is only server to client |
+| WebRTC over UDP | Voice audio, to avoid head-of-line blocking (LiveKit, Daily, Pipecat) | Ordered TCP, where one lost packet stalls all buffered audio |
+| Fused speech-to-speech | Lowest voice latency and tunability is not required (OpenAI gpt-realtime) | Componentized when you need an inspectable transcript |
+| Componentized STT to LLM to TTS | You need debuggable, tunable voice (Deepgram, AssemblyAI, ElevenLabs, Cartesia) | Fused when every hop must be inspectable |
+| Eager turn detection (speculation cost) | You can shave hundreds of ms and the LLM call is genuinely cancelable (Deepgram EagerEoT) | Semantic endpointing when resumes waste 50 to 70 percent of calls |
+| Semantic plus silence endpointing | You must avoid misfires on half-utterances (AssemblyAI, Krisp, Smart Turn v3) | Silence-only detection that leaves awkward pauses |
+| Prefix caching plus sticky routing | Long multi-turn sessions where per-turn prefill climbs with history | Stateless routing, where every turn is a full-prefill cache miss |
+| Cancel on disconnect and bounded buffers | Each open stream pins an inference slot for its whole generation | Leaving orphaned or slow streams to silently eat GPU |
 
 **Interview watch-outs.**
 
@@ -1097,6 +1210,20 @@ quadrantChart
   "Glean": [0.85, 0.60]
   "MS GraphRAG": [0.88, 0.68]
 ```
+
+**When to use which.** A quick map from the forks above to the situation that should trigger each, methods and the metric you grade them with.
+
+| Reach for | When | Instead of |
+|---|---|---|
+| Hybrid vector plus BM25 (Uber, Vespa, Glean) | Queries carry exact IDs, codes, or jargon that dense vectors blur | Vector-only (MongoDB, Thomson Reuters), which misses literal-term matches |
+| Query-API RAG (Grab Data-Arks) or GraphRAG (Microsoft) | The corpus is really vetted queries or linked entities, not flat docs | Chunk-and-embed, which flattens structure and relationships |
+| Cross-encoder rerank (NVIDIA, Dropbox) | First-stage recall is noisy and you can spend about 1/75 of a generation call | Similarity-only (MongoDB), which forwards noisy top-n into the prompt |
+| Two-prompt LLM select (Ramp) | The shortlist is short and accuracy@k matters more than per-query cost | A cheap cross-encoder, when the quality bar justifies extra tokens |
+| recall@k as your gate | Diagnosing why answers miss, since it upper-bounds end-to-end quality | End-to-end accuracy alone, which hides retrieval failures |
+| RRF fusion score | Merging BM25 and vector ranks without tuning blend weights | Raw cosine similarity, which cannot combine two rankers |
+| Source precision, recall, F1 (Dropbox, Glean) | You have labeled relevant docs and need a retrieval regression gate | LLM-as-judge, which scores the answer, not the retrieval |
+| Provenance citations plus abstain-below-threshold (Thomson Reuters, MS) | A regulated domain, or the top rerank score is weak | Always-answer, which invites a well-cited hallucination |
+| Structure-first chunking sized by the n_chunks bound | Docs have headings or tables a fixed window would split | Blind fixed 512-token windows that poison embeddings |
 
 **Interview watch-outs.** The questions that recur across these systems, and the answer that separates a shallow pass from a real one.
 
@@ -1227,6 +1354,22 @@ quadrantChart
   Microsoft DiskANN: [0.22, 0.88]
   LinkedIn Matryoshka: [0.45, 0.70]
 ```
+
+**When to use which.**
+
+Pick the index and the compression for your memory regime, then match the quantization loss and rerank to the ranking objective.
+
+| Reach for | When | Instead of |
+|---|---|---|
+| HNSW graph | The corpus fits in RAM and you want best recall at latency (Spotify) | IVF-PQ or DiskANN when memory is the binding constraint |
+| IVF-PQ | Billion-scale corpus on a RAM budget (Meta Faiss) | HNSW, which holds the graph plus full vectors in RAM |
+| DiskANN (Vamana on SSD) | A billion vectors must fit on one box (Microsoft) | Keeping full-precision vectors resident in DRAM |
+| ScaNN anisotropic loss | Two-tower inner-product / MIPS ranking (Google) | A Euclidean-tuned PQ that quietly loses MIPS recall |
+| PQ code-size and compression-ratio formulas | Sizing RAM per vector before choosing codes | Assuming compression is free |
+| Full-precision or cross-encoder rescore | After any quantization, since first-phase scores are approximate (Vespa depth 4000, ScaNN, DiskANN) | Trusting compressed first-phase scores as final |
+| Hybrid BM25 or SPLADE fuse (RRF) | Exact-term and rare-token queries matter (Vespa, Etsy, Walmart) | Pure dense, which misses SKUs and error codes |
+| Matryoshka nested dimensions | You want retrieval and ranking served from one model (LinkedIn: 2048 retrieve, 4096 rank) | Training and aligning separate models per stage |
+| IVF probe cost (tune nprobe) | Trading recall against latency on an inverted-file index | Reaching for a bigger encoder when the knob is nprobe |
 
 **Interview watch-outs.**
 
@@ -1364,6 +1507,20 @@ quadrantChart
   "Anthropic multi-agent": [0.85, 0.55]
 ```
 
+**When to use which.** Map each topology, planning, and memory fork, plus the cost term that governs it, to the trigger that should pick it.
+
+| Reach for | When | Instead of |
+|---|---|---|
+| Single-agent loop (Cognition, Airbnb, Uber) | One context holds the job and decisions form a coherent chain | Multi-agent, whose roughly 15x token multiple buys nothing here |
+| Orchestrator plus parallel subagents (Anthropic research, LinkedIn) | Subtasks are genuinely separable and need isolated windows | A single thread, when fan-out is the only way to cut wall-clock latency |
+| Plan-then-execute (Airbnb, Anthropic lead) | Task shape is known and cost must be predictable | ReAct, when open-endedness is not the problem |
+| ReAct reactive next-step (Yao et al.) | The goal is open-ended and step count cannot be fixed upfront | Plan-first, when the path is unknowable in advance |
+| Reflexion self-critique (Shinn et al.) | There is a clear success signal to learn from between tries | One-shot planning, when retries could catch a failure |
+| Code execution in a sandbox (smolagents, Ramp VM) | Many tools or large results waste tokens on JSON round-trips | JSON tool-calls, which balloon context on big payloads |
+| A deterministic policy gate | A state-changing write moves money or data | A prompt saying "only refund under $50", which injection bypasses |
+| Compression or prefix caching (Cognition, Claude Code) | The prefill term (price times prior transcript) dominates as the loop grows | Paying full prefill each turn on the whole history |
+| Verification retries plus a hard step cap | Ship quality must rise but a loop must not run forever | Unbounded looping, since per-step success compounds down (0.95 to the 10th is under 0.60) |
+
 **Interview watch-outs.**
 - **Single vs multi-agent is a judgment signal.** Default to one well-tooled agent and reach for an orchestrator only when subtasks are genuinely separable or need isolated context windows. Saying "multi-agent" reflexively reads as hype; naming the 15x token multiple and the hard-to-debug join step reads as experience.
 - **Error compounding is the reason loops fail, not model quality.** Per-step success below 1 multiplies out ($q^{n}$), so a long horizon quietly rots. The fix is gates and checkpoints between steps so one bad step cannot propagate, plus a step cap as the runaway backstop.
@@ -1475,6 +1632,22 @@ quadrantChart
   "Pixtral native": [0.80, 0.85]
   "NVLM tiled + tags": [0.88, 0.90]
 ```
+
+**When to use which.**
+
+Pick the projector, resolution, and serving split by whether fine detail must survive and whether per-request cost must stay bounded.
+
+| Reach for | When | Instead of |
+|---|---|---|
+| MLP projector | Detail should scale with cost on high-res tasks (LLaVA, Qwen2-VL, Pixtral) | A resampler that caps recoverable detail |
+| Resampler or cross-attn (Q-Former, perceiver) | Per-request cost and latency must be bounded (BLIP-2 at 32, Idefics2, Flamingo) | An MLP when the token budget cannot float |
+| Tiling plus tile-tags | OCR and dense documents need fine text (NVLM, Idefics2 split) | A fixed 336px crop that loses fine detail |
+| Fixed 336px resolution | The task is "what is in this picture" and cost-sensitive (LLaVA) | Tiling when the task is not detail-bound |
+| Image-token formula (floor of H/p times W/p) | Budgeting prefill and KV before serving (Pixtral 1024 square is 4096 tokens) | Treating an image as if it costs one token |
+| KV-bytes and quadratic-prefill estimate | Capacity planning for high-res or multi-image traffic | Ignoring that image tokens inflate every layer's cache |
+| Separate encoder tier plus prefix cache | Images repeat and text-only traffic must skip vision (Red Hat vLLM V1) | One server that makes text-only requests pay for the encoder |
+| DP encoder plus TP decoder | Encoder is batchable while the decoder is memory-bound (AMD ROCm) | Scaling both tiers together as one workload |
+| Multi-image cost sum | k-image requests where cost stacks linearly | Assuming added images are negligible in prefill and KV |
 
 **Interview watch-outs.**
 
@@ -1618,6 +1791,22 @@ quadrantChart
   "Human expert A/B": [0.92, 0.95]
 ```
 
+**When to use which.**
+
+Pick the offline signal, the calibration check, and the online proof by how checkable the task is and how much a bad ship costs.
+
+| Reach for | When | Instead of |
+|---|---|---|
+| Task metric (exact match, F1, pass-fail) | The answer is checkable: executable tests or labeled outputs (GitHub broken-repo pass-fail) | An LLM-as-judge you would then have to calibrate |
+| LLM-as-judge | Output is open-ended (relevance, tone, faithfulness) with no reference (Spotify, Booking.com) | A task metric that cannot score free text |
+| Cohen's kappa gate | Before you let any judge block a deploy | Trusting an uncalibrated judge (Pinterest treats 73.7 percent exact match as the analog) |
+| Precision, recall, F1 | Scoring retrieval or extraction where relevance is labeled | A judge on cases you can check deterministically |
+| Position-bias averaging (both orderings) | A pairwise judge picks A vs B and order can leak | A single-ordering judge score that bakes in first-slot preference |
+| Per-slice regression gate (worst segment) | Daily prompt edits where one segment can quietly fall off | Gating on the average, which hides a tanked language or tier |
+| Online A/B | You have live throughput and can split traffic (Spotify, Pinterest) | Treating the offline score as proof of user value |
+| Shadow mode | The action must run silently with no user-facing risk (Ramp) | A live A/B when you cannot expose the output yet |
+| Canary or human sign-off | Blast radius is large or output is irreversible and regulated (GitHub Hubbers, Thomson Reuters) | An automated gate alone on high-stakes, non-reversible ships |
+
 **Interview watch-outs.**
 
 - **LLM-judge verbosity bias.** Judges reward longer, more confident-sounding answers even when they are not better. Optimizing hard against the judge (Goodhart) produces padded outputs the judge loves and users do not. Control for length in the rubric and keep the online edit/thumbs rate as the real tiebreaker.
@@ -1743,6 +1932,22 @@ quadrantChart
   "OpenAI async race": [0.3, 0.75]
   "Microsoft spotlighting+gates": [0.55, 0.82]
 ```
+
+**When to use which.**
+
+Pick the guard model, the defense, and the timing by request volume, threat type, and how much latency the critical path can spare.
+
+| Reach for | When | Instead of |
+|---|---|---|
+| Small distilled classifier | Billions of requests a day on a tight latency budget (Roblox 750k RPS, Cloudflare edge) | A 7B guard-LLM sitting on the hot path |
+| Guard-LLM 7B | Taxonomy churns and volume is moderate (Meta Llama Guard, Google ShieldGemma, NVIDIA NeMo) | A distilled classifier that needs retraining per policy edit |
+| Spotlighting plus code-side action gates | The threat is indirect prompt injection riding in retrieved content (Microsoft) | A text classifier, which a jailbroken model can argue past |
+| Cascade expected cost E[C] | Most traffic is benign and the guard-LLM is expensive (Roblox flags 0.01 percent) | Running the guard-LLM on every request |
+| Recall at fixed FPR, precision at a recall floor | Choosing a threshold and pricing the over-block cost of a safety guarantee | Quoting bare accuracy with no operating point |
+| ASR product across layers | Reporting layered-defense strength (0.86 down to 0.044) | Claiming a single guard is sufficient |
+| KL-anchored refusal objective | Training refusal without wrecking benign behavior (Anthropic held the delta near 0.38 percent) | Hard refusal tuning that spikes over-refusal |
+| Async race (max, not sum) | Generation has no side effects and you want to hide guard latency (OpenAI cookbook) | Series checks that add wall clock, or async when mid-stream actions can leak |
+| Escalate to human | High-stakes ambiguity or regulated output and appeals (Thomson Reuters, Roblox) | An automated hard block or safe-complete on irreversible decisions |
 
 **Interview watch-outs.**
 
@@ -1882,6 +2087,20 @@ quadrantChart
   "Grounding check": [0.35, 0.48]
   "Drift detection": [0.75, 0.18]
 ```
+
+**When to use which.** Match the signal and the granularity to what a bad answer costs, and calibrate before you alert.
+
+| Reach for | When | Instead of |
+|---|---|---|
+| Span-per-step tracing, OTel (Honeycomb, Grafana OpenLIT) | Agents or multi-hop RAG where you must localize which tool call broke | Per-message logging that cannot pinpoint the failing hop |
+| Request plus feedback log (Uber Genie, Twilio Segment) | Single-shot copilot, stitch on a conversation id and keep log volume sane | Span-per-step, whose retention cost is wasted on one-hop flows |
+| Online LLM-judge | You need a faithfulness or relevance proxy on live traffic and can pay a sampled extra call | Assuming pre-ship accuracy exists online, where there are no labels |
+| Grounding check answer-vs-context (Datadog RAG) | The answer is supposed to be grounded in retrieved context and you logged that context | A general judge, when the failure you fear is specifically ungrounded claims |
+| Drift monitor on input embeddings | Predicting that traffic is moving under you, a leading indicator, not a verdict | Treating drift alone as proof of a quality drop |
+| Cohen kappa or F1 against human labels | Calibrating whether a judge is trustworthy before you alert on it | A raw judge score, which lies until checked against a rolling human sample |
+| Rate z-score on the ungrounded fraction | Paging on a hallucination spike after a model or retrieval change | Alerting on a single flagged answer, which is noise |
+| Sampling-rate lever (cost linear, detection latency inverse in s) | Trading judge bill against detection speed under a fixed budget | Judging every request, which roughly doubles the bill |
+| Adopt auto-instrument SDK (Grafana OpenLIT, Segment SDK) | You want low-effort coverage and standard GenAI conventions fast | Building a custom two-stage judge before you have a domain faithfulness bar |
 
 **Interview watch-outs.**
 
