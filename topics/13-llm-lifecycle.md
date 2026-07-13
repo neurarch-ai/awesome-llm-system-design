@@ -264,6 +264,296 @@ Each stage has a different metric, and using the wrong one is a classic mistake:
   the test set leaked into training. Audit overlap; treat contamination as the
   first thing to rule out, not the last.
 
+### The transformer decoder block (what pretraining optimizes)
+
+Every stage above operates on one repeated unit: a pre-norm decoder block of
+(attention, MLP), stacked `n_layers` deep, with a tied or untied output head. Get
+this picture straight and the rest of the math has a home.
+
+```mermaid
+flowchart TD
+  X["token + position embedding"] --> N1["RMSNorm"]
+  N1 --> ATT["causal self-attention<br/>(MHA / GQA / MQA)"]
+  ATT --> R1(("+"))
+  X --> R1
+  R1 --> N2["RMSNorm"]
+  N2 --> MLP["MLP / SwiGLU<br/>(or MoE router + experts)"]
+  MLP --> R2(("+"))
+  R1 --> R2
+  R2 --> OUT["... x n_layers ...<br/>then linear head + softmax"]
+```
+
+The forward pass factorizes the sequence probability autoregressively, and
+pretraining minimizes the token-averaged negative log-likelihood (cross-entropy):
+
+$$p_{\theta}(x) = \prod_{t=1}^{T} p_{\theta}(x_t \mid x_{<t}), \qquad \mathcal{L}(\theta) = -\frac{1}{T}\sum_{t=1}^{T} \log p_{\theta}(x_t \mid x_{<t})$$
+
+Report it as **perplexity** (exponentiated loss) or **bits-per-byte** (tokenizer-invariant, so you can compare across vocabularies):
+
+$$\text{PPL} = \exp(\mathcal{L}), \qquad \text{BPB} = \frac{\mathcal{L}}{\ln 2} \cdot \frac{n_{\text{tokens}}}{n_{\text{bytes}}}$$
+
+Interview trap: perplexity is only comparable across models that share a
+tokenizer. A model with a bigger vocabulary emits fewer tokens per sentence and
+looks better on perplexity while being no better; bits-per-byte removes that
+artifact, which is why serious pretraining reports use it.
+
+### Attention variants and the KV-cache math (MHA, MQA, GQA)
+
+Scaled dot-product attention is the same everywhere; what differs is how many
+distinct key/value heads you keep, and that single number sets your serving cost:
+
+$$\text{Attn}(Q, K, V) = \text{softmax}\!\left(\frac{Q K^{\top}}{\sqrt{d_{\text{head}}}} + M\right) V$$
+
+where `M` is the causal mask. During autoregressive decoding you cache K and V
+for every past token so you never recompute them; that cache is the memory that
+dominates serving:
+
+$$M_{\text{kv}} = 2 \cdot b \cdot L \cdot n_{\text{layers}} \cdot n_{\text{kv}} \cdot d_{\text{head}} \cdot p_{\text{bytes}}$$
+
+The `2` is K and V; `n_{\text{kv}}` is the number of key/value heads. That is the
+whole game:
+
+```mermaid
+flowchart LR
+  MHA["MHA<br/>n_kv = n_heads<br/>full KV cache"] --> GQA["GQA<br/>n_kv = groups<br/>KV cache / (n_heads/groups)"]
+  GQA --> MQA["MQA<br/>n_kv = 1<br/>smallest KV cache"]
+  MHA -. "most quality, most memory" .-> Q1[" "]
+  MQA -. "least memory, some quality loss" .-> Q1
+```
+
+GQA cuts the KV cache (and the memory-bandwidth per decoded token) by a factor of
+`n_heads / n_kv` while staying close to MHA quality; MQA (`n_kv = 1`) is the
+extreme. This is why Llama, Mistral, and almost every production base ship GQA,
+not MHA. Worked number: Llama-3-8B has 32 query heads but 8 KV heads, so its KV
+cache is 4x smaller than the MHA equivalent, which directly multiplies the batch
+size you can fit and therefore the throughput per GPU.
+
+### Scaling-law math (Chinchilla) and the compute-optimal frontier
+
+Training FLOPs are well approximated by a constant times parameters times tokens,
+and the achievable loss follows a power law in both:
+
+$$C \approx 6 N D, \qquad L(N, D) = E + \frac{A}{N^{\alpha}} + \frac{B}{D^{\beta}}$$
+
+Here `N` is non-embedding parameters, `D` is training tokens, and `E` is the
+irreducible loss (entropy of text you can never beat). Minimizing `L` subject to
+the compute budget `C` gives the Chinchilla result: `N` and `D` should grow
+together, `D_{\text{opt}} \approx 20\,N_{\text{opt}}`. The loss-vs-compute curve is
+the reason everyone quotes scaling laws:
+
+```mermaid
+xychart-beta
+  title "Cross-entropy loss vs training compute (schematic power law)"
+  x-axis "Training compute (relative, log scale)" 1 --> 1000
+  y-axis "Loss (nats/token)" 2.0 --> 4.0
+  line [3.85, 3.35, 3.05, 2.85, 2.70, 2.60]
+```
+
+Two interview-grade consequences. First, the `6ND` rule lets you size a run on a
+whiteboard: a 7B model at Chinchilla-optimal wants about 140B tokens and roughly
+`6 x 7e9 x 1.4e11 approximately 6e21` FLOPs. Second, Chinchilla is
+*training*-optimal, not *deployment*-optimal. If you will serve the model a lot,
+you push past 20 tokens per parameter and train a smaller model longer (Llama 3
+8B saw about 15T tokens, roughly 1800 tokens per parameter, far past Chinchilla)
+so that the forever-cost of inference drops. State which cost you are minimizing
+before you quote a ratio.
+
+### Mixture-of-experts (decoupling capacity from compute)
+
+MoE replaces the dense MLP with `E` expert MLPs and a router that sends each token
+to only its top-`k` experts, so total parameters (capacity) grow while per-token
+FLOPs (cost) stay flat. The router is a softmax gate; the block output is the
+gate-weighted sum over the selected experts:
+
+$$g(x) = \text{softmax}(x W_g), \qquad y = \sum_{i \in \text{top-k}(g)} g_i(x)\, E_i(x)$$
+
+The failure mode is routing collapse (all tokens pile onto a few experts), so MoE
+adds an auxiliary load-balancing loss that pushes the token fraction `f_i` and mean
+gate mass `P_i` per expert toward uniform:
+
+$$\mathcal{L}_{\text{aux}} = \lambda\, E \sum_{i=1}^{E} f_i\, P_i$$
+
+Mixtral (8 experts, top-2) uses this auxiliary loss directly; DeepSeek-V3 (671B
+total, about 37B active per token) instead pioneered auxiliary-loss-free balancing,
+where a learned per-expert bias nudges routing toward balance without the aux
+loss's gradient interference. Both are reference designs. Interview framing: MoE buys a bigger model at a small model's inference
+FLOPs, but you still pay to hold all experts in VRAM and to route, and load
+balancing is the thing that breaks, so it is a memory-and-systems win, not a free
+lunch.
+
+### Positional encoding and context extension (RoPE, ALiBi, YaRN)
+
+Attention is permutation-invariant, so position must be injected. Modern bases use
+**RoPE** (rotary position embeddings): rotate the query and key vectors by an
+angle proportional to absolute position, so their dot product depends only on the
+*relative* offset `m - n`:
+
+$$\langle R_{\theta, m} q,\ R_{\theta, n} k \rangle = \text{a function of } (m - n)$$
+
+RoPE is what makes context extension cheap. To go from a 8K pretrain window to
+128K you do not retrain from scratch; you rescale the RoPE frequencies and
+continue-train briefly on long documents. Linear **position interpolation** (Chen
+et al. 2023) scales every frequency dimension uniformly by the length ratio:
+
+$$s = \frac{L_{\text{new}}}{L_{\text{orig}}}, \qquad \theta'_i = \frac{\theta_i}{s} \ \text{(position interpolation)}$$
+
+**YaRN** improves on this by scaling frequencies *non-uniformly*: it interpolates
+the low-frequency (long-wavelength) dimensions while leaving the high-frequency
+(short-wavelength) ones near-unscaled, and adds a softmax temperature correction.
+That extends context with far less quality loss than uniform interpolation.
+
+**ALiBi** takes a different route (a linear distance penalty on attention scores)
+and extrapolates to longer contexts without retraining, at some quality cost. The
+interview point: long context is a positional-encoding plus mid-training problem,
+not a "make the array bigger" problem, and it costs memory quadratically in
+attention and linearly in the KV cache.
+
+### Parameter-efficient fine-tuning (LoRA and QLoRA)
+
+Full fine-tuning updates all `N` weights and needs optimizer state for all of
+them (roughly 12-16 bytes per parameter with Adam), which is why a 70B full SFT
+needs a cluster. **LoRA** freezes the base weights and learns a low-rank update:
+
+$$W = W_0 + \Delta W = W_0 + \frac{\alpha}{r} B A, \qquad B \in \mathbb{R}^{d \times r},\ A \in \mathbb{R}^{r \times k},\ r \ll \min(d, k)$$
+
+You train only `r(d + k)` parameters instead of `dk`, often under 1 percent of the
+model, and the adapters merge back into `W_0` at inference so there is zero added
+latency. **QLoRA** goes further: quantize the frozen base to 4-bit (NF4) and train
+the LoRA adapters on top, fitting a 65B fine-tune on a single 48GB GPU.
+
+```mermaid
+flowchart LR
+  X["input"] --> W0["frozen W0<br/>(optionally 4-bit, QLoRA)"]
+  X --> A["A (r x k)"]
+  A --> B["B (d x r)"]
+  W0 --> ADD(("+"))
+  B --> ADD
+  ADD --> Y["output"]
+```
+
+Decision rule for the interview: RAG for knowledge that changes, LoRA/QLoRA for
+behavior and format on a budget, full fine-tuning only when you have the data and
+the compute and need to move the base itself. Confusing "teach it facts" (RAG)
+with "teach it behavior" (fine-tune) is the single most common LLM-product
+mistake.
+
+### The post-training math (SFT, reward model, PPO-RLHF, DPO, GRPO)
+
+Post-training is where the most interview questions and the most confusion live,
+so carry the four equations. **SFT** is just cross-entropy on the completion, with
+the prompt tokens masked out of the loss:
+
+$$\mathcal{L}_{\text{SFT}} = -\sum_{t \in \text{completion}} \log \pi_{\theta}(y_t \mid y_{<t}, x)$$
+
+**Reward model** learns human preference under Bradley-Terry (the same logistic
+model behind Elo), trained on ranked pairs of a chosen `y_w` and rejected `y_l`:
+
+$$\mathcal{L}_{\text{RM}} = -\mathbb{E}_{(x, y_w, y_l)}\Big[\log \sigma\big(r_{\phi}(x, y_w) - r_{\phi}(x, y_l)\big)\Big]$$
+
+**RLHF (PPO)** then maximizes reward while a KL penalty keeps the policy near the
+SFT reference so it does not reward-hack or forget language:
+
+$$\max_{\theta}\ \mathbb{E}_{x \sim D,\, y \sim \pi_{\theta}}\big[r_{\phi}(x, y)\big] - \beta\, \text{KL}\big(\pi_{\theta}(\cdot \mid x) \,\|\, \pi_{\text{ref}}(\cdot \mid x)\big)$$
+
+folded into a per-token reward `r_t = r_{\phi} - \beta(\log \pi_{\theta} - \log \pi_{\text{ref}})` and optimized with the PPO clipped surrogate.
+
+```mermaid
+flowchart LR
+  BASE["base model"] --> SFT["1. SFT<br/>(demonstrations)"]
+  SFT --> GEN["sample k outputs / prompt"]
+  GEN --> HUM["humans rank pairs"]
+  HUM --> RM["2. reward model<br/>(Bradley-Terry)"]
+  SFT --> PPO["3. PPO<br/>(maximize reward)"]
+  RM --> PPO
+  SFT -. "KL reference pi_ref" .-> PPO
+  PPO --> ALIGNED["aligned model"]
+```
+
+**DPO** removes the reward model and the RL loop entirely. The key insight is that
+the RLHF-optimal policy has a closed form, `\pi^*(y \mid x) \propto \pi_{\text{ref}}(y \mid x)\,\exp(r(x,y)/\beta)`,
+so the reward is an implicit function of the policy, and substituting it into
+Bradley-Terry gives a plain classification loss on preference pairs:
+
+$$\mathcal{L}_{\text{DPO}} = -\mathbb{E}_{(x, y_w, y_l)}\left[\log \sigma\!\left(\beta \log \frac{\pi_{\theta}(y_w \mid x)}{\pi_{\text{ref}}(y_w \mid x)} - \beta \log \frac{\pi_{\theta}(y_l \mid x)}{\pi_{\text{ref}}(y_l \mid x)}\right)\right]$$
+
+**GRPO** (DeepSeek) keeps online RL but drops the critic: sample a group of `G`
+outputs per prompt, and use the group-normalized reward as the advantage, which
+halves memory versus PPO and suits verifiable rewards:
+
+$$\hat{A}_i = \frac{r_i - \text{mean}(r_1, \dots, r_G)}{\text{std}(r_1, \dots, r_G)}$$
+
+| Method | Needs reward model? | Needs online sampling? | Cost / stability | Use when |
+|---|---|---|---|---|
+| SFT | no | no | cheapest, very stable | teach format and basic instruction following |
+| RLHF (PPO) | yes | yes | expensive, finicky | you want a reusable reward model and best-in-class alignment |
+| DPO | no (implicit) | no (offline pairs) | cheap, stable | the default preference method for most teams |
+| GRPO | no (rule/verifier) | yes | mid, critic-free | verifiable rewards: math, code, reasoning |
+
+Every one of these has a KL leash to `\pi_{\text{ref}}`, explicit (PPO/GRPO) or
+implicit (DPO's `\beta`). Naming that leash, and what happens without it (reward
+hacking, sycophancy, mode collapse, repetition), is the strongest single signal
+you can give on an alignment question.
+
+### The inference math (KV cache, roofline, batching, speculation, quantization)
+
+Serving splits into two phases with opposite bottlenecks:
+
+```mermaid
+flowchart LR
+  P["prompt"] --> PRE["prefill<br/>(parallel over prompt,<br/>compute-bound)"]
+  PRE --> KV["KV cache filled"]
+  KV --> DEC["decode<br/>(one token at a time,<br/>memory-bandwidth-bound)"]
+  DEC --> DEC
+  DEC --> OUT["output tokens"]
+```
+
+Decode is memory-bound because each new token must read all model weights (and the
+whole KV cache) from HBM while doing very little arithmetic. The governing quantity
+is **arithmetic intensity** (FLOPs per byte moved) versus the hardware's
+compute-to-bandwidth ratio; below it you are memory-bound, above it compute-bound:
+
+$$I = \frac{\text{FLOPs}}{\text{bytes moved}}, \qquad t_{\text{decode/token}} \approx \frac{N \cdot p_{\text{bytes}}}{\text{BW}_{\text{HBM}}} \ \text{(batch 1)}$$
+
+The numerator is the full weight read (each parameter fetched once from HBM):
+decode is memory-bound, so per-token latency is bytes-moved over bandwidth, not
+FLOPs over compute. This is why **batching is free
+throughput**: at batch 1 you pay the full weight read to emit one token; at batch
+`b` you amortize the same read over `b` tokens, pushing arithmetic intensity up
+toward the compute-bound regime until the KV cache eats your VRAM.
+
+```mermaid
+quadrantChart
+  title "Serving regime: batch size vs sequence length"
+  x-axis "Small batch" --> "Large batch"
+  y-axis "Short context" --> "Long context"
+  quadrant-1 "KV-cache bound (page it, GQA)"
+  quadrant-2 "Latency bound (memory-bandwidth)"
+  quadrant-3 "Underutilized GPU"
+  quadrant-4 "Compute bound (good utilization)"
+  "single-user chat": [0.18, 0.30]
+  "batched API": [0.75, 0.35]
+  "long-doc RAG": [0.55, 0.85]
+  "agent loop": [0.35, 0.70]
+```
+
+Three levers move the memory wall. **PagedAttention** stores the KV cache in
+non-contiguous pages (like OS virtual memory) so fragmentation stops wasting 60-80
+percent of it. **Speculative decoding** drafts `k` tokens with a small model and
+verifies them in one target forward pass; with acceptance rate `\alpha` the
+expected accepted tokens per target step is
+
+$$\mathbb{E}[\text{accepted}] = \frac{1 - \alpha^{k+1}}{1 - \alpha}$$
+
+turning several memory-bound steps into one. **Quantization** shrinks both weights
+and the KV cache with an affine map, trading precision for bandwidth:
+
+$$x_q = \text{round}\!\left(\frac{x}{s}\right) + z, \qquad s = \frac{x_{\max} - x_{\min}}{2^{n} - 1}$$
+
+FP16 to INT8 halves memory and roughly doubles decode throughput; INT4 quarters
+it, with a quality hit you must eval-gate. A useful mental model: a 70B model in
+FP16 is 140GB of weights, in INT8 it is 70GB, in INT4 it is 35GB, and that number,
+not FLOPs, decides how many GPUs you rent.
+
 ## 5. Bottlenecks and scaling
 
 | Bottleneck | First sign | Fix | Tradeoff |
@@ -330,6 +620,97 @@ Each stage has a different metric, and using the wrong one is a classic mistake:
 - "How do you keep it current without retraining monthly?" RAG over a fresh index
   for facts, periodic light post-training for behavior, and reserve a new base or
   mid-training pass for when the capability floor itself must move.
+
+## 8. Tricky interview questions (and how to nail them)
+
+These are the follow-ups that separate a memorized answer from real
+understanding. Each has a sharp, defensible response.
+
+- **"DPO has no reward model and no RL loop. So why does it still need a reference
+  model, and what is `\beta` doing?"** DPO's loss contains `\log(\pi_\theta / \pi_{\text{ref}})`:
+  the reference is the implicit reward's baseline, and `\beta` is the same KL
+  temperature as RLHF. Small `\beta` lets the policy move far from the reference
+  (more optimization, more drift and degeneration); large `\beta` keeps it close.
+  DPO did not remove the KL leash, it absorbed it into the loss.
+- **"Your GQA model has the same parameter count as the MHA one. Why is it faster
+  at inference but not at training?"** Training is compute-bound and reads weights
+  once over a full batch, so fewer KV heads barely helps. Decoding is
+  memory-bandwidth-bound and re-reads the KV cache every token, so shrinking it by
+  `n_heads / n_kv` is a direct decode speedup. The win is a serving win, not a
+  FLOPs win.
+- **"Chinchilla says 20 tokens per parameter. Llama 3 8B used about 1800. Who is
+  wrong?"** Neither. Chinchilla minimizes training compute for a target loss.
+  Llama deliberately overtrains a small model because the objective includes
+  inference: a smaller model served billions of times is cheaper forever, so you
+  spend extra training FLOPs to save on the recurring bill. Different objective,
+  different optimum.
+- **"You added RLHF and MMLU dropped. Explain."** The alignment tax: optimizing a
+  preference reward can trade away some raw capability, and preference data skews
+  toward chatty, hedged answers. Diagnose with a capability suite run before and
+  after, check for reward over-optimization (rising reward, falling eval), and
+  tighten the KL or add capability data to the SFT mix.
+- **"Perplexity improved but users say the model got worse. How?"** Perplexity
+  measures next-token fit on some corpus, not helpfulness, instruction-following,
+  or safety, and it is not comparable across tokenizers. A base can have great
+  perplexity and be useless until post-training; judge post-trained models on
+  preference win rate and task evals, not perplexity.
+- **"RAG or long context for 50M documents?"** Long context does not scale to 50M
+  documents (attention memory and cost, plus lost-in-the-middle recall decay), and
+  it reprocesses everything per query. RAG retrieves the few relevant chunks, so
+  it is cheaper, fresher, and citable. Long context complements RAG for a big
+  single document, it does not replace retrieval over a corpus.
+- **"Where exactly does the KL penalty live in PPO-RLHF versus GRPO?"** In classic
+  PPO-RLHF it is commonly folded into the per-token reward (`r - \beta \log(\pi/\pi_{\text{ref}})`);
+  in GRPO it is added as a separate regularization term at the optimization stage
+  with an unbiased KL estimator, and GRPO drops the value/critic network entirely,
+  estimating the advantage from group-relative rewards.
+- **"Your eval jumped 8 points after a data refresh. First thing you check?"**
+  Contamination. A benchmark gain from new data is guilty until proven clean;
+  re-run decontamination (n-gram / embedding overlap of eval against train) before
+  you believe or ship the number.
+- **"Quantize to INT4 or distill to a smaller model for cost?"** Quantization is a
+  cheap, near-lossless first move (INT8 almost free, INT4 needs an eval gate) and
+  keeps the same architecture. Distillation costs a training run but can beat
+  quantization on latency and memory for a fixed quality, and the two compose
+  (QLoRA, distill-then-quantize). Start with quantization; distill when the model
+  itself is too big for the budget.
+
+## 9. Commonly answered wrong (the traps)
+
+The mistakes that quietly fail a loop even when the candidate sounds fluent:
+
+- **"We will just fine-tune it on our knowledge base."** Fine-tuning teaches
+  behavior and style, not a changing set of facts, and it bakes staleness in while
+  inviting hallucination. Correct: RAG for the facts, fine-tune only the behavior.
+- **"Bigger model, so lower perplexity, so better product."** Perplexity is not
+  usefulness and is tokenizer-dependent; product quality comes from post-training,
+  data quality, and serving, not raw size. Name the right metric per stage.
+- **"RLHF is just fine-tuning on good answers."** That is SFT. RLHF optimizes a
+  *preference* signal (which answer is better) under a KL constraint via a reward
+  model or an implicit one, which is a different objective that can improve on any
+  single demonstration and can also reward-hack.
+- **"We will use a 128K context so we do not need retrieval."** Long context is
+  expensive per query, recall decays in the middle, and it reprocesses the corpus
+  every call. It does not replace an index over many documents.
+- **"Inference is cheap, the cost was the training run."** Backwards for anything
+  with traffic: training is one-time capital, inference is the forever operating
+  cost, and it is memory-bandwidth-bound. The KV cache, batching, and quantization,
+  not FLOPs, set the bill.
+- **"Our benchmark scores are state of the art."** Meaningless without a
+  decontamination claim. The first question a strong interviewer asks is whether
+  the eval leaked into training; lead with that, do not wait to be asked.
+- **"More data is always better."** Only clean, deduplicated, decontaminated data.
+  Duplicates cause memorization and eval leakage, and low-quality web text can
+  lower downstream scores; the keep rate after filtering is a small fraction for a
+  reason.
+- **"We will pretrain our own model."** Almost never the right call: from-scratch
+  pretraining is a lab-scale budget, and the leverage for a product is in data,
+  post-training, and serving on top of an open base. Justify owning weights before
+  proposing to train them.
+- **"Add safety tuning and we are done on safety."** Safety is measured, not
+  asserted: track attack success rate, false-refusal rate, and jailbreak
+  robustness as release gates, and assume adversarial evasion (and prompt
+  injection through tools/RAG) is continuous.
 
 ---
 
@@ -452,6 +833,17 @@ places its problem on exactly one of these and reasons about the cost there.
 - **Character.AI** [Optimizing AI Inference at Character.AI](https://blog.character.ai/optimizing-ai-inference-at-character-ai-2/): INT8, multi-query attention, and a tree-structured inter-turn KV cache serve 20k+ queries per second at a fraction of the cost. *(serving)*
 
 More production case studies: the [Evidently AI ML system design database](https://www.evidentlyai.com/ml-system-design) (800 case studies from 150+ companies) is the broadest curated index; this section pulls the ones that map onto this topic.
+
+## Further reading
+
+Aman Chadha's primers are the most thorough open notes on the mechanics behind
+each stage, worth reading alongside the first-party writeups above:
+
+- [Policy / preference optimization (RLHF, PPO, DPO, GRPO)](https://aman.ai/primers/ai/preference-optimization/)
+- [Model acceleration (attention variants, KV cache, speculative decoding)](https://aman.ai/primers/ai/model-acceleration/)
+- [Model compression (quantization, LoRA / QLoRA, pruning)](https://aman.ai/primers/ai/model-compression/)
+- [Knowledge distillation](https://aman.ai/primers/ai/knowledge-distillation/)
+- [DeepSeek-R1 (RL from verifiable rewards)](https://aman.ai/primers/ai/deepseek-R1/)
 
 ## Related deep-dive drills
 
