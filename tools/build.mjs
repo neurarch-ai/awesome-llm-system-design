@@ -5,16 +5,18 @@ import fs from 'node:fs';
 const TOPICS = 'topics', CMP = 'tools/comparisons', TD = 'tools/teardowns';
 
 const csOrder = [
-  ['01-rag-serving.md', 'RAG serving'],
-  ['08-semantic-search-and-embeddings.md', 'Semantic search and embeddings'],
+  ['13-llm-lifecycle.md', 'LLM lifecycle'],
+  ['14-data-curation-and-pretraining.md', 'Data curation and pretraining'],
+  ['15-continued-pretraining-and-long-context.md', 'Continued pretraining and long-context'],
+  ['05-post-training-pipeline.md', 'Post-training pipeline'],
   ['02-long-context-and-kv-cache.md', 'Long-context and the KV cache'],
   ['04-inference-serving-at-scale.md', 'Inference serving at scale'],
-  ['10-realtime-streaming-chat.md', 'Realtime streaming chat'],
   ['11-cost-optimization-and-model-routing.md', 'Cost optimization and model routing'],
+  ['10-realtime-streaming-chat.md', 'Realtime streaming chat'],
+  ['01-rag-serving.md', 'RAG serving'],
+  ['08-semantic-search-and-embeddings.md', 'Semantic search and embeddings'],
   ['03-agent-orchestration.md', 'Agent orchestration'],
   ['09-multimodal-serving.md', 'Multimodal serving'],
-  ['05-post-training-pipeline.md', 'Post-training pipeline'],
-  ['13-llm-lifecycle.md', 'LLM lifecycle'],
   ['06-evaluation-system.md', 'Evaluation system'],
   ['07-safety-and-guardrails.md', 'Safety and guardrails'],
   ['12-production-monitoring-and-observability.md', 'Production monitoring and observability'],
@@ -53,7 +55,7 @@ function buildCaseStudies() {
   console.log(`CASE-STUDIES.md: ${total} systems, ${sections.length} categories`);
 }
 
-const tdOrder = ['01','08','02','04','10','11','03','09','05','13','06','07','12'];
+const tdOrder = ['13','14','15','05','02','04','11','10','01','08','03','09','06','07','12'];
 function buildTeardowns() {
   const blocks = tdOrder.map(nn => fs.readFileSync(`${TD}/${nn}.md`, 'utf8').trim());
   const header = [
@@ -75,7 +77,8 @@ function buildTeardowns() {
 const norm = (c) => ({'Google Research':'Google','Google DeepMind':'Google','DeepMind':'Google','YouTube/Google':'Google','Google / ETH Zurich':'Google','Google/ETH Zurich':'Google','Meta (FAIR)':'Meta','Meta AI':'Meta','Facebook':'Meta','Microsoft Research':'Microsoft','Microsoft (MSRC)':'Microsoft','Microsoft (LLaVA)':'Microsoft','Amazon Science':'Amazon','Block (Square)':'Block','Together AI':'Together','Fireworks AI':'Fireworks','Alibaba (Qwen)':'Alibaba','Alibaba Qwen':'Alibaba','Mistral AI':'Mistral','Expedia Group':'Expedia','Grafana Labs':'Grafana','Twilio Segment':'Twilio','Red Hat (vLLM)':'Red Hat','AMD (ROCm)':'AMD','vLLM (UC Berkeley)':'vLLM','Daily (Pipecat)':'Daily','Uber Eats':'Uber','IBM Research':'IBM'}[c] || c);
 const IND = {}; const put = (i, ...cs) => cs.forEach(c => IND[c] = i);
 put('Big Tech and cloud','Criteo','Yahoo','Google','Meta','Microsoft','Amazon','Apple','NVIDIA','IBM','Alibaba','Snowflake','Databricks','Cloudflare','Dropbox','Salesforce','Elastic','Vespa','Red Hat','AMD','PyTorch','Hugging Face','Kuaishou');
-put('AI labs and foundation models','OpenAI','Anthropic','DeepSeek','Character.AI','Cognition','Mistral','Moonshot AI','Ai2','OpenGVLab');
+put('AI labs and foundation models','OpenAI','Anthropic','DeepSeek','Character.AI','Cognition','Mistral','Moonshot AI','Ai2','OpenGVLab','TII','EleutherAI','01.AI','Nous Research');
+put('Research and academia','Mila');
 put('AI infra and developer tools','Anyscale','Baseten','Together','Fireworks','Modal','LangChain','vLLM','llm-d','LMSYS','LMSYS / SGLang','Replit','GitHub','GitLab','Sourcegraph','Vercel','Glean','Datadog','Honeycomb','Grafana','Slack','Discord','Twilio','Stack Overflow','Grammarly','Krisp','Vapi','Daily','LiveKit','Deepgram','AssemblyAI','ElevenLabs','Cartesia','KIVI','Feast','Tecton','MongoDB','Canva','Figma','Intercom','Segment','Algolia');
 put('E-commerce and retail','Allegro','Instacart','Etsy','Wayfair','Walmart','Shopify','Mercari','Zalando','Faire','Stitch Fix','Nextdoor','Asos','Nordstrom','Ocado','Oda','Coupang','Mercado Libre','OLX','eBay','Cars24','Gousto','Picnic');
 put('Media and streaming','Netflix','Spotify','Vimeo');

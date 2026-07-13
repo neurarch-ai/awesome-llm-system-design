@@ -1,15 +1,16 @@
 # Case studies, by industry
 
-The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by industry so you can see which the same LLM problem patterns recur in your domain. 219 case studies across 11 industries.
+The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by industry so you can see which the same LLM problem patterns recur in your domain. 244 case studies across 11 industries.
 
 ---
 
-## Big Tech and cloud (67)
+## Big Tech and cloud (83)
 
 | Company | Case study | Topic |
 | --- | --- | --- |
 | Alibaba | [Qwen2-Audio Technical Report](https://arxiv.org/abs/2407.10759) | Multimodal Serving |
 | Alibaba | [Qwen2-VL: enhancing vision-language perception at any resolution](https://arxiv.org/abs/2409.12191) | Multimodal Serving |
+| Alibaba | [Qwen2.5 Technical Report](https://arxiv.org/abs/2412.15115) | Continued Pretraining And Long Context |
 | Amazon | [Semantic Product Search](https://arxiv.org/abs/1907.00937) | Semantic Search And Embeddings |
 | AMD | [Accelerating Multimodal Inference in vLLM](https://rocm.blogs.amd.com/software-tools-optimization/vllm-dp-vision/README.html) | Multimodal Serving |
 | Apple | [MM1: methods, analysis, and insights from multimodal LLM pre-training](https://arxiv.org/abs/2403.09611) | Multimodal Serving |
@@ -30,43 +31,58 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | Dropbox | [Selecting a model for semantic search at Dropbox scale](https://dropbox.tech/machine-learning/selecting-model-semantic-search-dropbox-ai) | Semantic Search And Embeddings |
 | Elastic | [RAG pipelines in production](https://www.elastic.co/search-labs/blog/rag-in-production) | RAG Serving |
 | Google | [Announcing ScaNN: efficient vector similarity search](https://research.google/blog/announcing-scann-efficient-vector-similarity-search/) | Semantic Search And Embeddings |
+| Google | [Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer (C4)](https://arxiv.org/abs/1910.10683) | Data Curation And Pretraining |
 | Google | [Fast inference from transformers via speculative decoding](https://arxiv.org/abs/2211.17192) | Inference Serving At Scale |
 | Google | [Flamingo: a visual language model for few-shot learning](https://arxiv.org/abs/2204.14198) | Multimodal Serving |
 | Google | [GQA: Training Generalized Multi-Query Transformer Models](https://arxiv.org/abs/2305.13245) | Long Context And KV Cache |
 | Google | [PaLI-X: on scaling up a multilingual vision-language model](https://arxiv.org/abs/2305.18565) | Multimodal Serving |
 | Google | [RAGO: systematic performance optimization for RAG serving](https://arxiv.org/abs/2503.14649) | RAG Serving |
+| Google | [SentencePiece: A simple and language independent subword tokenizer and detokenizer for Neural Text Processing](https://arxiv.org/abs/1808.06226) | Data Curation And Pretraining |
 | Google | [ShieldGemma: generative AI content moderation](https://arxiv.org/abs/2407.21772) | Safety And Guardrails |
 | Google | [Training Compute-Optimal Large Language Models (Chinchilla)](https://arxiv.org/abs/2203.15556) | LLM Lifecycle |
+| Google | [Training Compute-Optimal Large Language Models (Chinchilla)](https://arxiv.org/abs/2203.15556) | Data Curation And Pretraining |
 | Hugging Face | [FineWeb: decanting the web for the finest text data at scale](https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1) | LLM Lifecycle |
+| Hugging Face | [FineWeb: decanting the web for the finest text data at scale](https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1) | Data Curation And Pretraining |
 | Hugging Face | [Introducing Idefics2: a powerful 8B vision-language model](https://huggingface.co/blog/idefics2) | Multimodal Serving |
 | Hugging Face | [Introducing smolagents](https://huggingface.co/blog/smolagents) | Agent Orchestration |
 | Hugging Face | [Preference Tuning LLMs with Direct Preference Optimization Methods](https://huggingface.co/blog/pref-tuning) | Post Training Pipeline |
 | Hugging Face | [Unlocking longer generation with KV cache quantization](https://huggingface.co/blog/kv-cache-quantization) | Long Context And KV Cache |
 | IBM | [LLM routing for quality, low-cost responses](https://research.ibm.com/blog/LLM-routers) | Cost Optimization And Model Routing |
+| Meta | [CCNet: Extracting High Quality Monolingual Datasets from Web Crawl Data](https://arxiv.org/abs/1911.00359) | Data Curation And Pretraining |
 | Meta | [Chameleon: mixed-modal early-fusion foundation models](https://arxiv.org/abs/2405.09818) | Multimodal Serving |
+| Meta | [Code Llama: Open Foundation Models for Code](https://arxiv.org/abs/2308.12950) | Continued Pretraining And Long Context |
 | Meta | [Embedding-based Retrieval in Facebook Search](https://arxiv.org/abs/2006.11632) | Semantic Search And Embeddings |
+| Meta | [Extending Context Window of Large Language Models via Positional Interpolation](https://arxiv.org/abs/2306.15595) | Continued Pretraining And Long Context |
 | Meta | [Faiss: a library for efficient similarity search](https://engineering.fb.com/2017/03/29/data-infrastructure/faiss-a-library-for-efficient-similarity-search/) | Semantic Search And Embeddings |
 | Meta | [How to fine-tune: focus on effective datasets](https://ai.meta.com/blog/how-to-fine-tune-llms-peft-dataset-curation/) | Post Training Pipeline |
 | Meta | [Llama Guard: LLM-based input-output safeguard](https://arxiv.org/abs/2312.06674) | Safety And Guardrails |
 | Meta | [Llama Prompt Guard 2](https://developer.meta.com/ai/docs/model-cards-and-prompt-formats/prompt-guard/) | Safety And Guardrails |
+| Meta | [PyTorch FSDP: Experiences on Scaling Fully Sharded Data Parallel](https://arxiv.org/abs/2304.11277) | Data Curation And Pretraining |
 | Meta | [The Llama 3 Herd of Models](https://ai.meta.com/research/publications/the-llama-3-herd-of-models/) | LLM Lifecycle |
+| Meta | [The Llama 3 Herd of Models](https://ai.meta.com/research/publications/the-llama-3-herd-of-models/) | Data Curation And Pretraining |
+| Meta | [The Llama 3 Herd of Models](https://ai.meta.com/research/publications/the-llama-3-herd-of-models/) | Continued Pretraining And Long Context |
+| Meta | [Train Short, Test Long: Attention with Linear Biases Enables Input Length Extrapolation (ALiBi)](https://arxiv.org/abs/2108.12409) | Continued Pretraining And Long Context |
 | Microsoft | [DiskANN: vector search for all](https://www.microsoft.com/en-us/research/project/project-akupara-approximate-nearest-neighbor-search-for-large-scale-semantic-search/) | Semantic Search And Embeddings |
 | Microsoft | [Florence-2: a unified representation for vision tasks](https://arxiv.org/abs/2311.06242) | Multimodal Serving |
 | Microsoft | [GraphRAG: unlocking LLM discovery on narrative private data](https://www.microsoft.com/en-us/research/blog/graphrag-unlocking-llm-discovery-on-narrative-private-data/) | RAG Serving |
 | Microsoft | [How Microsoft defends against indirect prompt injection attacks](https://www.microsoft.com/en-us/msrc/blog/2025/07/how-microsoft-defends-against-indirect-prompt-injection-attacks) | Safety And Guardrails |
 | Microsoft | [LLM-Rubric: a multidimensional, calibrated approach to automated evaluation](https://www.microsoft.com/en-us/research/publication/llm-rubric-a-multidimensional-calibrated-approach-to-automated-evaluation-of-natural-language-texts/) | Evaluation System |
 | Microsoft | [LLMLingua: prompt compression for LLM efficiency](https://www.microsoft.com/en-us/research/blog/llmlingua-innovating-llm-efficiency-with-prompt-compression/) | Cost Optimization And Model Routing |
+| Microsoft | [LongRoPE: Extending LLM Context Window Beyond 2 Million Tokens](https://arxiv.org/abs/2402.13753) | Continued Pretraining And Long Context |
 | Microsoft | [MInference 1.0: accelerating pre-filling via dynamic sparse attention](https://arxiv.org/abs/2407.02490) | Long Context And KV Cache |
 | Microsoft | [Sarathi-Serve: taming the throughput-latency tradeoff](https://arxiv.org/abs/2403.02310) | Inference Serving At Scale |
 | Microsoft | [Splitwise: efficient generative LLM inference using phase splitting](https://arxiv.org/abs/2311.18677) | Inference Serving At Scale |
 | Microsoft | [Visual Instruction Tuning](https://arxiv.org/abs/2304.08485) | Multimodal Serving |
+| Microsoft | [ZeRO: Memory Optimizations Toward Training Trillion Parameter Models](https://arxiv.org/abs/1910.02054) | Data Curation And Pretraining |
 | NVIDIA | [5x faster time to first token with TensorRT-LLM KV cache early reuse](https://developer.nvidia.com/blog/5x-faster-time-to-first-token-with-nvidia-tensorrt-llm-kv-cache-early-reuse/) | Long Context And KV Cache |
 | NVIDIA | [Accelerating VLM inference with TensorRT Edge-LLM](https://developer.nvidia.com/blog/accelerating-llm-and-vlm-inference-for-automotive-and-robotics-with-nvidia-tensorrt-edge-llm/) | Multimodal Serving |
 | NVIDIA | [Content Moderation and Safety Checks with NeMo Guardrails](https://developer.nvidia.com/blog/content-moderation-and-safety-checks-with-nvidia-nemo-guardrails/) | Safety And Guardrails |
 | NVIDIA | [How a reranking microservice improves retrieval accuracy and cost](https://developer.nvidia.com/blog/how-using-a-reranking-microservice-can-improve-accuracy-and-costs-of-information-retrieval/) | RAG Serving |
+| NVIDIA | [Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism](https://arxiv.org/abs/1909.08053) | Data Curation And Pretraining |
 | NVIDIA | [NVIDIA Dynamo: a low-latency distributed inference framework](https://developer.nvidia.com/blog/introducing-nvidia-dynamo-a-low-latency-distributed-inference-framework-for-scaling-reasoning-ai-models/) | Inference Serving At Scale |
 | NVIDIA | [NVLM: open frontier-class multimodal LLMs](https://research.nvidia.com/labs/adlr/NVLM-1/) | Multimodal Serving |
 | NVIDIA | [Optimizing inference with NVFP4 KV cache](https://developer.nvidia.com/blog/optimizing-inference-for-long-context-and-large-batch-sizes-with-nvfp4-kv-cache/) | Long Context And KV Cache |
+| NVIDIA | [RULER: What's the Real Context Size of Your Long-Context Language Models?](https://arxiv.org/abs/2404.06654) | Continued Pretraining And Long Context |
 | Red Hat | [vLLM V1: accelerating multimodal inference](https://developers.redhat.com/articles/2025/02/27/vllm-v1-accelerating-multimodal-inference-large-language-models) | Multimodal Serving |
 | Salesforce | [BLIP-2: bootstrapping with frozen image encoders and LLMs](https://arxiv.org/abs/2301.12597) | Multimodal Serving |
 | Salesforce | [Inside Agentforce: the Atlas Reasoning Engine](https://engineering.salesforce.com/inside-the-brain-of-agentforce-revealing-the-atlas-reasoning-engine/) | Agent Orchestration |
@@ -76,12 +92,16 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | Vespa | [Billion-scale vector search using hybrid HNSW-IF](https://blog.vespa.ai/vespa-hybrid-billion-scale-vector-search/) | Semantic Search And Embeddings |
 | Vespa | [Embedding Tradeoffs, Quantified](https://blog.vespa.ai/embedding-tradeoffs-quantified/) | RAG Serving |
 
-## AI labs and foundation models (23)
+## AI labs and foundation models (31)
 
 | Company | Case study | Topic |
 | --- | --- | --- |
+| 01.AI | [Yi: Open Foundation Models by 01.AI](https://arxiv.org/abs/2403.04652) | Continued Pretraining And Long Context |
 | Ai2 | [Dolma: an Open Corpus of Three Trillion Tokens for Language Model Pretraining Research](https://arxiv.org/abs/2402.00159) | LLM Lifecycle |
+| Ai2 | [Dolma: an Open Corpus of Three Trillion Tokens for Language Model Pretraining Research](https://arxiv.org/abs/2402.00159) | Data Curation And Pretraining |
+| Ai2 | [Don't Stop Pretraining: Adapt Language Models to Domains and Tasks](https://arxiv.org/abs/2004.10964) | Continued Pretraining And Long Context |
 | Ai2 | [Molmo and PixMo: open weights and open data for VLMs](https://arxiv.org/abs/2409.17146) | Multimodal Serving |
+| Ai2 | [OLMo: Accelerating the Science of Language Models](https://arxiv.org/abs/2402.00838) | Data Curation And Pretraining |
 | Anthropic | [Building effective agents](https://www.anthropic.com/research/building-effective-agents) | Agent Orchestration |
 | Anthropic | [Code execution with MCP: building more efficient agents](https://www.anthropic.com/engineering/code-execution-with-mcp) | Agent Orchestration |
 | Anthropic | [Constitutional AI: Harmlessness from AI Feedback](https://www.anthropic.com/research/constitutional-ai-harmlessness-from-ai-feedback) | LLM Lifecycle |
@@ -95,14 +115,18 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | Cognition | [Don't Build Multi-Agents](https://cognition.com/blog/dont-build-multi-agents) | Agent Orchestration |
 | DeepSeek | [DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning](https://arxiv.org/abs/2501.12948) | LLM Lifecycle |
 | DeepSeek | [DeepSeek-V2: a strong, economical, efficient MoE language model](https://arxiv.org/abs/2405.04434) | Long Context And KV Cache |
+| DeepSeek | [DeepSeek-V3 Technical Report](https://arxiv.org/abs/2412.19437) | Data Curation And Pretraining |
+| EleutherAI | [The Pile: An 800GB Dataset of Diverse Text for Language Modeling](https://arxiv.org/abs/2101.00027) | Data Curation And Pretraining |
 | Mistral | [Mistral 7B](https://mistral.ai/news/announcing-mistral-7b/) | LLM Lifecycle |
 | Mistral | [Pixtral 12B](https://arxiv.org/abs/2410.07073) | Multimodal Serving |
 | Moonshot AI | [Mooncake: a KVCache-centric disaggregated architecture](https://arxiv.org/abs/2407.00079) | Inference Serving At Scale |
+| Nous Research | [YaRN: Efficient Context Window Extension of Large Language Models](https://arxiv.org/abs/2309.00071) | Continued Pretraining And Long Context |
 | OpenAI | [A practical guide to building agents](https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf) | Agent Orchestration |
 | OpenAI | [Aligning language models to follow instructions (InstructGPT)](https://openai.com/index/instruction-following/) | LLM Lifecycle |
 | OpenAI | [How to implement LLM guardrails](https://developers.openai.com/cookbook/examples/how_to_use_guardrails) | Safety And Guardrails |
 | OpenAI | [Updates for developers building with voice](https://developers.openai.com/blog/updates-audio-models) | Realtime Streaming Chat |
 | OpenGVLab | [InternVL 2.5: model, data, and test-time scaling](https://arxiv.org/abs/2412.05271) | Multimodal Serving |
+| TII | [The RefinedWeb Dataset for Falcon LLM: Outperforming Curated Corpora with Web Data, and Web Data Only](https://arxiv.org/abs/2306.01116) | Data Curation And Pretraining |
 
 ## AI infra and developer tools (57)
 
@@ -263,11 +287,12 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | Yelp | [An AI pipeline for inappropriate-language detection in reviews](https://engineeringblog.yelp.com/2024/03/ai-pipeline-inappropriate-language-detection.html) | Post Training Pipeline |
 | Yelp | [Yelp Content As Embeddings](https://engineeringblog.yelp.com/2023/04/yelp-content-as-embeddings.html) | Semantic Search And Embeddings |
 
-## Research and academia (10)
+## Research and academia (11)
 
 | Company | Case study | Topic |
 | --- | --- | --- |
 | Colfax / Together | [FlashAttention-3: fast, accurate attention with asynchrony and low precision](https://arxiv.org/abs/2407.08608) | Long Context And KV Cache |
+| Mila | [Simple and Scalable Strategies to Continually Pre-train Large Language Models](https://arxiv.org/abs/2403.08763) | Continued Pretraining And Long Context |
 | MIT / Meta | [Efficient Streaming Language Models with Attention Sinks](https://arxiv.org/abs/2309.17453) | Long Context And KV Cache |
 | Peking University / UCSD | [DistServe: disaggregating prefill and decoding](https://arxiv.org/abs/2401.09670) | Inference Serving At Scale |
 | Shinn et al. | [Reflexion: language agents with verbal reinforcement learning](https://arxiv.org/abs/2303.11366) | Agent Orchestration |

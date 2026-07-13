@@ -59,6 +59,30 @@ actually live. The companion [ML System Design Interview](https://github.com/neu
 repo groups the classic-ML half by use case, mirroring the same
 [Evidently AI 800-case database](https://www.evidentlyai.com/ml-system-design).
 
+The five groups run in narrative order, from where the model comes from to how
+you keep it honest in production: **build it, serve it, ground it, compose it,
+watch it.**
+
+### Building and adapting the model
+*Where the model comes from: data, pretraining, adaptation, and post-training.*
+
+| # | Topic | What it teaches |
+|---|-------|-----------------|
+| 13 | [The LLM training lifecycle](topics/13-llm-lifecycle.md) | The whole build side as one map: data, pretraining, adaptation, post-training, serving |
+| 14 | [Data curation and pretraining](topics/14-data-curation-and-pretraining.md) | Web-scale data cleaning, dedup, tokenizer, scaling laws, distributed training of a base model |
+| 15 | [Continued pretraining and long-context adaptation](topics/15-continued-pretraining-and-long-context.md) | Domain continued pretraining, catastrophic forgetting, RoPE scaling / YaRN, long-context eval |
+| 05 | [Fine-tuning and post-training pipeline](topics/05-post-training-pipeline.md) | LoRA, SFT, DPO/RLHF, data curation, eval gates |
+
+### Inference and serving (the cost layer)
+*Now that a model exists, what it costs to run and how to serve it at scale.*
+
+| # | Topic | What it teaches |
+|---|-------|-----------------|
+| 02 | [Long-context inference and the KV cache](topics/02-long-context-and-kv-cache.md) | The real cost of serving, GQA vs MLA, paged attention, prefix caching, batching |
+| 04 | [LLM inference serving at scale](topics/04-inference-serving-at-scale.md) | Continuous batching, speculative decoding, tensor parallelism, autoscaling |
+| 11 | [Cost optimization and model routing](topics/11-cost-optimization-and-model-routing.md) | Model routing, cascades, semantic caching, prompt compression, right-sizing, the quality-cost frontier |
+| 10 | [Realtime streaming chat](topics/10-realtime-streaming-chat.md) | Token streaming, session memory, websockets, backpressure |
+
 ### Retrieval and knowledge
 *Get the right context in front of the model.*
 
@@ -67,16 +91,6 @@ repo groups the classic-ML half by use case, mirroring the same
 | 01 | [RAG serving](topics/01-rag-serving.md) | Retrieval, chunking, embedding service, the read path, freshness, eval |
 | 08 | [Semantic search and embedding service](topics/08-semantic-search-and-embeddings.md) | Vector index choice, recall vs latency, re-ranking, hybrid search |
 
-### Inference and serving (the cost layer)
-*What an LLM actually costs to run, and how to serve it at scale.*
-
-| # | Topic | What it teaches |
-|---|-------|-----------------|
-| 02 | [Long-context inference and the KV cache](topics/02-long-context-and-kv-cache.md) | The real cost of serving, GQA vs MLA, paged attention, prefix caching, batching |
-| 04 | [LLM inference serving at scale](topics/04-inference-serving-at-scale.md) | Continuous batching, speculative decoding, tensor parallelism, autoscaling |
-| 10 | [Realtime streaming chat](topics/10-realtime-streaming-chat.md) | Token streaming, session memory, websockets, backpressure |
-| 11 | [Cost optimization and model routing](topics/11-cost-optimization-and-model-routing.md) | Model routing, cascades, semantic caching, prompt compression, right-sizing, the quality-cost frontier |
-
 ### Building applications on top
 *Compose the model into a product capability.*
 
@@ -84,14 +98,6 @@ repo groups the classic-ML half by use case, mirroring the same
 |---|-------|-----------------|
 | 03 | [Agent orchestration](topics/03-agent-orchestration.md) | Tool-calling loops, planning, state, multi-agent, cost and latency control |
 | 09 | [Multimodal serving](topics/09-multimodal-serving.md) | Vision-language models, the projector, image token budget |
-
-### Building and adapting the model
-*From data and pretraining to shaping the model's behavior when prompting and retrieval are not enough.*
-
-| # | Topic | What it teaches |
-|---|-------|-----------------|
-| 13 | [The LLM training lifecycle](topics/13-llm-lifecycle.md) | Data, pretraining, mid-training, post-training, and deployment as one build-side pipeline |
-| 05 | [Fine-tuning and post-training pipeline](topics/05-post-training-pipeline.md) | LoRA, SFT, DPO/RLHF, data curation, eval gates |
 
 ### Quality and safety
 *Know it works, and keep it from misbehaving.*
@@ -102,7 +108,7 @@ repo groups the classic-ML half by use case, mirroring the same
 | 07 | [Safety, moderation, and guardrails](topics/07-safety-and-guardrails.md) | Input/output filtering, jailbreak defense, PII, policy routing |
 | 12 | [Production monitoring and observability](topics/12-production-monitoring-and-observability.md) | Tracing, online eval without labels, LLM-as-judge, hallucination detection, drift, regression |
 
-All thirteen topics are written and ready.
+All fifteen topics are written and ready.
 
 **Going deeper than the whiteboard?** [**deep-dives.md**](deep-dives.md) is a
 bank of ~206 rapid-fire, depth-probing questions: the follow-ups an interviewer

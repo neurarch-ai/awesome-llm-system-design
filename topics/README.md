@@ -15,27 +15,30 @@ shape, mirroring the [answer framework](../framework/answer-framework.md):
 
 ## Topics by pipeline stage
 
-All thirteen topics are written. They are grouped by where they sit in a production LLM
-system. To navigate by use case instead, start from the
+All fifteen topics are written. They are grouped by where they sit in a production LLM
+system, in narrative order from building the model to watching it in production. To
+navigate by use case instead, start from the
 [question bank](../questions.md).
+
+**Building and adapting the model**
+- [13 - The LLM training lifecycle](13-llm-lifecycle.md)
+- [14 - Data curation and pretraining](14-data-curation-and-pretraining.md)
+- [15 - Continued pretraining and long-context adaptation](15-continued-pretraining-and-long-context.md)
+- [05 - Fine-tuning and post-training pipeline](05-post-training-pipeline.md)
+
+**Inference and serving (the cost layer)**
+- [02 - Long-context inference and the KV cache](02-long-context-and-kv-cache.md)
+- [04 - LLM inference serving at scale](04-inference-serving-at-scale.md)
+- [11 - Cost optimization and model routing](11-cost-optimization-and-model-routing.md)
+- [10 - Realtime streaming chat](10-realtime-streaming-chat.md)
 
 **Retrieval and knowledge**
 - [01 - RAG serving](01-rag-serving.md)
 - [08 - Semantic search and embedding service](08-semantic-search-and-embeddings.md)
 
-**Inference and serving (the cost layer)**
-- [02 - Long-context inference and the KV cache](02-long-context-and-kv-cache.md)
-- [04 - LLM inference serving at scale](04-inference-serving-at-scale.md)
-- [10 - Realtime streaming chat](10-realtime-streaming-chat.md)
-- [11 - Cost optimization and model routing](11-cost-optimization-and-model-routing.md)
-
 **Building applications on top**
 - [03 - Agent orchestration](03-agent-orchestration.md)
 - [09 - Multimodal serving](09-multimodal-serving.md)
-
-**Building and adapting the model**
-- [13 - The LLM training lifecycle](13-llm-lifecycle.md)
-- [05 - Fine-tuning and post-training pipeline](05-post-training-pipeline.md)
 
 **Quality and safety**
 - [06 - LLM evaluation system](06-evaluation-system.md)

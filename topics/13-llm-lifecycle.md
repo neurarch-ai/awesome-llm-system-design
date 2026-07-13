@@ -32,6 +32,14 @@ The five stages, and the one-line job of each:
    continuous batching, and bolt on RAG and tools. This is the line item that
    never stops, so it is where unit economics live.
 
+This topic is the map. Each stage has a dedicated chapter that carries the full
+depth: data and pretraining (stages 1 to 2) in
+[topic 14](14-data-curation-and-pretraining.md), continued pretraining and
+long-context (stage 3) in [topic 15](15-continued-pretraining-and-long-context.md),
+post-training (stage 4) in [topic 05](05-post-training-pipeline.md), and serving
+(stage 5) in [topics 02](02-long-context-and-kv-cache.md) and
+[04](04-inference-serving-at-scale.md).
+
 ## 1. Clarify and scope
 
 - **Do you actually need to train anything?** The default answer for most
@@ -299,6 +307,8 @@ artifact, which is why serious pretraining reports use it.
 
 ### Attention variants and the KV-cache math (MHA, MQA, GQA)
 
+*Serving-side deep dives: [topic 02, Long-context and the KV cache](02-long-context-and-kv-cache.md) and [topic 04, Inference serving at scale](04-inference-serving-at-scale.md). This is the lifecycle-level summary.*
+
 Scaled dot-product attention is the same everywhere; what differs is how many
 distinct key/value heads you keep, and that single number sets your serving cost:
 
@@ -328,85 +338,34 @@ not MHA. Worked number: Llama-3-8B has 32 query heads but 8 KV heads, so its KV
 cache is 4x smaller than the MHA equivalent, which directly multiplies the batch
 size you can fit and therefore the throughput per GPU.
 
-### Scaling-law math (Chinchilla) and the compute-optimal frontier
+### Pretraining and adaptation math, and where each derivation lives
 
-Training FLOPs are well approximated by a constant times parameters times tokens,
-and the achievable loss follows a power law in both:
+Three results anchor the build side. This map states each and points to the chapter
+that carries the full derivation, so the lifecycle stays readable end to end.
 
-$$C \approx 6 N D, \qquad L(N, D) = E + \frac{A}{N^{\alpha}} + \frac{B}{D^{\beta}}$$
+**Scaling laws (Chinchilla).** Training compute is well approximated by
+$C \approx 6 N D$ (parameters `N`, tokens `D`), and loss follows a power law
+$L(N, D) = E + A / N^{\alpha} + B / D^{\beta}$. Minimizing loss at fixed compute
+gives the compute-optimal rule $D_{\text{opt}} \approx 20 N_{\text{opt}}$, which is
+*training*-optimal, not *deployment*-optimal: a model you will serve a lot (Llama 3
+8B at roughly 1800 tokens per parameter) is trained far past 20 to shrink the
+forever-cost of inference. The data pipeline, the compute-optimal sizing decision,
+and distributed training (data, tensor, and pipeline parallelism, ZeRO, FSDP) are
+[topic 14, Data curation and pretraining](14-data-curation-and-pretraining.md).
 
-Here `N` is non-embedding parameters, `D` is training tokens, and `E` is the
-irreducible loss (entropy of text you can never beat). Minimizing `L` subject to
-the compute budget `C` gives the Chinchilla result: `N` and `D` should grow
-together, `D_{\text{opt}} \approx 20\,N_{\text{opt}}`. The loss-vs-compute curve is
-the reason everyone quotes scaling laws:
+**Mixture-of-experts.** Replace the dense MLP with `E` experts and a router that
+sends each token to its top-`k`, so capacity grows while per-token FLOPs stay flat:
+$y = \sum_{i \in \text{top-k}} g_i(x) E_i(x)$. Load balancing (an auxiliary loss, or
+DeepSeek-V3's auxiliary-loss-free bias) is the thing that breaks. Full treatment in
+[topic 14](14-data-curation-and-pretraining.md).
 
-```mermaid
-xychart-beta
-  title "Cross-entropy loss vs training compute (schematic power law)"
-  x-axis "Training compute (relative, log scale)" 1 --> 1000
-  y-axis "Loss (nats/token)" 2.0 --> 4.0
-  line [3.85, 3.35, 3.05, 2.85, 2.70, 2.60]
-```
-
-Two interview-grade consequences. First, the `6ND` rule lets you size a run on a
-whiteboard: a 7B model at Chinchilla-optimal wants about 140B tokens and roughly
-`6 x 7e9 x 1.4e11 approximately 6e21` FLOPs. Second, Chinchilla is
-*training*-optimal, not *deployment*-optimal. If you will serve the model a lot,
-you push past 20 tokens per parameter and train a smaller model longer (Llama 3
-8B saw about 15T tokens, roughly 1800 tokens per parameter, far past Chinchilla)
-so that the forever-cost of inference drops. State which cost you are minimizing
-before you quote a ratio.
-
-### Mixture-of-experts (decoupling capacity from compute)
-
-MoE replaces the dense MLP with `E` expert MLPs and a router that sends each token
-to only its top-`k` experts, so total parameters (capacity) grow while per-token
-FLOPs (cost) stay flat. The router is a softmax gate; the block output is the
-gate-weighted sum over the selected experts:
-
-$$g(x) = \text{softmax}(x W_g), \qquad y = \sum_{i \in \text{top-k}(g)} g_i(x)\, E_i(x)$$
-
-The failure mode is routing collapse (all tokens pile onto a few experts), so MoE
-adds an auxiliary load-balancing loss that pushes the token fraction `f_i` and mean
-gate mass `P_i` per expert toward uniform:
-
-$$\mathcal{L}_{\text{aux}} = \lambda\, E \sum_{i=1}^{E} f_i\, P_i$$
-
-Mixtral (8 experts, top-2) uses this auxiliary loss directly; DeepSeek-V3 (671B
-total, about 37B active per token) instead pioneered auxiliary-loss-free balancing,
-where a learned per-expert bias nudges routing toward balance without the aux
-loss's gradient interference. Both are reference designs. Interview framing: MoE buys a bigger model at a small model's inference
-FLOPs, but you still pay to hold all experts in VRAM and to route, and load
-balancing is the thing that breaks, so it is a memory-and-systems win, not a free
-lunch.
-
-### Positional encoding and context extension (RoPE, ALiBi, YaRN)
-
-Attention is permutation-invariant, so position must be injected. Modern bases use
-**RoPE** (rotary position embeddings): rotate the query and key vectors by an
-angle proportional to absolute position, so their dot product depends only on the
-*relative* offset `m - n`:
-
-$$\langle R_{\theta, m} q,\ R_{\theta, n} k \rangle = \text{a function of } (m - n)$$
-
-RoPE is what makes context extension cheap. To go from a 8K pretrain window to
-128K you do not retrain from scratch; you rescale the RoPE frequencies and
-continue-train briefly on long documents. Linear **position interpolation** (Chen
-et al. 2023) scales every frequency dimension uniformly by the length ratio:
-
-$$s = \frac{L_{\text{new}}}{L_{\text{orig}}}, \qquad \theta'_i = \frac{\theta_i}{s} \ \text{(position interpolation)}$$
-
-**YaRN** improves on this by scaling frequencies *non-uniformly*: it interpolates
-the low-frequency (long-wavelength) dimensions while leaving the high-frequency
-(short-wavelength) ones near-unscaled, and adds a softmax temperature correction.
-That extends context with far less quality loss than uniform interpolation.
-
-**ALiBi** takes a different route (a linear distance penalty on attention scores)
-and extrapolates to longer contexts without retraining, at some quality cost. The
-interview point: long context is a positional-encoding plus mid-training problem,
-not a "make the array bigger" problem, and it costs memory quadratically in
-attention and linearly in the KV cache.
+**Positional encoding and long context.** RoPE injects position by rotation, so the
+query-key dot product depends only on the relative offset `m - n`. Extending the
+window is a mid-training problem: linear position interpolation scales all RoPE
+frequencies uniformly, YaRN scales them non-uniformly plus a softmax temperature
+term, and the cost is quadratic in attention and linear in the KV cache. The
+extension mechanisms, catastrophic forgetting, and long-context evaluation are
+[topic 15, Continued pretraining and long-context adaptation](15-continued-pretraining-and-long-context.md).
 
 ### Parameter-efficient fine-tuning (LoRA and QLoRA)
 
@@ -438,6 +397,8 @@ with "teach it behavior" (fine-tune) is the single most common LLM-product
 mistake.
 
 ### The post-training math (SFT, reward model, PPO-RLHF, DPO, GRPO)
+
+*The full post-training pipeline (data curation, LoRA, eval gates, rollout) is [topic 05, Fine-tuning and post-training pipeline](05-post-training-pipeline.md).*
 
 Post-training is where the most interview questions and the most confusion live,
 so carry the four equations. **SFT** is just cross-entropy on the completion, with
@@ -495,6 +456,8 @@ hacking, sycophancy, mode collapse, repetition), is the strongest single signal
 you can give on an alignment question.
 
 ### The inference math (KV cache, roofline, batching, speculation, quantization)
+
+*Serving at scale is [topic 02](02-long-context-and-kv-cache.md) and [topic 04](04-inference-serving-at-scale.md). This is the lifecycle-level summary.*
 
 Serving splits into two phases with opposite bottlenecks:
 

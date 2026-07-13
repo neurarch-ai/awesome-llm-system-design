@@ -11,6 +11,2233 @@ Every teardown is faithful to a first-party engineering source. Diagrams are
 Mermaid and render on GitHub. Organized by the same taxonomy as the rest of the repo.
 
 ---
+## LLM lifecycle
+
+### Hugging Face: FineWeb, a decontaminated open pretraining corpus ([source](https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1))
+
+FineWeb turns 96 Common Crawl snapshots into a 15-trillion-token English pretraining set that trains better models than prior open corpora. The recipe is a pipeline, not a dataset: text extraction from WARC, language identification, a small set of quality heuristics chosen by ablation out of fifty-plus candidates, and aggressive MinHash deduplication both within and across dumps. FineWeb-Edu goes further, training a classifier to keep only the most educational text (1.3T tokens), which sharply lifts knowledge and reasoning benchmarks like MMLU and ARC. The whole curation codebase and the ablation models were released, so the data recipe is as reproducible as a model.
+
+```mermaid
+flowchart TD
+  CC["96 Common Crawl dumps"] --> EXT["extract text (WARC)"]
+  EXT --> LID["language ID + filter"]
+  LID --> QF["quality heuristics<br/>(ablation-chosen)"]
+  QF --> DEDUP["MinHash dedup<br/>(within + across dumps)"]
+  DEDUP --> DECON["decontaminate vs eval sets"]
+  DECON --> FW["FineWeb 15T tokens"]
+  FW --> CLF["educational classifier"]
+  CLF --> FWE["FineWeb-Edu 1.3T tokens"]
+```
+
+**Interview questions this design invites**
+- Why does deduplication improve a model rather than just shrink the dataset?
+- How do you pick a small set of quality filters instead of stacking fifty?
+- What is training-set decontamination and why is it non-negotiable before you report a benchmark?
+- Why does an educational-quality classifier beat raw web text on reasoning benchmarks?
+- How does keep rate (a small fraction of raw Common Crawl) change your token budget and pretrain plan?
+
+**Tricks and gotchas**
+- Dedup cuts memorization and eval leakage, so it improves generalization per token, not just storage.
+- Filters must be validated on downstream benchmarks via ablation, not chosen because they look reasonable.
+- Cross-dump dedup matters as much as within-dump; the same page recurs across snapshots.
+- FineWeb-Edu shows a learned filter can beat volume: fewer, better tokens win on hard benchmarks.
+
+**Common mistakes and how to fix them**
+- Reporting a benchmark score without decontaminating; fix by removing eval-overlapping documents first and reporting the check.
+- Treating "more tokens" as strictly better; fix by ablating quality filters and measuring downstream, not corpus size.
+- Skipping cross-document dedup; fix with MinHash/LSH across the whole corpus.
+- Assuming the web is usable as-is; fix by budgeting for a heavy pipeline that keeps a small fraction.
+
+### Google DeepMind: Chinchilla and the compute-optimal split ([source](https://arxiv.org/abs/2203.15556))
+
+Chinchilla asked, for a fixed compute budget, how to split it between model size and training tokens. Training over 400 models from 70M to 16B parameters and fitting the loss surface, the answer was that size and tokens should scale roughly equally, about 20 tokens per parameter, and that the models of the day were badly undertrained. The proof point: a 70B Chinchilla trained on 1.4T tokens beat the 280B Gopher at the same compute, and is cheaper to serve. The lesson reshaped how everyone sizes a pretrain, and later work refined it for the inference-heavy regime where you overtrain a smaller model on purpose.
+
+```mermaid
+flowchart TD
+  C["fixed compute budget C ~ 6ND"] --> FIT["fit loss over 400+ models"]
+  FIT --> OPT["compute-optimal:<br/>scale N and D together"]
+  OPT --> RULE["~20 tokens per parameter"]
+  RULE --> CH["70B Chinchilla > 280B Gopher<br/>at equal compute"]
+  CH --> INF["inference-aware:<br/>overtrain a smaller model"]
+```
+
+**Interview questions this design invites**
+- Given a compute budget, how do you choose model size versus number of training tokens?
+- Why were pre-Chinchilla models undertrained, and what did that cost?
+- When do you deliberately violate Chinchilla-optimal, and why?
+- How does planning to serve billions of tokens change the optimal model size?
+- What does the C ~ 6ND approximation let you estimate on the whiteboard?
+
+**Tricks and gotchas**
+- Chinchilla-optimal minimizes training compute, not lifetime cost; serving shifts the optimum smaller.
+- The 20-tokens-per-parameter rule is a fast whiteboard sanity check for any proposed pretrain.
+- A smaller, well-trained model can beat a larger undertrained one and is cheaper forever.
+- The scaling law has irreducible loss (the E term); more scale has diminishing, not unlimited, returns.
+
+**Common mistakes and how to fix them**
+- Making the model bigger to improve it; fix by scaling tokens alongside parameters to stay compute-optimal.
+- Ignoring inference cost when sizing; fix by overtraining a smaller model if you will serve at scale.
+- Quoting scaling laws as exact; fix by treating them as fitted trends with an irreducible floor.
+- Under-budgeting data; fix by computing the token target from the parameter count before committing compute.
+
+### Meta: the Llama 3 herd, an end-to-end open recipe ([source](https://ai.meta.com/research/publications/the-llama-3-herd-of-models/))
+
+Llama 3 documents the whole lifecycle for 8B, 70B, and 405B models: careful pre-processing and curation of pretraining data, a scaled dense-transformer pretrain, a staged context-length extension near the end of pretraining, and a deliberately simple post-training loop of SFT plus rejection sampling plus DPO rather than complex online RL. The team's stated levers are data, scale, and managing complexity, and the choice of DPO over PPO is explicitly about stability and scalability. It is the closest thing to a public reference for building a strong open base and instruct model together.
+
+```mermaid
+flowchart TD
+  DATA["curated pretraining data"] --> PT["dense transformer pretrain<br/>(GQA, RoPE, RMSNorm)"]
+  PT --> LC["staged context extension<br/>(long-document continued train)"]
+  LC --> BASE["base model (8B / 70B / 405B)"]
+  BASE --> SFT["SFT on curated instructions"]
+  SFT --> RS["rejection sampling<br/>(keep best of N)"]
+  RS --> DPO["DPO on preference pairs"]
+  DPO --> CHAT["Llama 3 Instruct"]
+```
+
+**Interview questions this design invites**
+- Why extend context in a staged step near the end of pretraining rather than pretraining long from the start?
+- Why did Meta choose SFT plus DPO over PPO-based RLHF?
+- What does rejection sampling add between SFT and DPO?
+- How do data curation choices differ between the pretraining and post-training corpora?
+- What makes a 405B pretrain a lab-scale decision most teams should not copy?
+
+**Tricks and gotchas**
+- Context extension is a late-stage continued-training step, not a from-scratch long pretrain; it is far cheaper.
+- Rejection sampling (best-of-N against a reward signal) generates strong SFT-style data before DPO.
+- DPO trades some ceiling for stability and scalability versus online PPO.
+- Post-training data quality assurance is treated as rigorously as pretraining data curation.
+
+**Common mistakes and how to fix them**
+- Assuming you must run online RL for alignment; fix by starting with the simpler SFT-plus-DPO recipe.
+- Pretraining at long context throughout; fix with a staged extension to save compute.
+- Copying the 405B plan on a startup budget; fix by adapting an open Llama base via mid- and post-training.
+- Curating only pretraining data; fix by applying equal QA to the post-training set.
+
+### OpenAI: InstructGPT and the RLHF three-stage recipe ([source](https://openai.com/index/instruction-following/))
+
+InstructGPT is the canonical demonstration that alignment, not scale, is what makes a base model useful. The recipe is three stages: supervised fine-tuning on human-written demonstrations, a reward model trained on human rankings of model outputs under a Bradley-Terry objective, and PPO reinforcement learning that optimizes the policy against that reward with a KL penalty back to the SFT model. The headline result is that a 1.3B InstructGPT is preferred by humans over the 175B GPT-3 on instruction following, at a hundredth of the parameters, because the base model already had the capability and only needed to be pointed at human intent.
+
+```mermaid
+flowchart TD
+  BASE["GPT-3 base model"] --> SFT["SFT on human demonstrations"]
+  SFT --> GEN["sample multiple outputs"]
+  GEN --> RANK["humans rank outputs"]
+  RANK --> RM["reward model<br/>(Bradley-Terry)"]
+  SFT --> PPO["PPO policy optimization"]
+  RM --> PPO
+  PPO -.KL penalty to SFT.-> PPO
+  PPO --> INS["InstructGPT (aligned)"]
+```
+
+**Interview questions this design invites**
+- Why does a 1.3B aligned model beat a 175B base on instruction following?
+- What is the reward model learning, and why train it on rankings rather than absolute scores?
+- What does the KL penalty to the SFT model prevent?
+- Where does RLHF introduce sycophancy or an alignment tax, and how do you measure it?
+- When would you replace this pipeline with DPO?
+
+**Tricks and gotchas**
+- The base model already holds the capability; RLHF elicits and directs it, it does not add knowledge.
+- Ranking comparisons are easier and more reliable for humans than absolute quality scores.
+- The KL leash stops the policy from drifting off-distribution and reward-hacking.
+- Reward models are themselves gameable; they need their own red-teaming.
+
+**Common mistakes and how to fix them**
+- Believing alignment needs a bigger model; fix by investing in SFT plus preference data instead.
+- Removing or under-weighting the KL term; fix by tuning it so the policy stays near the reference.
+- Trusting the reward model blindly; fix by auditing it for hackable shortcuts and sycophancy.
+- Measuring only helpfulness; fix by tracking false-refusal and safety as co-equal gates.
+
+### Anthropic: Constitutional AI, alignment from AI feedback ([source](https://www.anthropic.com/research/constitutional-ai-harmlessness-from-ai-feedback))
+
+Constitutional AI replaces most human harm labels with AI feedback against a short written constitution (roughly 75 principles). In the supervised phase the model critiques and revises its own responses to be more harmless, then fine-tunes on the revisions; in the RL phase a preference model trained on AI comparisons drives RLAIF. The payoff is a Pareto improvement: the resulting model is both more helpful and more harmless than plain RLHF, and it engages with adversarial prompts by explaining objections instead of giving evasive non-answers, all while shrinking the human-labeling bottleneck.
+
+```mermaid
+flowchart TD
+  CON["written constitution<br/>(~75 principles)"] --> CRIT["model self-critiques<br/>+ revises responses"]
+  CRIT --> SFT["SFT on revised responses"]
+  SFT --> AICMP["model compares pairs<br/>(AI feedback)"]
+  CON --> AICMP
+  AICMP --> PM["preference model"]
+  PM --> RLAIF["RLAIF policy optimization"]
+  SFT --> RLAIF
+  RLAIF --> MODEL["helpful + harmless model"]
+```
+
+**Interview questions this design invites**
+- How does RLAIF cut the human-labeling cost of RLHF?
+- What moves from a bottleneck of labelers to a bottleneck of constitution design?
+- Why can a constitution-driven model be both more helpful and more harmless than RLHF?
+- How do you keep AI feedback from amplifying the base model's own biases?
+- Where does human oversight still enter a mostly-AI-feedback pipeline?
+
+**Tricks and gotchas**
+- The self-critique-and-revise loop generates alignment training data with almost no human labels.
+- Explaining an objection beats a flat refusal; it is both safer and more helpful.
+- The constitution is a small, auditable artifact, easier to inspect than millions of labels.
+- AI feedback inherits the labeler model's blind spots; the constitution must actively counter them.
+
+**Common mistakes and how to fix them**
+- Assuming safety requires armies of human labelers; fix with AI feedback against explicit principles.
+- Writing a vague constitution; fix by making principles concrete enough to drive consistent critiques.
+- Over-refusing to look safe; fix by rewarding engaged, explained objections over evasive non-answers.
+- Trusting AI feedback uncritically; fix by auditing it against a human gold set and the constitution.
+
+### DeepSeek: R1 and reinforcement learning from verifiable rewards ([source](https://arxiv.org/abs/2501.12948))
+
+DeepSeek-R1 shows that reasoning can be grown by reinforcement learning with rule-based rewards rather than human preference labels. R1-Zero starts from a base model and skips SFT entirely, using GRPO (Group Relative Policy Optimization) with rewards from answer-matching and code execution plus a format reward. Chain-of-thought, self-reflection, verification, and "aha" self-corrections emerge from the RL alone, lifting AIME 2024 pass@1 from 15.6 to 71.0 percent. The full R1 adds a small cold-start SFT for readability, but the core lesson is that where a reward is verifiable, RL can teach reasoning without preference data.
+
+```mermaid
+flowchart TD
+  BASE["DeepSeek-V3 base"] --> RL["GRPO reinforcement learning"]
+  VER["rule-based reward<br/>(answer match, code exec)"] --> RL
+  FMT["format reward"] --> RL
+  RL --> EMERGE["emergent CoT,<br/>self-reflection, verification"]
+  EMERGE --> ZERO["R1-Zero (no SFT)"]
+  ZERO --> CS["small cold-start SFT<br/>(readability)"]
+  CS --> R1["DeepSeek-R1"]
+```
+
+**Interview questions this design invites**
+- When can you replace a preference reward model with a rule-based verifier?
+- What tasks have verifiable rewards, and what do you do when they do not?
+- How does chain-of-thought emerge from RL without being explicitly supervised?
+- Why add a small cold-start SFT to R1-Zero rather than shipping the pure-RL model?
+- How does GRPO differ from PPO in what it needs?
+
+**Tricks and gotchas**
+- A checker (unit tests, a math verifier) is a cheaper, harder-to-hack reward than a learned preference model.
+- Reasoning behaviors can be incentivized, not just imitated, when the reward is verifiable.
+- Pure RL can hurt readability and language mixing; a light SFT fixes presentation without losing the gains.
+- Verifiable rewards only cover verifiable tasks; open-ended quality still needs preference methods.
+
+**Common mistakes and how to fix them**
+- Using a preference model where a checker exists; fix by rewarding verifiable correctness directly.
+- Assuming you always need SFT before RL; fix by trying rule-based RL from the base for reasoning.
+- Applying verifiable-reward RL to subjective tasks; fix by reserving it for math, code, and checkable outputs.
+- Shipping raw pure-RL outputs; fix with a small cold-start SFT for readability and format.
+
+### vLLM: PagedAttention for high-throughput serving ([source](https://blog.vllm.ai/2023/06/20/vllm.html))
+
+vLLM attacks the real serving bottleneck: the KV cache. Naive serving over-reserves contiguous memory for each sequence and wastes 60 to 80 percent of it to fragmentation, capping batch size and throughput. PagedAttention borrows OS virtual-memory paging, storing the KV cache in non-contiguous blocks with a lookup table, which drives near-zero waste and lets sequences share cache (for a common prompt) cheaply. Combined with continuous batching, it delivers up to 24x the throughput of naive HuggingFace serving with no model change, which is why it became a default inference engine.
+
+```mermaid
+flowchart TD
+  REQ["incoming requests<br/>(varied lengths)"] --> CB["continuous batching"]
+  CB --> PA["PagedAttention"]
+  PA --> BLK["KV cache in paged blocks"]
+  BLK --> TBL["block table (like page table)"]
+  TBL --> SHARE["shared blocks for common prefix"]
+  SHARE --> GPU["GPU stays saturated"]
+  GPU --> OUT["up to 24x throughput"]
+```
+
+**Interview questions this design invites**
+- Why is LLM decoding memory-bandwidth bound rather than compute bound?
+- How does KV-cache fragmentation cap batch size and throughput?
+- What does paging the KV cache borrow from operating systems, and what does it buy?
+- How does continuous batching differ from static batching, and why does it help variable-length traffic?
+- When does prompt/prefix sharing across requests pay off?
+
+**Tricks and gotchas**
+- The KV cache, not FLOPs, is the serving bottleneck; shrink and manage it and throughput follows.
+- Non-contiguous paged blocks kill the over-reservation waste of contiguous allocation.
+- Continuous batching keeps the GPU full when requests finish at different times.
+- Shared KV blocks make a common system prompt nearly free across concurrent requests.
+
+**Common mistakes and how to fix them**
+- Sizing serving by FLOPs; fix by budgeting KV-cache memory and bandwidth first.
+- Using static batching for chat; fix with continuous batching for variable-length requests.
+- Allocating contiguous per-sequence KV memory; fix with paged blocks to remove fragmentation.
+- Recomputing a shared system prompt per request; fix by sharing or caching its KV.
+
+### Character.AI: serving 20k+ QPS chat at low cost ([source](https://blog.character.ai/optimizing-ai-inference-at-character-ai-2/))
+
+Character.AI serves conversational traffic at over 20,000 queries per second, so inference cost is the business. Their stack stacks KV-cache reductions: multi-query attention and cross-layer cache sharing shrink the cache at the source, INT8 quantization of weights, activations, and the KV cache cuts memory and speeds decoding, and a tree-structured inter-turn cache with an LRU policy, indexed by a rolling hash of prefix tokens, reuses KV across turns of a multi-turn chat that share a prefix. The result is a cost per query low enough to run a consumer chat product at scale.
+
+```mermaid
+flowchart TD
+  CHAT["multi-turn chat traffic<br/>(20k+ QPS)"] --> MQA["multi-query attention<br/>+ cross-layer cache sharing"]
+  MQA --> INT8["INT8 weights, activations, KV"]
+  INT8 --> TREE["inter-turn KV cache<br/>(tree, LRU, rolling-hash key)"]
+  TREE --> HIT["prefix cache hit reuses KV"]
+  HIT --> CHEAP["low cost per query"]
+```
+
+**Interview questions this design invites**
+- Why does multi-query attention shrink the KV cache, and what does it cost in quality?
+- How does an inter-turn KV cache exploit the structure of a multi-turn conversation?
+- What are the risks of INT8-quantizing the KV cache, not just the weights?
+- How do you key and evict a prefix cache across many concurrent conversations?
+- How do you eval-gate an aggressive serving optimization so quality does not regress?
+
+**Tricks and gotchas**
+- MQA and cross-layer sharing cut the KV cache multiplicatively, the biggest single serving lever.
+- Multi-turn chats share long prefixes; caching their KV across turns avoids recomputation.
+- A rolling-hash prefix key with an LRU tree makes cache reuse cheap to index at scale.
+- Quantizing the KV cache, not just weights, is where much of the memory win comes from.
+
+**Common mistakes and how to fix them**
+- Ignoring conversation structure; fix by caching KV across turns keyed on the shared prefix.
+- Quantizing only weights; fix by also quantizing activations and the KV cache under an eval gate.
+- Using full multi-head attention at this QPS; fix with MQA/GQA to shrink the cache.
+- Shipping a compression without a quality check; fix by gating on the full eval suite, not a spot check.
+
+---
+
+## Data curation and pretraining
+
+### Hugging Face: FineWeb, a filtered and deduplicated open web corpus ([source](https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1))
+
+FineWeb turns 96 Common Crawl snapshots into a 15-trillion-token English pretraining set that trains better models than prior open corpora, and it releases the pipeline, not just the data. The recipe: re-extract text from WARC (not the lossy WET plaintext), language-identify, apply a small set of quality heuristics chosen by ablation out of fifty-plus candidates, and run aggressive MinHash deduplication both within and across dumps. FineWeb-Edu adds a learned classifier that keeps only the most educational text (1.3T tokens), which sharply lifts knowledge and reasoning benchmarks like MMLU and ARC. The lesson is that fewer, better tokens beat more tokens, and that the data recipe can be as reproducible as a model.
+
+```mermaid
+flowchart TD
+  CC["96 Common Crawl dumps"] --> EXT["re-extract text from WARC<br/>(boilerplate removal)"]
+  EXT --> LID["language ID + filter"]
+  LID --> QF["quality heuristics<br/>(ablation-chosen, small set)"]
+  QF --> DEDUP["MinHash/LSH dedup<br/>(within + across dumps)"]
+  DEDUP --> DECON["decontaminate vs eval sets"]
+  DECON --> FW["FineWeb 15T tokens"]
+  FW --> CLF["educational classifier"]
+  CLF --> FWE["FineWeb-Edu 1.3T tokens"]
+```
+
+**Interview questions this design invites**
+- Why re-extract from WARC instead of using the pre-extracted WET plaintext?
+- How do you pick a small set of quality filters instead of stacking fifty?
+- Why does MinHash dedup across dumps matter as much as within a dump?
+- Why can an educational-quality classifier beat raw web text on reasoning benchmarks?
+- How does a single-digit keep rate change your token budget and pretrain plan?
+
+**Tricks and gotchas**
+- Extraction quality is upstream of every filter; bad extraction inflates duplicate counts and poisons quality scores.
+- Filters are validated on downstream benchmarks by ablation, not chosen because they look reasonable.
+- Dedup is not monotonic: per-dump plus a measured global pass beat maximal global dedup in their ablations.
+- FineWeb-Edu shows a learned filter can beat volume; fewer better tokens win on hard benchmarks.
+
+**Common mistakes and how to fix them**
+- Using WET plaintext as-is; fix by re-extracting from WARC with boilerplate removal.
+- Reporting a benchmark without decontamination; fix by removing eval-overlapping documents and reporting the rate.
+- Treating more tokens as strictly better; fix by ablating quality filters against downstream evals.
+- Maximizing dedup aggressiveness; fix by tuning it on evals since over-dedup can lower scores.
+
+### TII: RefinedWeb, web data only outperforming curated corpora ([source](https://arxiv.org/abs/2306.01116))
+
+RefinedWeb (the data behind Falcon) makes a sharp claim: with careful enough processing, filtered and deduplicated web data *alone*, with no curated corpora like books or Wikipedia, can match or beat curated datasets for pretraining. The pipeline leans on strong WARC extraction (trafilatura-style), URL-level blocklists, line and document heuristics, and a heavy deduplication stack combining exact and fuzzy (MinHash) removal at large scale. The takeaway for a candidate is that the curated-versus-web-data debate is largely a processing-quality debate: web data is not inherently worse, it is inherently dirtier, and enough cleaning closes the gap.
+
+```mermaid
+flowchart TD
+  CC["Common Crawl (WARC)"] --> EXT["trafilatura-style extraction"]
+  EXT --> URL["URL blocklist<br/>(adult / spam domains)"]
+  URL --> HEUR["line + document heuristics"]
+  HEUR --> FUZ["fuzzy dedup (MinHash)"]
+  FUZ --> EXACT["exact / substring dedup"]
+  EXACT --> RW["RefinedWeb (web-only)"]
+  RW --> CMP["matches / beats curated corpora"]
+```
+
+**Interview questions this design invites**
+- What has to be true about your processing for web-only data to beat curated corpora?
+- Why put URL-level blocklists before content filtering?
+- How do exact and fuzzy dedup complement each other in one pipeline?
+- When would you still add curated sources despite RefinedWeb's result?
+- What are the risks of relying entirely on web data (bias, coverage, licensing)?
+
+**Tricks and gotchas**
+- The curated-versus-web debate is mostly a processing-quality debate; clean web data is not inherently worse.
+- Extraction is the load-bearing step; the whole claim rests on getting article text out of messy HTML.
+- Combining exact and fuzzy dedup catches both identical copies and near-duplicates that differ by an edit.
+- URL blocklists cheaply remove whole classes of bad content before expensive per-document filtering.
+
+**Common mistakes and how to fix them**
+- Assuming you must mix in books and Wikipedia; fix by processing web data hard enough first, then decide.
+- Doing only exact dedup; fix by adding MinHash fuzzy dedup for near-duplicates.
+- Filtering content before dropping known-bad domains; fix by blocklisting URLs up front to save work.
+- Underinvesting in extraction; fix by treating HTML-to-text quality as the top-of-funnel priority.
+
+### Ai2: Dolma and OLMo, a fully reproducible open pipeline ([source](https://arxiv.org/abs/2402.00159))
+
+Dolma is a 3-trillion-token open corpus released with its full curation toolkit, and OLMo is the base model trained on it with training code, logs, and checkpoints all public. Together they are the reference for a *reproducible* pretrain: not just open weights, but an open data recipe you can rerun and audit. The pipeline is the standard funnel (source, language ID, quality and content filtering, deduplication, decontamination, mixing) but the contribution is documenting and open-sourcing every step, which turns data curation from a proprietary dark art into something a researcher can study and modify. The tradeoff Ai2 accepts is that fully open data is a legal and safety commitment: everything you include is inspectable, so licensing and content decisions are on the record.
+
+```mermaid
+flowchart TD
+  SRC["web + code + papers +<br/>books + curated sources"] --> LID["language ID"]
+  LID --> QF["quality + content filters<br/>(documented, open toolkit)"]
+  QF --> DEDUP["deduplication"]
+  DEDUP --> DECON["decontamination"]
+  DECON --> MIX["documented data mix"]
+  MIX --> DOLMA["Dolma 3T tokens (open)"]
+  DOLMA --> OLMO["OLMo base<br/>(open code, logs, checkpoints)"]
+```
+
+**Interview questions this design invites**
+- What does reproducibility of a pretrain require beyond open weights?
+- Why is a fully open corpus a legal and safety commitment, not just a nice-to-have?
+- How would you version a data recipe so a model artifact pins its exact data?
+- What can you study with open data plus logs that you cannot with weights alone?
+- Where do content and licensing decisions become visible in an open pipeline?
+
+**Tricks and gotchas**
+- Reproducibility needs the data snapshot, mixture weights, tokenizer, and code, not just the checkpoint.
+- Open data exposes every licensing and content choice, so the bar for what you include is higher.
+- An open toolkit lets others rerun ablations, which is how curation becomes a science rather than folklore.
+- Publishing logs and intermediate checkpoints enables debugging a regression to a specific data or step.
+
+**Common mistakes and how to fix them**
+- Calling a model open when only the weights ship; fix by releasing the data recipe and training code too.
+- Failing to version the data with the model; fix by pinning a data snapshot and mixture per artifact.
+- Ignoring licensing until publication; fix by auditing licenses as documents enter the corpus.
+- Treating curation as unshareable; fix by open-sourcing the toolkit so results are reproducible.
+
+### Meta: CCNet, a per-language crawl pipeline ([source](https://arxiv.org/abs/1911.00359))
+
+CCNet is the template for turning multilingual Common Crawl into usable monolingual datasets, and its two ideas show up everywhere. First, it deduplicates at the paragraph/line level and reconstructs documents, so it can drop boilerplate lines (menus, repeated notices) while keeping the good ones, rather than only dropping whole duplicate documents. Second, it filters quality with a language-model perplexity score: train a small LM on a trusted reference (Wikipedia) for each language, and keep web text that the LM finds unsurprising, which correlates with being well-formed text in that language. Everything runs per language, which is what makes non-English and low-resource languages tractable instead of drowned out by English.
+
+```mermaid
+flowchart TD
+  CC["Common Crawl"] --> LID["language ID per document"]
+  LID --> SPLIT["route per language"]
+  SPLIT --> LINE["line-level dedup<br/>(reconstruct documents)"]
+  LINE --> LM["train reference LM<br/>(Wikipedia, per language)"]
+  LM --> PPL["perplexity quality filter"]
+  PPL --> BUCKET["head / middle / tail buckets"]
+  BUCKET --> OUT["monolingual datasets<br/>(per language)"]
+```
+
+**Interview questions this design invites**
+- Why deduplicate at the line level instead of the document level?
+- How does a language-model perplexity score act as a quality filter?
+- Why run the whole pipeline per language rather than once globally?
+- What goes wrong for low-resource languages in an English-dominated global pipeline?
+- How do perplexity buckets (head/middle/tail) let you trade quality for quantity?
+
+**Tricks and gotchas**
+- Line-level dedup removes recurring boilerplate while keeping the unique body of a page.
+- Perplexity against a trusted reference is a cheap, language-agnostic quality proxy.
+- Per-language routing prevents high-resource languages from setting thresholds that starve others.
+- The head/middle/tail perplexity buckets are a knob for the quality-versus-volume tradeoff per language.
+
+**Common mistakes and how to fix them**
+- Document-level dedup only; fix with line-level dedup to strip boilerplate without dropping good pages.
+- One global quality threshold; fix by filtering per language with a per-language reference model.
+- Ignoring fertility and coverage for low-resource languages; fix by routing and tuning per language.
+- Treating perplexity as truth; fix by calibrating buckets against downstream quality, not just the score.
+
+### Google DeepMind: Chinchilla and the compute-optimal split ([source](https://arxiv.org/abs/2203.15556))
+
+Chinchilla asked, for a fixed compute budget, how to split it between model size and training tokens. Training over 400 models from 70M to 16B parameters and fitting the loss surface, the answer was that size and tokens should scale roughly equally, about 20 tokens per parameter, and that the models of the day were badly undertrained. The proof point: a 70B Chinchilla trained on 1.4T tokens beat the 280B Gopher at equal compute and is cheaper to serve. This is the calculation that sizes a pretrain from the budget, and later work refined it for the inference-heavy regime where you overtrain a smaller model on purpose.
+
+```mermaid
+flowchart TD
+  C["fixed compute budget C ~ 6ND"] --> FIT["fit loss over 400+ models"]
+  FIT --> OPT["compute-optimal:<br/>scale N and D together"]
+  OPT --> RULE["~20 tokens per parameter"]
+  RULE --> CH["70B Chinchilla > 280B Gopher<br/>at equal compute"]
+  CH --> INF["inference-aware:<br/>overtrain a smaller model"]
+```
+
+**Interview questions this design invites**
+- Given a compute budget, how do you choose model size versus number of training tokens?
+- Why were pre-Chinchilla models undertrained, and what did that cost?
+- When do you deliberately violate Chinchilla-optimal, and why?
+- How does planning to serve billions of tokens change the optimal size?
+- What does the C ~ 6ND approximation let you estimate on a whiteboard?
+
+**Tricks and gotchas**
+- Chinchilla-optimal minimizes training compute, not lifetime cost; serving shifts the optimum smaller.
+- The 20-tokens-per-parameter rule is a fast sanity check for any proposed pretrain.
+- A smaller, well-trained model can beat a larger undertrained one and is cheaper forever.
+- The scaling law has an irreducible loss term E; more scale has diminishing, not unlimited, returns.
+
+**Common mistakes and how to fix them**
+- Making the model bigger to improve it; fix by scaling tokens alongside parameters.
+- Ignoring inference cost when sizing; fix by overtraining a smaller model if you serve at scale.
+- Quoting scaling laws as exact; fix by treating them as fitted trends with an irreducible floor.
+- Under-budgeting data; fix by computing the token target from the parameter count before committing compute.
+
+### Meta: the Llama 3 herd, an end-to-end build with failure recovery ([source](https://ai.meta.com/research/publications/the-llama-3-herd-of-models/))
+
+Llama 3 documents the full build for 8B, 70B, and 405B models: careful pre-processing and curation of pretraining data, a scaled dense-transformer pretrain, a staged context-length extension near the end of pretraining, and, crucially for this topic, the systems that keep a cluster-scale run alive. The report is candid that at their scale interruptions are frequent, so automated failure detection, checkpointing, and elastic restart are core parts of the training system, not afterthoughts. The stated levers are data quality, scale, and managing complexity. It is the closest public reference for building a strong open base while actually surviving weeks on thousands of GPUs.
+
+```mermaid
+flowchart TD
+  DATA["curated pretraining data<br/>(dedup, filter, decontaminate)"] --> PT["dense transformer pretrain<br/>(GQA, RoPE, RMSNorm)"]
+  PT --> LC["staged context extension<br/>(long-document continued train)"]
+  LC --> BASE["base model (8B / 70B / 405B)"]
+  PT --> CKPT["frequent checkpoints"]
+  PT --> FAIL["failure detection<br/>+ elastic restart"]
+  CKPT -.resume on failure/spike.-> PT
+  FAIL -.drop failed node, continue.-> PT
+```
+
+**Interview questions this design invites**
+- Why extend context in a staged step near the end of pretraining rather than pretraining long throughout?
+- At thousands of GPUs for weeks, what fails, and how does the run survive it?
+- How do you size the checkpoint interval against the mean time between failures?
+- What makes a 405B pretrain a lab-scale decision most teams should not copy?
+- How does the data curation for pretraining differ from the later post-training data?
+
+**Tricks and gotchas**
+- Context extension is a late-stage continued-training step, far cheaper than pretraining long from the start.
+- Frequent interruptions are expected at cluster scale; automated restart is designed in, not bolted on.
+- The checkpoint interval trades I/O cost against the work lost per failure.
+- Data quality assurance is treated as a first-class lever alongside scale, not a preprocessing step.
+
+**Common mistakes and how to fix them**
+- Pretraining at long context throughout; fix with a staged extension to save compute.
+- Treating the run as a single uninterrupted job; fix with checkpointing and elastic restart for failures.
+- Copying the 405B plan on a startup budget; fix by adapting an open Llama base via mid- and post-training.
+- Under-checkpointing; fix by sizing the interval so expected lost work is acceptable given the failure rate.
+
+### DeepSeek: V3, a frontier MoE trained on a constrained budget ([source](https://arxiv.org/abs/2412.19437))
+
+DeepSeek-V3 is a 671-billion-parameter mixture-of-experts model with only about 37B parameters active per token, trained at frontier quality on a notably constrained compute budget. Two systems ideas carry it. First, FP8 mixed-precision training halves the bytes moved for activations and communication versus bf16, which is a large win when interconnect is the bottleneck. Second, auxiliary-loss-free load balancing nudges the router toward balance with a learned per-expert bias instead of an auxiliary loss, avoiding the gradient interference that the classic balancing loss introduces. Together with expert parallelism and careful all-to-all overlap, they make a frontier MoE affordable to train, and the small active-parameter count makes it affordable to serve.
+
+```mermaid
+flowchart TD
+  DATA["curated tokens"] --> ROUTE["MoE router<br/>(top-k of 256+ experts)"]
+  ROUTE --> BIAS["aux-loss-free balancing<br/>(learned per-expert bias)"]
+  BIAS --> EXPERTS["experts on many GPUs<br/>(expert parallelism)"]
+  EXPERTS --> A2A["all-to-all token routing<br/>(overlapped with compute)"]
+  A2A --> FP8["FP8 mixed-precision training"]
+  FP8 --> V3["DeepSeek-V3 (671B total,<br/>~37B active/token)"]
+```
+
+**Interview questions this design invites**
+- How does MoE decouple total parameters (capacity) from per-token FLOPs (cost)?
+- What is routing collapse, and how does aux-loss-free balancing prevent it without an auxiliary loss?
+- Why does FP8 training help most when interconnect, not compute, is the bottleneck?
+- What extra communication does expert parallelism add, and how do you hide it?
+- Why is MoE a memory-and-systems win rather than a free lunch?
+
+**Tricks and gotchas**
+- MoE buys a large model at a small model's active FLOPs, but you still hold every expert in VRAM.
+- Aux-loss-free balancing avoids the gradient interference the classic load-balancing loss adds.
+- FP8 cuts activation and communication bytes, which is the real bottleneck at scale, not FLOPs.
+- All-to-all routing traffic must overlap with compute or it wrecks model-FLOPs utilization.
+
+**Common mistakes and how to fix them**
+- Assuming MoE is free capacity; fix by budgeting VRAM for all experts and the routing all-to-all.
+- Relying only on an auxiliary loss for balance; fix by considering a bias-based aux-loss-free scheme.
+- Training MoE in bf16 when interconnect-bound; fix by moving to FP8 to cut communication bytes.
+- Placing experts without overlapping all-to-all; fix by scheduling routing traffic behind compute.
+
+### NVIDIA and Microsoft: Megatron-LM, ZeRO, and FSDP, the parallelism stack ([source](https://arxiv.org/abs/1909.08053))
+
+A frontier model does not fit on one GPU, so three complementary techniques share it. Megatron-LM introduced **tensor parallelism**: split each weight matrix across GPUs so a layer too large for one device still does its matmul, at the cost of high-bandwidth all-reduce inside every layer, which pins it within a node. **ZeRO** (DeepSpeed) attacks the other memory wall: plain data parallelism replicates the 16-bytes-per-parameter Adam footprint on every GPU, so ZeRO partitions the optimizer states, then gradients, then parameters across data-parallel ranks in three stages, gathering shards on demand. **PyTorch FSDP** is the native-PyTorch realization of that ZeRO-3-style full sharding. Stacked (tensor within a node, pipeline and data across nodes, sharding on top), they make a model far larger than one GPU's memory trainable, and the whole game is keeping model-FLOPs utilization high against interconnect limits.
+
+```mermaid
+flowchart TD
+  BIG["model too big for one GPU"] --> TP["tensor parallel (Megatron)<br/>split matrices, in-node all-reduce"]
+  BIG --> PP["pipeline parallel<br/>split layers into stages"]
+  BIG --> DP["data parallel<br/>split the batch"]
+  DP --> ZERO["ZeRO / FSDP sharding"]
+  ZERO --> Z1["stage 1: optimizer states"]
+  Z1 --> Z2["stage 2: + gradients"]
+  Z2 --> Z3["stage 3: + parameters<br/>(gather on demand)"]
+  TP --> FIT["fits + high MFU"]
+  PP --> FIT
+  Z3 --> FIT
+```
+
+**Interview questions this design invites**
+- Why is tensor parallelism kept within a node while data and pipeline parallelism span nodes?
+- What does each ZeRO stage shard, and how does per-GPU memory change?
+- Where does the pipeline bubble come from, and how do micro-batches shrink it?
+- How are FSDP and ZeRO-3 related, and what do they cost in communication?
+- What is model-FLOPs utilization, and what drags it below 100 percent?
+
+**Tricks and gotchas**
+- Tensor parallelism needs the fastest links (NVLink) because it all-reduces inside every layer.
+- ZeRO partitions instead of replicating the 16-bytes-per-parameter Adam footprint across DP ranks.
+- The pipeline bubble is (p-1)/(m+p-1); many micro-batches make it small.
+- The real ceiling is interconnect and memory bandwidth, so the parallelism plan targets MFU, not FLOPs.
+
+**Common mistakes and how to fix them**
+- Putting tensor parallelism across the slow network; fix by keeping TP in-node and DP/PP across nodes.
+- Relying on data parallelism alone for a huge model; fix with ZeRO/FSDP sharding to break the memory wall.
+- Running pipelines with too few micro-batches; fix by raising m to shrink the bubble.
+- Optimizing for FLOPs; fix by profiling MFU and attacking communication, stalls, and bubbles.
+</content>
+
+---
+
+## Continued pretraining and long-context adaptation
+
+### Meta: Llama 3 staged context extension ([source](https://ai.meta.com/research/publications/the-llama-3-herd-of-models/))
+
+Llama 3 extends its context window from an 8K pretraining length to 128K, not in one long-context pretrain but in six incremental stages late in pretraining, letting the model consolidate each length before the next. The extension rides on RoPE plus grouped-query attention (a small KV-head count that keeps the cache affordable at length), and it sits after the main pretrain and before post-training, so the aligned model inherits a base that already reads long. The stated levers across the whole herd are data, scale, and managing complexity, and staged extension is the length instance of that philosophy: many cheap short-to-longer steps beat one expensive giant-length run.
+
+```mermaid
+flowchart TD
+  PT["dense-transformer pretrain<br/>(GQA, RoPE, RMSNorm) at 8K"] --> S1["stage up: rescale RoPE<br/>+ continued train"]
+  S1 --> S2["repeat over 6 stages<br/>(upsampled long docs)"]
+  S2 --> LC["128K context base"]
+  LC --> EVAL["long-context eval<br/>(needle + retrieval)"]
+  EVAL --> POST["post-training (SFT + DPO)"]
+```
+
+**Interview questions this design invites**
+- Why extend context in stages near the end of pretraining rather than pretraining long from the start?
+- What role does grouped-query attention play in making a 128K base serveable?
+- Why extend on the base rather than after alignment?
+- How do you upsample long documents so each stage actually exercises the new length?
+- What eval convinces you the 128K is real and not just configured?
+
+**Tricks and gotchas**
+- Staged extension is cheaper (short sequences early) and more stable than one long-length run.
+- Extension is a late-stage continued-training step, a tiny fraction of the pretrain compute.
+- GQA shrinks the KV cache so the long window fits in VRAM at a usable batch size.
+- Extending before post-training keeps the aligned behavior from being disturbed by the length change.
+
+**Common mistakes and how to fix them**
+- Pretraining at long context throughout; fix with a staged extension to save compute.
+- Jumping straight to 128K; fix by increasing length in stages so each consolidates.
+- Ignoring KV-cache growth; fix with grouped-query attention and paging at the target length.
+- Trusting the config length; fix by gating on a long-context retrieval eval before shipping.
+
+### Meta: Code Llama, domain continued pretraining with base-frequency scaling ([source](https://arxiv.org/abs/2308.12950))
+
+Code Llama continues pretraining Llama 2 on a code-heavy corpus, so it is both a domain adaptation (general base to code) and a length extension in one phase. The length lever is an Adjusted Base Frequency: it raises the RoPE base from 10000 to 1000000, which is a non-uniform rescaling that scales the low-frequency dimensions far more than the high-frequency ones. Trained on 16K-token sequences, the model then generalizes to inputs up to 100K tokens, showing that a larger base frequency both stabilizes training at the trained length and extrapolates beyond it. It is the cleanest production example that "raise the base" is a real, cheap alternative to compressing positions.
+
+```mermaid
+flowchart TD
+  L2["Llama 2 base<br/>(RoPE base 10000)"] --> CPT["continued pretrain on code<br/>(16K sequences)"]
+  ABF["Adjusted Base Frequency<br/>base 10000 to 1000000"] --> CPT
+  CPT --> CL["Code Llama base"]
+  CL --> EXT["extrapolates to ~100K tokens"]
+  CL --> VAR["Python / Instruct variants"]
+```
+
+**Interview questions this design invites**
+- Why does raising the RoPE base extend context, and why is it non-uniform across dimensions?
+- How is training on 16K sequences consistent with generalizing to 100K tokens?
+- What does the code domain gain, and what general ability might it lose?
+- When would you prefer base-frequency scaling over linear position interpolation?
+- How do you keep a code-specialized base from forgetting natural language?
+
+**Tricks and gotchas**
+- Scaling the base is mathematically a non-uniform frequency rescale: low frequencies move most, local resolution is spared.
+- A larger base both trains stably at length and extrapolates past the trained window.
+- Continued pretraining on code is a domain shift, so general-language ability needs replay or a general variant.
+- The 16K-train, 100K-test gap is the extrapolation ABF buys, not a claim of unlimited reach.
+
+**Common mistakes and how to fix them**
+- Compressing positions when raising the base would preserve resolution; fix by trying ABF for RoPE bases.
+- Assuming the trained length caps the usable length; fix by measuring extrapolation, but verify with a real eval.
+- Forgetting general language during code adaptation; fix with a general-data replay fraction.
+- Treating a bigger base as free; fix by re-tuning the schedule, since the frequency change perturbs training.
+
+### Nous Research: YaRN, non-uniform scaling plus attention temperature ([source](https://arxiv.org/abs/2309.00071))
+
+YaRN is the principled answer to "uniform interpolation blurs short-range resolution." It classifies each RoPE dimension by its wavelength relative to the original context: low-frequency (long-wavelength) dimensions get interpolated, high-frequency (short-wavelength) ones are left essentially unscaled to preserve local ordering, and a ramp blends the middle band. It then adds a softmax temperature correction to counter the attention-entropy shift a longer sequence causes. The result extends context (64K, 128K, and beyond) with far less quality loss than linear interpolation, and it does so at roughly 0.1 percent of the original pretraining tokens, which is why YaRN became the default aggressive-extension recipe.
+
+```mermaid
+flowchart TD
+  ROPE["RoPE dimensions"] --> CLASS["classify by wavelength<br/>vs original context"]
+  CLASS -->|"high freq (local)"| KEEP["leave near-unscaled"]
+  CLASS -->|"low freq (global)"| INTERP["interpolate (theta / s)"]
+  CLASS -->|"middle band"| RAMP["ramp blend"]
+  KEEP --> COMB["rescaled frequencies"]
+  INTERP --> COMB
+  RAMP --> COMB
+  COMB --> TEMP["softmax temperature correction"]
+  TEMP --> FT["short fine-tune (~0.1% tokens)"]
+```
+
+**Interview questions this design invites**
+- Why interpolate low frequencies but spare high frequencies?
+- What is the attention-temperature correction fixing, and why does length change entropy?
+- How does YaRN differ from linear position interpolation, precisely?
+- Why can YaRN extend at 0.1 percent of pretraining tokens?
+- What breaks if you set the ramp bands or temperature wrong?
+
+**Tricks and gotchas**
+- High-frequency dimensions carry local ordering; blurring them is what hurts short-context quality.
+- The temperature correction rescales attention logits to keep entropy sane at long length.
+- Wavelength (not raw index) is the right variable for deciding what to interpolate.
+- The extension is so cheap because frequencies encode relative position; the model adapts, it does not relearn.
+
+**Common mistakes and how to fix them**
+- Calling uniform interpolation YaRN; fix by stating YaRN is non-uniform plus a temperature term.
+- Interpolating all frequencies; fix by sparing the high-frequency (local) dimensions.
+- Dropping the attention-temperature term; fix by including it, since long sequences shift entropy.
+- Over-fine-tuning; fix by using the small token budget YaRN needs, not a full pretrain.
+
+### Microsoft: LongRoPE, searched rescaling to millions of tokens ([source](https://arxiv.org/abs/2402.13753))
+
+LongRoPE pushes extension past 2 million tokens by refusing to hand-design the frequency schedule. It runs an evolutionary search over per-dimension rescale factors (a superset of YaRN's ramp, since every dimension gets its own factor), extends progressively (reach an intermediate length, fine-tune, extend again), and adds a short-context recovery step that swaps back to a smaller scaling for short inputs so the extended model does not regress on ordinary text. The lesson it makes explicit: the optimal rescaling is both non-uniform and input-length dependent, which is why the most aggressive extensions search the factors and switch them by input length rather than derive a single closed form.
+
+```mermaid
+flowchart TD
+  BASE["base model"] --> SEARCH["evolutionary search<br/>per-dimension rescale factors"]
+  SEARCH --> P1["progressive extend<br/>(8x, fine-tune)"]
+  P1 --> P2["extend again to 2M+"]
+  P2 --> DUAL["short-context recovery<br/>(dual scaling by input length)"]
+  DUAL --> LONG["2M-token model,<br/>short-context preserved"]
+```
+
+**Interview questions this design invites**
+- Why search per-dimension rescale factors instead of using a closed-form schedule?
+- What does progressive extension buy over a single giant-length step?
+- Why is a short-context recovery / dual-scaling step necessary?
+- How does LongRoPE generalize YaRN's ramp?
+- What is the cost of the search, and when is it worth it?
+
+**Tricks and gotchas**
+- Per-dimension search is a superset of YaRN; the ramp is one parameterization the search can beat.
+- Progressive extension consolidates each length, keeping the far extension stable.
+- Dual scaling by input length is what stops the 2M model from regressing at 2K.
+- Optimal rescaling is input-length dependent, not one fixed vector.
+
+**Common mistakes and how to fix them**
+- Using one rescale for all input lengths; fix with length-dependent (dual) scaling.
+- Extending to millions in one jump; fix by progressing through intermediate lengths.
+- Assuming a closed form is optimal; fix by searching the factors when reach is extreme.
+- Ignoring short-context regression; fix by adding a recovery step and testing short prompts.
+
+### 01.AI: Yi, long-context adaptation driven by data quality ([source](https://arxiv.org/abs/2403.04652))
+
+Yi ships 6B and 34B bilingual bases and extends them into 200K-token long-context variants through continued pretraining on long data. The paper's framing is notable: it credits the gains primarily to data-engineering (the quality and curation of the long corpus) rather than to a novel positional trick. That is the practitioner's counterweight to the frequency-scaling literature, a reminder that once the RoPE rescaling is reasonable, the binding constraint on a real 200K model is having enough genuinely long, high-quality documents to train on, not the exact interpolation formula.
+
+```mermaid
+flowchart TD
+  YB["Yi 6B / 34B base"] --> LD["curate long-context corpus<br/>(quality-filtered long docs)"]
+  LD --> CPT["continued pretrain on long data<br/>(RoPE rescaled)"]
+  CPT --> Y200["Yi 200K variant"]
+  Y200 --> OTHER["chat / depth-upscaled /<br/>vision variants"]
+```
+
+**Interview questions this design invites**
+- Why can data quality matter more than the positional-scaling method for long context?
+- What makes a long-document corpus hard to curate at 200K length?
+- How do you avoid packing unrelated short documents to fake long context?
+- Where does synthetic long-context data fit alongside natural long documents?
+- How do you validate a 200K claim beyond perplexity?
+
+**Tricks and gotchas**
+- Once rescaling is adequate, long-data quantity and quality become the binding constraint.
+- Real long-range dependencies (one long document) teach the window; concatenated shorts do not.
+- Bilingual bases need long data in both languages or the long-context skill is uneven.
+- Data-engineering, not a clever formula, is often the actual lever behind a strong long-context release.
+
+**Common mistakes and how to fix them**
+- Chasing the perfect interpolation while ignoring the corpus; fix by investing in long-data curation.
+- Packing random shorts to reach length; fix with genuine long documents and targeted synthetic tasks.
+- Reporting long-context perplexity only; fix by adding retrieval and aggregation evals.
+- Assuming one language's long data transfers; fix by curating long data per language.
+
+### Alibaba: Qwen2.5, progressive length with YaRN and Dual Chunk Attention ([source](https://arxiv.org/abs/2412.15115))
+
+Qwen2.5 pretrains on 18 trillion tokens and reaches long context by combining several of the levers above: a progressive length increase during training, YaRN-style non-uniform frequency scaling, and Dual Chunk Attention, reaching 128K on the open models (and up to 1M on the turbo variant). It is the current production example of stacking mechanisms rather than betting on one: staged length for stable training, YaRN for the frequency rescale, and a chunked-attention scheme to manage the cost at extreme length. The report is candid that configured length and effective length differ, which is why a RULER-style eval is the right gate.
+
+```mermaid
+flowchart TD
+  PT["pretrain 18T tokens"] --> PROG["progressive length increase"]
+  PROG --> YARN["YaRN non-uniform rescale"]
+  YARN --> DCA["Dual Chunk Attention<br/>(manage cost at length)"]
+  DCA --> LC["128K base (1M turbo)"]
+  LC --> RULER["verify effective length<br/>(RULER-style eval)"]
+  RULER --> POST["post-training"]
+```
+
+**Interview questions this design invites**
+- Why stack progressive length, YaRN, and Dual Chunk Attention instead of one mechanism?
+- What does chunked attention buy at extreme length, and what does it trade?
+- Why distinguish configured length from effective length?
+- How does progressive length stabilize training toward 128K?
+- What eval separates a real 128K model from a 128K config?
+
+**Tricks and gotchas**
+- Real systems stack levers: staged length for stability, YaRN for rescale, chunking for cost.
+- Chunked attention bounds the quadratic cost that a full 128K window otherwise pays.
+- Configured length overstates effective length; the gap is the thing to measure.
+- Progressive length makes the far extension trainable without a giant-length run.
+
+**Common mistakes and how to fix them**
+- Betting on a single mechanism; fix by combining staged length, non-uniform rescale, and cost-bounded attention.
+- Advertising the configured length; fix by reporting effective length from a RULER-style eval.
+- Paying full quadratic attention at 128K; fix with a chunked or windowed attention scheme.
+- One-shot extension to the max length; fix with a progressive schedule.
+
+### Mila and collaborators: simple, scalable continued pretraining ([source](https://arxiv.org/abs/2403.08763))
+
+This study answers the practical question DAPT hinges on: how do you resume pretraining on new data without either stalling or catastrophically forgetting? The recipe is three ingredients: re-warm the learning rate from the base's decayed floor to a modest peak, re-decay it, and replay a small fraction of the original-distribution data. With those, continued pretraining matches a full from-scratch retrain on the combined data at a fraction of the compute, and the paper quantifies how the re-warm peak and replay fraction trade off forgetting against new-domain learning. It is the schedule most continued-pretraining runs should copy.
+
+```mermaid
+flowchart TD
+  BASE["base at decayed LR floor"] --> WARM["re-warm LR<br/>to a modest peak"]
+  MIX["new-domain data<br/>+ small replay fraction"] --> WARM
+  WARM --> DECAY["re-decay LR"]
+  DECAY --> CPT["continued pretrain"]
+  CPT --> MATCH["matches from-scratch retrain<br/>at a fraction of compute"]
+  CPT --> GATE["gate: general regression check"]
+```
+
+**Interview questions this design invites**
+- Why must you re-warm the learning rate rather than resume at the decayed floor?
+- Why is the re-warm peak lower than the original pretraining peak?
+- How large a replay fraction do you need, and what does it trade off?
+- How can continued pretraining match a from-scratch retrain, and when does it not?
+- What do you measure before and after to detect forgetting?
+
+**Tricks and gotchas**
+- Resuming at the decayed floor stalls; resuming at the original peak forgets. The modest peak is the balance.
+- Even a small replay fraction (a few percent) sharply cuts forgetting for little slowdown.
+- Re-warm then re-decay is the shape; it is not a constant learning rate.
+- The method makes continued pretraining a real substitute for retraining, at a fraction of the cost.
+
+**Common mistakes and how to fix them**
+- Resuming at the base's final learning rate; fix by re-warming to a modest peak.
+- Re-warming to the original peak; fix by lowering it to protect converged weights.
+- Skipping replay; fix by mixing in a small fraction of original-distribution data.
+- Asserting no forgetting; fix by running the full general suite before and after as a gate.
+
+---
+
+## Post-training pipeline
+
+### Grammarly: CoEdIT, task-specific instruction tuning that beats generalists at a fraction of the params ([source](https://www.grammarly.com/blog/engineering/coedit-text-editing/))
+
+CoEdIT fine-tunes FLAN-T5 (L 770M, XL 3B, XXL 11B) purely with instruction tuning on a dense text-editing dataset. The team took the IteraTeR+ edit corpus, translated its edit categories (Fluency, Coherence, Clarity, Style) into natural-language instructions, and added instruction paraphrases so the model handles varied phrasings of the same intent. No preference tuning is used; SFT alone carries it. Human evaluators preferred CoEdIT-XL (3B) over GPT3-Edit (175B) 64% of the time versus 10%, and CoEdIT-L beats larger instruction-tuned baselines at 12x to 60x fewer parameters while generalizing to unseen adjacent tasks like sentence compression and politeness transfer.
+
+```mermaid
+flowchart TD
+  BASE["FLAN-T5 base (770M / 3B / 11B)"] --> DATA["IteraTeR+ edit data<br/>categories to NL instructions<br/>plus instruction paraphrases"]
+  DATA --> SFT["instruction fine-tune (SFT)<br/>instruction plus input to edited output"]
+  SFT --> EVAL{"eval: benchmarks plus human pref<br/>vs generalist LLMs"}
+  EVAL -->|"win at 12x-60x fewer params"| SERVE["CoEdIT editing model"]
+  EVAL -->|"gap"| DATA
+```
+
+**Interview questions this design invites**
+- Why does a dense, single-domain instruction set let a 3B model beat a 175B generalist on editing?
+- How do you turn an edit-category taxonomy into instruction data without overfitting to phrasing?
+- What role do instruction paraphrases play, and what breaks if you omit them?
+- How would you measure "meaning preservation" in an edit task beyond automated metrics?
+- When does the small-model-plus-narrow-data bet stop paying off?
+- Why choose an encoder-decoder (T5) base for editing rather than a decoder-only LLM?
+
+**Tricks and gotchas**
+- Editing is a behavior/format skill, not a knowledge gap, so SFT alone is the correct and sufficient lever.
+- Paraphrasing instructions is what buys robustness to real user phrasing; the model learns the template as hard as the content.
+- Human preference eval matters here because automated editing metrics under-credit fluency and tone.
+- Generalization to adjacent tasks is a signal the model learned the edit operation, not memorized the dataset.
+
+**Common mistakes and how to fix them**
+- Reaching for a giant generalist when a small tuned model wins: match model scale to a narrow task and tune it.
+- Training on one instruction phrasing per task: add paraphrases so production wording does not fall out of distribution.
+- Trusting only benchmark scores: add human pairwise preference to catch meaning-preservation regressions.
+- Assuming preference tuning is needed: for a bounded edit task, well-curated SFT is the whole job.
+
+### Anyscale: iterative DPO on synthetic preferences with a judge-aligned objective ([source](https://www.anyscale.com/blog/direct-preference-optimization-with-synthetic-data))
+
+Starting from the weak Mistral-7B-Instruct-v0.1, Anyscale skips heavy human labeling and manufactures preferences: sample 10 summaries per article across 20,000 CNN articles at temperature 0.8, then use Llama-3-70B as an LLM judge that writes five multiple-choice questions per article and answers them from each summary alone. The preference rule ("if both summaries answer 3 or more questions correctly, prefer the shorter one, else prefer the more accurate") makes the training signal identical to the eval axis. Full-parameter DPO (learning rate 1e-7, beta 0.03) beat LoRA rank 64, which drifted out of distribution; a second on-policy round regenerating data with the improved model added a 10-plus-percent win-rate boost. Ray runs the frozen reference model on separate nodes (A10G) from the training GPUs (A100) so reference scoring does not idle training hardware.
+
+```mermaid
+flowchart TD
+  BASE["Mistral-7B-Instruct-v0.1"] --> GEN["sample 10 summaries/article<br/>20k CNN articles, temp 0.8"]
+  GEN --> JUDGE["Llama-3-70B judge<br/>5 MCQs, answer from summary"]
+  JUDGE --> PREF["pref rule: both 3+ correct then shorter<br/>else higher accuracy"]
+  PREF --> DPO["full-param DPO<br/>lr 1e-7, beta 0.03<br/>reference model on separate Ray nodes"]
+  DPO --> EVAL{"eval: QandA accuracy plus compression"}
+  EVAL -->|"dominates pareto vs GPT-4o"| DONE["aligned summarizer"]
+  EVAL -->|"regenerate on-policy"| GEN
+```
+
+**Interview questions this design invites**
+- Why does aligning the preference rule to the eval metric matter, and how could it backfire?
+- Why did full fine-tune beat LoRA rank 64 for DPO here when LoRA usually suffices?
+- What does the beta parameter control in DPO, and why is 0.03 low?
+- Why run the reference model on separate nodes, and what does that cost or save?
+- What makes a second on-policy DPO round help, and when does iterating stop helping?
+- How do you trust an LLM judge as both label source and evaluator without circularity?
+
+**Tricks and gotchas**
+- LLM-as-judge replaces human preference labels, but training and eval sharing the judge risks optimizing the judge, not real quality.
+- Tiny learning rates (1e-7) are load-bearing for DPO stability; too high yields gibberish and off-topic drift.
+- LoRA's constrained parameter space pushed problematic token likelihoods up, causing out-of-distribution outputs.
+- Decoupling reference-model scoring onto cheaper GPUs removes idle time on the expensive training node.
+- On-policy iteration mimics production multi-round DPO (Llama 3.1 style) but needs stability checks each round.
+
+**Common mistakes and how to fix them**
+- Assuming LoRA always matches full fine-tune: for preference tuning on a weak base, validate against full fine-tune before committing.
+- Setting an aggressive DPO learning rate: keep it very small and watch for OOD generation.
+- SFT on chosen-only data and expecting DPO-level gains: chosen-only discards the rejected-sample signal.
+- Reusing one judge for labels and eval without a human-anchored check: periodically calibrate the judge to humans.
+
+### Shopify: a fine-tuned Qwen3-32B Flow agent with a weekly LLM-judge retraining flywheel ([source](https://shopify.engineering/fine-tuning-agent-shopify-flow))
+
+Shopify full-fine-tunes Qwen3-32B with FSDP across two H200 nodes (a 12-hour cycle, enabling weekly retrains). With no pre-launch production conversations, they reverse-engineered training data: sample validated production workflows (live 7-plus days, from merchants with multiple workflows), use stronger LLMs to write plausible natural-language requests, and build multi-turn tool-call sequences of ideal behavior. The key move was representing workflows in Python rather than Flow's native JSON DSL, shifting the task in-distribution and lifting syntactic correctness 22 points and semantic correctness 13 points on identical data. A 1% deployment exposed a 35% activation-rate gap versus synthetic scores, which the flywheel closes: an LLM judge calibrated to human labels and activation rates scores production conversations, routes good ones into training and quarantines bad ones, and retrains weekly. The agent now serves most traffic at 68% lower cost than the frontier model it replaced.
+
+```mermaid
+flowchart TD
+  PROD["validated production workflows<br/>live 7+ days, multi-workflow merchants"] --> SYN["reverse-engineer synthetic data<br/>LLM writes NL requests<br/>multi-turn tool-call sequences<br/>workflows as Python, not JSON DSL"]
+  SYN --> SFT["full fine-tune Qwen3-32B<br/>FSDP, 2x H200, 12h cycle"]
+  SFT --> EVAL{"eval: benchmarks then 1% traffic<br/>activation rate vs frontier"}
+  EVAL -->|"pass"| SERVE["serve majority traffic<br/>68% cheaper than frontier"]
+  SERVE --> JUDGE["weekly LLM judge<br/>calibrated to human labels<br/>route good, quarantine bad"]
+  JUDGE --> SYN
+```
+
+**Interview questions this design invites**
+- Why does representing workflows as Python instead of the native JSON DSL move the task in-distribution?
+- How do you bootstrap training data for an agent with zero pre-launch production conversations?
+- Why did offline benchmarks look ready while 1% traffic showed a 35% activation gap?
+- How do you calibrate an LLM judge to human labels and to a product metric like activation rate?
+- What quality filters keep the weekly flywheel from ingesting bad conversations?
+- Why full fine-tune a 32B model here instead of LoRA?
+
+**Tricks and gotchas**
+- Output-format representation (Python vs JSON DSL) can matter more than data volume for correctness.
+- The model is sensitive to formatting minutiae: tool naming, ordering, JSON field order, system-prompt alignment; training must mirror production exactly.
+- Offline eval overstates readiness; a small live slice is the real gate.
+- The flywheel's quarantine step is what prevents low-quality production data from poisoning the next model.
+
+**Common mistakes and how to fix them**
+- Training in the native serialization because it is "correct": pick the representation the base model handles best, even if it needs translation at serve time.
+- Trusting synthetic-scenario benchmarks as a promotion gate: gate on live activation rate before scaling traffic.
+- Letting training and production formatting drift: pin tool naming, field ordering, and prompts identically across both.
+- Feeding all production logs back unfiltered: route by a calibrated judge and quarantine low-quality examples.
+
+### Mercari: a QLoRA-tuned 2B model that beats GPT-3.5 on attribute extraction at 14x lower cost ([source](https://engineering.mercari.com/en/blog/entry/20240913-fine-tuning-an-llm-to-extract-dynamically-specified-attributes/))
+
+Mercari fine-tunes gemma-2b-it with QLoRA (4-bit base) on a single A100 to extract dynamically specified attributes from marketplace listings. Data is templated prompt-response pairs (listing description, extraction instruction, target attribute keys, extracted values), focused on the 20 highest-volume product categories. After training they apply 4-bit post-training quantization (q4_k_m via llama.cpp), cutting model size roughly 95% versus the base. The tuned 2B model beats gpt-3.5-turbo-0125 by more than 5 BLEU points, controls hallucination better than prompt engineering alone, and is estimated more than 14x cheaper than the commercial API.
+
+```mermaid
+flowchart TD
+  BASE["gemma-2b-it (4-bit, QLoRA)"] --> DATA["templated pairs<br/>listing + instruction + target keys to values<br/>top 20 categories"]
+  DATA --> SFT["QLoRA SFT on single A100"]
+  SFT --> QUANT["4-bit PTQ (q4_k_m, llama.cpp)<br/>~95% size cut"]
+  QUANT --> EVAL{"eval: BLEU vs GPT-3.5-turbo"}
+  EVAL -->|"+5 BLEU, ~14x cheaper"| SERVE["attribute extractor"]
+  EVAL -->|"gap"| DATA
+```
+
+**Interview questions this design invites**
+- Why is a 2B QLoRA model a good fit for structured attribute extraction versus a large API model?
+- How does templating the prompt-response format improve extraction reliability?
+- Is BLEU a sound metric for attribute extraction, and what would you add?
+- Why quantize to 4-bit after training, and what accuracy risk does q4_k_m carry?
+- Why start with only the top 20 categories, and how do you expand coverage safely?
+- Where does fine-tuning beat prompt engineering for hallucination control here?
+
+**Tricks and gotchas**
+- QLoRA plus a small base makes single-GPU tuning feasible and serving cheap.
+- Templated, consistent formatting is what teaches the extraction skill; the model learns the template hard.
+- Post-training 4-bit quantization compounds the cost win but must be eval-checked for quality loss.
+- "Dynamically specified attributes" means the instruction carries the target keys at inference; training must reflect that variability.
+
+**Common mistakes and how to fix them**
+- Defaulting to a commercial API for a narrow extraction task: a small tuned model can beat it at a fraction of cost.
+- Relying on BLEU alone: add exact-match or field-level accuracy for structured outputs.
+- Quantizing without re-evaluating: run the eval gate on the quantized artifact, not just the fp checkpoint.
+- Inconsistent prompt templates: standardize one template so the model does not learn spurious variation.
+
+### Grab: LoRA then full fine-tune of Qwen2-VL for multilingual document OCR ([source](https://engineering.grab.com/custom-vision-llm-at-grab))
+
+Grab builds a custom vision LLM on Qwen2-VL 2B for OCR and key-information extraction on onboarding documents. LoRA worked for Latin scripts but underperformed on Thai and Vietnamese because open vision encoders lacked non-Latin visual training, so they switched to full fine-tuning in two stages: continual pre-training on synthetic OCR data, then full-parameter fine-tuning on task documents, yielding +70pp accuracy on Thai and +40pp on Vietnamese. To cut cost they then built a 1B model pairing Qwen2-VL's vision encoder with a Qwen2.5 0.5B decoder, trained in four stages (projector alignment, vision enhancement, language-specific visual training, task fine-tuning); the 1B matches the 2B's accuracy at lower latency. Data is synthetic OCR images (Bahasa, Thai, Vietnamese, English from Common Crawl) plus real ID cards and licenses auto-labeled via the internal Documint platform. The models serve live eKYC onboarding for merchants, drivers, and users.
+
+```mermaid
+flowchart TD
+  BASE["Qwen2-VL 2B (vision LLM)"] --> LORA["LoRA attempt<br/>ok for Latin, weak on Thai/Vietnamese"]
+  LORA --> CPT["continual pre-train<br/>synthetic OCR (Bahasa/Thai/Viet/Eng)"]
+  CPT --> FFT["full fine-tune on real docs<br/>Documint auto-labeled ID/licenses<br/>+70pp Thai, +40pp Vietnamese"]
+  FFT --> DISTILL["custom 1B: Qwen2-VL encoder + Qwen2.5 0.5B decoder<br/>4-stage training"]
+  DISTILL --> EVAL{"eval: extraction accuracy, latency"}
+  EVAL -->|"1B matches 2B, lower latency"| SERVE["live eKYC onboarding"]
+```
+
+**Interview questions this design invites**
+- Why did LoRA fail on Thai and Vietnamese while working on Latin scripts?
+- When is continual pre-training justified before task fine-tuning for a vision model?
+- How do you build a smaller 1B model that matches a 2B one, and what are the four training stages doing?
+- What is the role of synthetic OCR data versus real labeled documents?
+- How do you evaluate OCR and key-info extraction accuracy across scripts?
+- What privacy and labeling controls does auto-labeling ID documents require?
+
+**Tricks and gotchas**
+- LoRA cannot add capability a frozen vision encoder never learned; missing non-Latin visual coverage needs full training or continual pre-training.
+- Two-stage (continual pre-train then full fine-tune) separates learning to see the script from learning the extraction task.
+- Composing a smaller model from an existing encoder plus a small decoder recovers most accuracy at lower latency.
+- Synthetic images from a broad corpus supply script coverage that real document volume alone cannot.
+
+**Common mistakes and how to fix them**
+- Assuming LoRA suffices for multimodal domain shift: test per-script and fall back to full fine-tune where the encoder is weak.
+- Skipping continual pre-training on new scripts: add it when the base encoder lacks visual coverage.
+- Optimizing only the large model: distill or recompose into a smaller model to hit latency and cost targets.
+- Labeling sensitive ID docs ad hoc: use a controlled auto-labeling pipeline with privacy handling.
+
+### LinkedIn: EON, Llama-based domain foundation models via instruction tuning plus RLHF/DPO ([source](https://www.linkedin.com/blog/engineering/generative-ai/how-we-built-domain-adapted-foundation-genai-models-to-power-our-platform))
+
+LinkedIn adapts open Llama 3.1 8B and 70B into its EON models through multi-task instruction tuning on roughly 200M tokens of diverse instructions enriched with reasoning traces, plus prompt-simplification strategies that cut prompt size 30%. A second alignment phase applies RLHF and DPO for preference and safety, including synthetically generated safe outputs for harmful-content scenarios. Domain knowledge comes from LinkedIn's proprietary Economic Graph (jobs, candidates, skills, professional interactions). The 8B variant improved candidate-job matching accuracy, beating GPT-4o mini and Llama-3-8B-instruct by 4 and 30 absolute points respectively, and EON-8B is 75x cheaper than GPT-4 and 6x cheaper than GPT-4o. EON powers the Hiring Assistant, where nearly 90% of LLM calls flow through an EON-based evaluation agent scoring candidate-job fit.
+
+```mermaid
+flowchart TD
+  BASE["Llama 3.1 8B / 70B"] --> IT["multi-task instruction tuning<br/>~200M tokens + reasoning traces<br/>prompt simplification (-30% size)"]
+  IT --> ALIGN["alignment: RLHF + DPO<br/>preference + safety<br/>synthetic safe outputs"]
+  ALIGN --> DOM["Economic Graph domain data<br/>jobs, candidates, skills"]
+  DOM --> EVAL{"eval: candidate-job matching accuracy"}
+  EVAL -->|"beats GPT-4o mini +4pp, 75x cheaper than GPT-4"| SERVE["Hiring Assistant eval agent<br/>~90% of LLM calls"]
+  EVAL -->|"gap"| IT
+```
+
+**Interview questions this design invites**
+- Why layer RLHF and DPO on top of instruction tuning rather than SFT alone here?
+- How does a proprietary knowledge graph inject domain adaptation without baking stale facts?
+- What does prompt simplification buy, and how does it cut 30% of prompt size?
+- Why measure against both a smaller GPT-4o mini and an open Llama baseline?
+- How do reasoning traces in the instruction data change model behavior?
+- What safety re-evaluation is required after preference tuning?
+
+**Tricks and gotchas**
+- Preference and safety alignment can shift what the model will say, so safety eval must re-run after DPO/RLHF, not just task accuracy.
+- Synthetic safe outputs for harmful prompts are a deliberate safety-alignment data source.
+- A 75x cost gap versus GPT-4 is the business case for domain foundation models over frontier APIs at platform scale.
+- Routing 90% of calls through one evaluation agent makes that model's quality and cost the dominant lever.
+
+**Common mistakes and how to fix them**
+- Adding RLHF/DPO without a safety regression check: always re-run safety and quality eval after alignment.
+- Baking domain facts into weights: keep churny knowledge in a graph or retrieval, tune behavior.
+- Benchmarking against only one baseline: compare to both a cheap frontier model and the open base.
+- Ignoring prompt bloat: simplify and standardize prompts to cut token cost before scaling.
+
+### Cloudflare: multi-LoRA edge serving of customer adapters on shared bases ([source](https://blog.cloudflare.com/fine-tuned-inference-with-loras/))
+
+Cloudflare's Workers AI keeps base models (Llama 2, Mistral, Gemma) always warm on GPUs and dynamically loads and swaps customer LoRA adapters against them, so many fine-tuned requests run on one foundation copy. It uses the Punica kernel's Segmented Gather Matrix-Vector Multiplication (SGMV) to store a single base copy while batching requests across different adapters. LoRA A and B matrices load on demand from R2 or cache, with hot adapters kept local; switching adapters is a millisecond-scale add/subtract of weight matrices. Four base variants accept LoRAs (llama-2-7b-chat, mistral-7b-instruct-v0.2, gemma-2b-it, gemma-7b-it). In open beta, adapters must be under 100MB and rank at most 8, quantized bases are unsupported, and there is a 30-adapter-per-account limit.
+
+```mermaid
+flowchart TD
+  REQ["request + adapter id"] --> ROUTE["route to base + adapter"]
+  BASE["shared base always warm<br/>Llama 2 / Mistral / Gemma"] --> ROUTE
+  STORE["adapter A/B matrices in R2/cache<br/><100MB, rank <=8"] -->|"load on demand, hot cached"| ROUTE
+  ROUTE --> SGMV["Punica SGMV kernel<br/>single base copy, batch across adapters"]
+  SGMV --> OUT["fine-tuned inference at edge<br/>ms-scale adapter swap"]
+```
+
+**Interview questions this design invites**
+- How does multi-LoRA serving batch requests that use different adapters against one base?
+- What does the Punica SGMV kernel solve that naive per-adapter serving does not?
+- Why keep the base always warm, and how does that eliminate cold starts?
+- What drives the 100MB and rank-8 limits, and how do they affect adapter quality?
+- How do you cache hot adapters while loading cold ones on demand without latency spikes?
+- Why are quantized bases unsupported in this serving path?
+
+**Tricks and gotchas**
+- One warm base plus many small adapters replaces N full model copies; this is the core multi-LoRA economics.
+- Adapter swap is a cheap matrix add/subtract, so rollback and A/B are just route changes.
+- On-demand adapter loading from object storage needs a hot-cache tier to avoid per-request download latency.
+- Rank and size caps bound memory and batching but limit how much behavior an adapter can encode.
+
+**Common mistakes and how to fix them**
+- Serving one full model per customer: share a base and load adapters to cut memory and cost dramatically.
+- Assuming any LoRA rank serves at the edge: respect rank and size limits or serving degrades.
+- Ignoring cold-adapter latency: cache frequently used adapters and load others asynchronously.
+- Mixing quantized bases into the multi-LoRA path: use supported precisions for the shared base.
+
+### Spotify: rejection-sampling SFT plus DPO for preference-aligned query expansion ([source](https://research.atspotify.com/2025/7/optimizing-query-expansions-via-llm-preference-alignment))
+
+Spotify's Aligned Query Expansion (AQE) tackles vocabulary mismatch between user queries and documents. A zero-shot LLM generates multiple expansion candidates, and each is scored by the position of the relevant document when that expansion is issued to the downstream search system (higher rank, higher score), using query-document pairs from click-through data or annotation. Two sequential alignment steps follow: Rejection Sampling Fine-Tuning on the single highest-scored expansion, then DPO on (high-score, low-score) expansion pairs. On Natural Questions, AQE reaches 30.8% top-1 accuracy versus 28.5% for a generate-then-filter baseline, and cuts query-generation compute by roughly 70% because it no longer generates many candidates to re-rank at serve time.
+
+```mermaid
+flowchart TD
+  BASE["zero-shot LLM<br/>generate expansion candidates"] --> SCORE["score by relevant-doc rank<br/>from downstream search<br/>click-through / annotated pairs"]
+  SCORE --> RSFT["Rejection Sampling SFT<br/>train on highest-scored expansion"]
+  RSFT --> DPO["DPO on (high-score, low-score) pairs"]
+  DPO --> EVAL{"eval: top-1 accuracy, latency"}
+  EVAL -->|"30.8% vs 28.5%, ~70% faster"| SERVE["real-time query expansion"]
+  EVAL -->|"gap"| SCORE
+```
+
+**Interview questions this design invites**
+- Why does scoring expansions by downstream retrieval rank give a better signal than an intrinsic metric?
+- How do RSFT and DPO complement each other, and why run RSFT first?
+- Where does the 70% latency win come from versus generate-then-filter?
+- How do you source preference pairs from click-through data without amplifying position bias?
+- What eval beyond top-1 accuracy would you add for a production search system?
+- How do you keep the expansion model aligned as the document corpus and query mix shift?
+
+**Tricks and gotchas**
+- Grounding the preference score in the actual downstream search ranking aligns training with the real objective.
+- RSFT on the best candidate warms the model before DPO sharpens the preference between good and bad expansions.
+- Removing the generate-many-then-rerank step at serve time is what delivers the 70% compute saving.
+- Click-through-derived preferences carry position and popularity bias that can leak into the model.
+
+**Common mistakes and how to fix them**
+- Filtering many candidates at inference: bake the preference into the model so it emits a good expansion directly.
+- Using an intrinsic scorer detached from search: score by downstream retrieval rank instead.
+- Jumping straight to DPO: run rejection-sampling SFT first for a stable starting policy.
+- Trusting click data uncritically: debias for position and popularity before building preference pairs.
+
+_Not reachable: none_
+
+---
+
+## Long-context and the KV cache
+
+### vLLM (UC Berkeley): OS-style paged KV-cache management ([source](https://arxiv.org/abs/2309.06180))
+
+vLLM is a serving system built around PagedAttention, an attention kernel that manages the KV cache in fixed-size blocks like operating-system virtual-memory pages instead of one contiguous buffer per sequence. Because the cache grows and shrinks dynamically during decode, contiguous allocation wastes memory to internal and external fragmentation; paging drives that toward near-zero waste and lets blocks be shared within and across requests. The extra packing means more concurrent sequences fit in the same GPU memory, delivering 2x to 4x throughput over prior systems like FasterTransformer and Orca at matched latency. The gains are largest for long sequences, big models, and parallel-sampling decode strategies where memory pressure is worst.
+
+```mermaid
+flowchart LR
+  R[Request] --> PF[Prefill]
+  PF --> BT[Block table maps logical to physical]
+  BT --> POOL[(Shared physical block pool)]
+  D[Decode step] --> BT
+  BT --> D
+  POOL -. shared prefix blocks .- POOL
+  D --> O[Output tokens]
+```
+
+**Interview questions this design invites**
+
+- Why does a contiguous per-sequence KV buffer waste memory, and which fragmentation type dominates?
+- How does a block table translate logical token positions to physical blocks?
+- What block size trades internal fragmentation against table overhead?
+- How does copy-on-write let parallel samples share a prompt's KV blocks?
+- Why do throughput gains grow with sequence length and batch size?
+- What is the memory-versus-latency relationship once you can pack more sequences?
+
+**Tricks and gotchas**
+
+- Paging adds an indirection per attention access, so the kernel must be written to gather non-contiguous blocks without killing bandwidth.
+- Block size is a real tuning knob: too large wastes the tail block, too small bloats the block table.
+- Sharing blocks across requests needs reference counting and copy-on-write to stay correct when one sequence diverges.
+- Throughput wins depend on there being enough queued requests to fill the freed memory.
+
+**Common mistakes and how to fix them**
+
+- Assuming paging speeds up a single request. It raises concurrency and throughput, not per-token latency; measure aggregate tokens per second.
+- Forgetting the block-table lookup cost. Fuse it into the attention kernel rather than doing it in Python per step.
+- Setting block size by intuition. Sweep it against your real sequence-length distribution.
+- Ignoring reference counting on shared prefixes. Leaked or prematurely freed blocks corrupt other sequences; instrument the pool.
+
+### Character.AI: MQA plus hybrid attention, cross-layer KV sharing, and int8 ([source](https://blog.character.ai/optimizing-ai-inference-at-character-ai-2/))
+
+Character.AI cut KV-cache size by more than 20x by stacking three architectural changes: Multi-Query Attention (roughly 8x smaller than GQA), hybrid local/global attention with sliding windows on 5 of every 6 layers, and KV sharing across neighboring layers for another 2x to 3x. They train models natively in int8 (weights, activations, and the KV cache) rather than post-training quantizing, which needs custom matmul and attention kernels. A stateful inter-turn prefix cache, an LRU tree indexed by rolling hash, hits about 95% across the fleet because the average conversation carries 180 messages of history. Together these cut serving cost 33x since late 2022, at over 20,000 queries per second.
+
+```mermaid
+flowchart TB
+  Q[Query heads] --> MQA[Single shared KV head, MQA]
+  L[Layer stack] --> SW[5 of 6 layers: sliding window local]
+  L --> GL[1 of 6 layers: global attention]
+  MQA --> KV[(int8 KV cache)]
+  SW --> KV
+  KV --> XL[Cross-layer KV sharing 2 to 3x]
+  RH[Rolling-hash LRU tree, 95 pct hit] -. reuse across turns .-> KV
+```
+
+**Interview questions this design invites**
+
+- Why does MQA give a larger cache cut than GQA, and what quality risk does it carry?
+- How does a 5-of-6 local/global layer pattern preserve long-range information cheaply?
+- What makes native int8 training different from post-training quantization for the KV cache?
+- How does a rolling hash key the prefix cache across dialogue turns?
+- Why does a 95% hit rate matter more when average history is 180 messages?
+- Where does cross-layer KV sharing lose quality, and how do you bound it?
+
+**Tricks and gotchas**
+
+- Native int8 requires custom kernels; you cannot bolt it on with a stock stack.
+- Sliding-window local layers need at least some global layers or long-range recall collapses.
+- Rolling-hash prefix keys must handle turn boundaries and tokenizer edges or hit rate degrades silently.
+- Cross-layer sharing couples layers, so a bad share pattern hurts quality unevenly.
+
+**Common mistakes and how to fix them**
+
+- Treating MQA as free. It is aggressive; validate quality on your task before shipping, and fall back to GQA if it regresses.
+- Post-quantizing to int8 and expecting Character.AI's numbers. They trained in int8; PTQ needs its own eval and per-channel scales.
+- Building a flat prefix cache. Use a tree keyed by hashed prefixes so multi-turn history reuses shared ancestors.
+- Sharing KV across arbitrary layers. Place shared and full layers deliberately, keeping enough independent global layers.
+
+### DeepSeek (V2): Multi-head Latent Attention compresses KV into a latent ([source](https://arxiv.org/abs/2405.04434))
+
+DeepSeek-V2 introduces Multi-head Latent Attention, which does not cache full keys and values at all; it down-projects each token into a small latent vector, caches only that latent, and up-projects back to per-head keys and values at attention time. This shrinks the KV cache about 93.3% versus the dense predecessor while keeping quality high. It pairs with DeepSeekMoE, activating only 21B of 236B parameters per token, so both cache memory and per-token compute stay low. RoPE does not commute cleanly with the compression, so DeepSeek splits the head dimension into a positional RoPE-carrying part and a compressed latent part.
+
+```mermaid
+flowchart LR
+  T[Token hidden state] --> DP[Down-project to latent]
+  DP --> LAT[(Cached latent vector)]
+  LAT --> UP[Up-project to per-head K and V]
+  T --> RO[RoPE sub-dimension]
+  UP --> ATT[Attention]
+  RO --> ATT
+  ATT --> MOE[DeepSeekMoE: 21B of 236B active]
+  MOE --> O[Output]
+```
+
+**Interview questions this design invites**
+
+- How does MLA differ from GQA in what actually shrinks the cache formula?
+- Why can you store a latent and reconstruct K and V instead of caching them?
+- Why does RoPE break naive latent compression, and how does splitting the head fix it?
+- What compute cost does the up-projection add per decode step?
+- How do MLA and MoE attack different terms of the serving bill?
+- When would MLA beat GQA despite its extra complexity?
+
+**Tricks and gotchas**
+
+- The RoPE-versus-latent head split is the detail most diagrams get wrong; both parts must be concatenated per head.
+- The up-projection matmul is paid every step, so it must be cheap relative to the memory saved.
+- MoE keeps all experts resident in memory even though only a few activate, so weight memory rises.
+- Latent width is a quality knob: too small and reconstruction loses information.
+
+**Common mistakes and how to fix them**
+
+- Claiming MLA shrinks kv_heads like GQA. It replaces cached K and V with a latent; describe the mechanism, not the head count.
+- Applying RoPE to the whole latent. Split the head so only the positional sub-dimension carries RoPE.
+- Assuming MoE cuts memory. It cuts active compute per token but needs all experts in HBM; budget for that.
+- Picking latent dims by feel. Sweep the down-projection width against quality on long-context evals.
+
+### Google Research (GQA): trade KV heads for speed at near-MHA quality ([source](https://arxiv.org/abs/2305.13245))
+
+Grouped-Query Attention sits between Multi-Head Attention (one KV head per query head) and Multi-Query Attention (a single shared KV head) by using an intermediate number of KV heads, each shared across a group of query heads. This directly shrinks the kv_heads term of the cache formula while keeping quality close to MHA. The paper also gives a recipe to uptrain existing MHA checkpoints into GQA (and MQA) using about 5% of original pre-training compute, so you convert a trained model rather than retrain from scratch. The result reaches quality close to MHA at speed comparable to MQA, which is why GQA is the current default.
+
+```mermaid
+flowchart TB
+  subgraph Q[8 query heads]
+    Q1
+    Q2
+    Q3
+    Q4
+  end
+  Q1 --> G1[KV head 1]
+  Q2 --> G1
+  Q3 --> G2[KV head 2]
+  Q4 --> G2
+  G1 --> KV[(KV cache: 2 heads not 8)]
+  G2 --> KV
+  MHA[MHA checkpoint] -. uptrain 5 pct compute .-> KV
+```
+
+**Interview questions this design invites**
+
+- How does GQA interpolate between MHA and MQA, and what does the group size control?
+- Why does GQA lose less quality than MQA for the same cache saving?
+- How does uptraining convert an MHA checkpoint into GQA cheaply?
+- What is the cache-reduction factor for 32 query heads and 8 KV heads?
+- Why is GQA the safe default over MLA for most deployments?
+- How do you pick the number of KV groups for a target memory budget?
+
+**Tricks and gotchas**
+
+- Uptraining still costs about 5% of pretraining compute; it is cheap, not free.
+- Group size is a direct quality-versus-memory dial; too few KV heads approaches MQA's quality risk.
+- Mean-pooling the original KV heads when initializing groups matters for uptraining quality.
+- GQA shrinks the cache but leaves head_dim and layer count untouched.
+
+**Common mistakes and how to fix them**
+
+- Conflating GQA and MQA. GQA keeps several KV heads; MQA keeps one. State the group count.
+- Expecting free conversion. Budget the 5% uptraining compute and re-evaluate quality after.
+- Setting one KV head to maximize savings. Keep enough groups to stay near MHA quality on your evals.
+- Assuming GQA fixes long-context memory alone. Combine with paging, quantization, or prefix caching.
+
+### NVIDIA: TensorRT-LLM KV-cache early reuse ([source](https://developer.nvidia.com/blog/5x-faster-time-to-first-token-with-nvidia-tensorrt-llm-kv-cache-early-reuse/))
+
+TensorRT-LLM lets shared prefixes (system prompts) be reused as their KV cache is being built rather than only after the whole computation finishes, which cuts redundant prefill during traffic surges. It adds flexible block sizing, letting developers chop KV blocks into sizes from 64 down to 2 tokens so short sequences waste less cache and reuse more precisely. Its eviction algorithm traces dependency trees and evicts dependent (child) blocks before their source (parent) blocks, so reusable prefixes survive under pressure. This yields up to 5x faster time-to-first-token for system-prompt-heavy workloads and about 7% additional speedup from block sizing on LLaMA-70B on H100.
+
+```mermaid
+flowchart LR
+  SP[Shared system prompt] --> ER[Early reuse while prefill in progress]
+  ER --> BLK[(KV blocks, size 2 to 64 tokens)]
+  NEW[New request same prefix] --> BLK
+  BLK --> EV[Eviction: children before parents]
+  BLK --> TTFT[Up to 5x faster TTFT]
+```
+
+**Interview questions this design invites**
+
+- What does early reuse buy over reuse that waits for full prefill completion?
+- How does variable block size reduce wasted cache for short sequences?
+- Why must eviction evict dependent blocks before their source blocks?
+- Where does the 5x TTFT gain come from, and for which workloads?
+- What is the failure mode if a parent prefix block is evicted first?
+- How does this compare to vLLM's fixed-block paging?
+
+**Tricks and gotchas**
+
+- Smaller blocks improve reuse granularity but increase block-table and management overhead.
+- Early reuse only helps when prefixes genuinely repeat, such as a fixed system prompt under a surge.
+- Dependency-aware eviction is essential; naive LRU can evict a shared parent and force recompute for everyone.
+- The 7% block-sizing gain is model and shape specific, not universal.
+
+**Common mistakes and how to fix them**
+
+- Using one large block size everywhere. Match block size to your sequence-length distribution.
+- Treating eviction as plain LRU. Track block dependencies so shared prefixes are evicted last.
+- Expecting TTFT gains without shared prefixes. The win is prefix-reuse; measure your prefix hit rate first.
+- Ignoring management overhead of tiny blocks. Profile the crossover where smaller blocks stop helping.
+
+### NVIDIA: NVFP4 4-bit KV cache ([source](https://developer.nvidia.com/blog/optimizing-inference-for-long-context-and-large-batch-sizes-with-nvfp4-kv-cache/))
+
+NVFP4 is a 4-bit floating-point format for the KV cache that cuts KV memory roughly 50% versus an FP8 cache, effectively doubling the context length, batch size, and concurrency that fit in HBM. Values are dequantized from NVFP4 up to FP8 before the attention math to hold accuracy, and its finer block scaling gives about 5% higher accuracy than MXFP4. Measured accuracy loss is under 1% across LiveCodeBench, MMLU-PRO, MBPP, and Ruler 64K. It optimizes for memory bandwidth and long-context/large-batch serving, reporting up to 3x prefill improvement from higher cache-hit rates and freeing HBM for weights and parallelism.
+
+```mermaid
+flowchart LR
+  KV[K and V tensors] --> QN[Quantize to NVFP4 4-bit]
+  QN --> STORE[(NVFP4 KV cache, ~50 pct of FP8)]
+  STORE --> DQ[Dequantize to FP8]
+  DQ --> ATT[Attention compute]
+  STORE --> CAP[2x context, batch, concurrency]
+```
+
+**Interview questions this design invites**
+
+- Why quantize the KV cache rather than only the weights for long-context serving?
+- Why dequantize NVFP4 to FP8 before attention instead of computing in 4-bit?
+- What does finer block scaling buy over MXFP4?
+- How does halving KV memory translate into doubled context or batch?
+- How would you gate a 4-bit KV format behind an accuracy eval?
+- Why does a smaller cache also help decode bandwidth, not just capacity?
+
+**Tricks and gotchas**
+
+- Block scaling granularity drives the accuracy gap; coarser scales lose more than the headline 1%.
+- The dequant-to-FP8 step is what protects accuracy; skipping it to compute in raw 4-bit degrades quality.
+- Sub-1% loss is benchmark-dependent; your task may be more sensitive, especially at very long context.
+- Freed HBM only helps if you actually raise batch size or context to use it.
+
+**Common mistakes and how to fix them**
+
+- Shipping 4-bit KV on vibes. Gate behind an eval on your own long-context tasks, as the CLAUDE guidance insists.
+- Assuming all 4-bit formats are equal. NVFP4's block scaling beats MXFP4 by about 5%; pick the format deliberately.
+- Quantizing keys and values identically without checking. Keys are often more sensitive; validate per-tensor behavior.
+- Cutting memory but not raising throughput. Deliberately increase batch or context to convert savings into gains.
+
+### Databricks: MixAttention (cross-layer KV sharing plus sliding window) ([source](https://www.databricks.com/blog/mixattention))
+
+MixAttention shrinks the KV cache by combining sliding-window attention (queries attend to only the last 1024 tokens) on most layers, a few retained standard full-attention layers for long-range ability, and KV-cache sharing where multiple layers reuse one layer's KV tensors. Their ablations found that keeping standard attention in the deeper layers matters more for long-context ability than keeping it in the first few layers, and that sharing among sliding-window layers should not be overdone. The best variants (MA-Offset and MA-Pairs) place full-attention layers deep and limit sharing. On a single H100 at 32K context this gives faster inference and larger batch sizes, with quality preserved on commonsense and world knowledge but some regression on reading comprehension.
+
+```mermaid
+flowchart TB
+  IN[Input] --> SW1[Sliding-window layer, last 1024 tokens]
+  SW1 --> SW2[Sliding-window layer]
+  SW2 --> ST[Deep standard full-attention layer]
+  ST --> SH[Layers reuse shared KV]
+  SW1 --> KV[(Reduced KV cache)]
+  ST --> KV
+  SH --> KV
+  KV --> OUT[Output]
+```
+
+**Interview questions this design invites**
+
+- Why does placing full-attention layers deep help long context more than placing them early?
+- How does a 1024-token sliding window bound the per-layer cache?
+- What does cross-layer KV sharing save, and what does it cost in quality?
+- Why does MixAttention regress on reading comprehension but not commonsense?
+- How would you search the space of which layers are full versus windowed versus shared?
+- What is the memory reduction when every l layers share one KV?
+
+**Tricks and gotchas**
+
+- Over-sharing among sliding-window layers hurts quality more than sharing across mixed layers.
+- Long-context ability is sensitive to where the full-attention layers sit, not just how many there are.
+- Reading-comprehension-style tasks are the canary for too aggressive windowing.
+- Gains are reported at 32K on one H100; different context lengths shift the tradeoff.
+
+**Common mistakes and how to fix them**
+
+- Putting the full-attention layers up front. Their ablation says deep placement preserves long context; move them deeper.
+- Sharing KV across as many layers as possible. Cap sharing and keep independent full layers.
+- Validating only on commonsense benchmarks. Add reading-comprehension and retrieval evals to catch the regression.
+- Assuming the window size is free. Sweep window length against your long-range task needs.
+
+### Databricks: automatic prompt (prefix) caching for open models ([source](https://www.databricks.com/blog/accelerating-llm-inference-prompt-caching-open-source-models-databricks))
+
+Databricks added automatic prompt caching that reuses the KV cache whenever an identical prompt prefix reappears across requests, with no user configuration; matching a cached prefix lets the expensive prefill stage be skipped entirely. In production on GPT-OSS models this delivered 2.5x higher per-replica input-token throughput and 3x lower P50 latency, and notably at only a 30% cache hit ratio. Caches are volatile and isolated per tenant, never persisted to storage. It targets repeated-prefix workloads: large shared system prompts, real-time chat, batch document processing, and agent deployments, across GPT-OSS, Gemma 3, and Llama 3.x models.
+
+```mermaid
+flowchart LR
+  REQ[Request with prefix] --> LK{Prefix in cache?}
+  LK -- hit --> SKIP[Skip prefill, reuse KV]
+  LK -- miss --> PF[Prefill and cache prefix]
+  SKIP --> DEC[Decode]
+  PF --> DEC
+  PF --> C[(Volatile per-tenant KV cache)]
+  C --> LK
+```
+
+**Interview questions this design invites**
+
+- Why can matching a prefix skip the entire prefill stage?
+- How can a 30% hit rate still yield 2.5x throughput and 3x lower P50?
+- What isolation guarantees must a multi-tenant prefix cache enforce?
+- Which workloads have naturally high prefix reuse?
+- How does automatic prefix matching differ from an explicit prompt-cache API?
+- Why report P50 latency here rather than P99?
+
+**Tricks and gotchas**
+
+- Exact-prefix matching means a single differing early token misses the whole cache; prompt structure matters.
+- Volatile caches vanish on eviction or restart, so hit rate is workload-dependent, not guaranteed.
+- Multi-tenant isolation is mandatory; a leaked prefix cache would cross user boundaries.
+- The 30%-hit result is specific to those models and prompts; measure your own reuse.
+
+**Common mistakes and how to fix them**
+
+- Placing variable content before the shared prefix. Put the stable system prompt and shared docs first so the prefix matches.
+- Assuming caching helps decode-heavy work. It skips prefill, so it helps long-prompt short-output shapes most.
+- Ignoring tenant isolation. Key caches per tenant and never persist them.
+- Expecting a fixed hit rate. Instrument real prefix reuse before promising latency numbers.
+
+_Not reachable: none_
+
+---
+
+## Inference serving at scale
+
+### Anyscale (vLLM): continuous batching plus PagedAttention for 23x throughput ([source](https://www.anyscale.com/blog/continuous-batching-llm-inference))
+
+Anyscale shows that the throughput wall in LLM serving is static batching, where the whole batch is held hostage by its longest-generating member and the GPU idles as members finish. Continuous batching schedules at the iteration level: when a sequence emits its end-of-sequence token, its slot is freed immediately and a waiting request is admitted. vLLM stacks PagedAttention on top, allocating the KV cache in fixed-size blocks instead of one contiguous buffer, cutting memory waste under 4 percent. On Meta OPT-13B on an A100-40GB, the ladder runs naive static batching at baseline, FasterTransformer at 4x, plain continuous batching at 8x, and vLLM at 23x, with the biggest wins when output lengths vary a lot.
+
+```mermaid
+flowchart TD
+  REQ["incoming requests"] --> SCHED["iteration-level scheduler"]
+  SCHED --> BATCH["current batch (dynamic membership)"]
+  BATCH --> STEP["one decode step (all seqs)"]
+  STEP --> DONE{"sequence hit EOS?"}
+  DONE -->|"yes: retire, free slot"| SCHED
+  DONE -->|"no: keep"| BATCH
+  BATCH --> PAGED["PagedAttention KV blocks (non-contiguous, JIT allocated)"]
+  STEP --> OUT["streamed tokens"]
+```
+
+**Interview questions this design invites**
+- Why does static batching leave the GPU idle, and how does iteration-level scheduling fix it?
+- What problem does PagedAttention solve that continuous batching alone does not?
+- Why do high-variance output lengths produce the biggest throughput gain?
+- How does block-based KV allocation drive memory waste below 4 percent?
+- Where does the waiting_served_ratio knob trade prefill against decode?
+- What is the throughput ceiling once the KV cache, not compute, is the bottleneck?
+
+**Tricks and gotchas**
+- The 23x is versus naive static batching; the honest comparison against optimized static (FasterTransformer) is closer to 5-6x.
+- PagedAttention needs a custom attention kernel; you cannot just bolt it onto a stock attention path.
+- Admitting a new sequence still consumes KV blocks, so a full batch can OOM if you do not reserve cache budget.
+- Gains are workload-shaped: uniform short outputs see far less than high-variance chat traffic.
+
+**Common mistakes and how to fix them**
+- Claiming continuous batching alone gives 23x; separate the scheduling win (8x) from the PagedAttention memory win.
+- Assuming bigger batches always help; past the KV-cache limit you thrash, so size batches to the cache budget.
+- Forgetting prefill interference; a long prompt still stalls the batch step, so add chunked prefill.
+- Treating PagedAttention as free; the block table and kernel add bookkeeping you must account for.
+
+### Character.AI: MQA, cross-layer KV sharing, and int8 for 13.5x cheaper serving ([source](https://blog.character.ai/optimizing-ai-inference-at-character-ai/))
+
+Character.AI serves consumer chat at roughly 20,000 queries per second, about 20 percent of Google Search volume, at under one cent per conversation hour. They attack the KV cache directly: multi-query attention collapses the KV heads, cross-layer KV sharing reuses cache across layers, and int8 quantization shrinks the bytes read per decode step. Inter-turn caching keeps a conversation's prefix resident across turns so repeated chat context is not recomputed. The combined result is serving cost cut at least 33x since 2022 launch and about 13.5x cheaper than using leading commercial APIs. The public post emphasizes the economics; the named attention and quantization details live in their companion technical writeup.
+
+```mermaid
+flowchart TD
+  REQ["chat turn"] --> CACHE{"prefix in inter-turn cache?"}
+  CACHE -->|"hit"| DEC["decode (reuse cached KV)"]
+  CACHE -->|"miss"| PRE["prefill"]
+  PRE --> DEC
+  DEC --> MQA["MQA: shared KV heads"]
+  DEC --> XLAYER["cross-layer KV sharing"]
+  DEC --> INT8["int8 weight + KV"]
+  DEC --> OUT["token stream"]
+```
+
+**Interview questions this design invites**
+- How does multi-query attention shrink the KV cache, and what quality risk does it carry?
+- What is cross-layer KV sharing and why is it safe to reuse cache across layers?
+- Why is inter-turn (prefix) caching especially valuable for a chat product?
+- How does int8 quantization convert to serving cost, given decode is bandwidth-bound?
+- What does 20,000 QPS at under a cent per hour imply about batch sizes per GPU?
+- Where does aggressive KV reduction start to hurt output quality?
+
+**Tricks and gotchas**
+- MQA and cross-layer sharing both trade model expressivity for cache size; they must be trained in, not switched on at serving.
+- The 13.5x is versus commercial APIs, a different baseline than versus their own earlier stack (33x).
+- Inter-turn caching needs sticky routing so a returning turn lands on the GPU holding its prefix.
+- int8 is only a win if kernels actually read fewer bytes; a dequant-on-load path can erase it.
+
+**Common mistakes and how to fix them**
+- Conflating MQA with GQA; state that MQA is the extreme (one KV head) and GQA is the tunable middle.
+- Assuming prefix caching is automatic; it requires cache-aware routing and eviction policy.
+- Quoting the cost multiple without the baseline; always say versus what.
+- Ignoring quality gating; every KV or precision cut goes behind an eval before it ships.
+
+### LinkedIn: n-gram speculative decoding for 4x throughput and 66 percent lower P90 ([source](https://www.linkedin.com/blog/engineering/ai/accelerating-llm-inference-with-speculative-decoding-lessons-from-linkedins-hiring-assistant))
+
+LinkedIn's Hiring Assistant emits text that quotes job descriptions and candidate profiles verbatim, so its output is highly predictable from the prompt. They exploit this with n-gram (prompt-lookup) speculative decoding: instead of hosting a separate draft model, they draft the next few tokens straight from patterns already in the input, then verify them in one parallel pass on the target model. Because scoring several tokens costs about the same as scoring one, high acceptance turns into real speed. They report nearly 4x throughput at the same QPS and latency ceiling and a 66 percent average reduction in P90 end-to-end latency, with no quality loss. It runs on their vLLM stack tuned with num_speculative_tokens, prompt_lookup_max, and prompt_lookup_min.
+
+```mermaid
+flowchart TD
+  PROMPT["prompt (job desc + profile)"] --> LOOKUP["n-gram lookup: draft next k tokens from input patterns"]
+  LOOKUP --> VERIFY["target model verifies k tokens in one parallel pass"]
+  VERIFY --> ACC{"accepted?"}
+  ACC -->|"yes"| EMIT["emit accepted tokens"]
+  ACC -->|"first reject"| FALL["fall back to target token"]
+  EMIT --> LOOKUP
+  FALL --> LOOKUP
+```
+
+**Interview questions this design invites**
+- Why does n-gram drafting need no separate draft model, and what does it give up?
+- What property of the Hiring Assistant workload makes acceptance rate high?
+- Why is verifying k tokens roughly as cheap as verifying one?
+- How do prompt_lookup_min and prompt_lookup_max trade acceptance against draft waste?
+- Why report both throughput (4x) and P90 latency (66 percent) rather than one number?
+- When would n-gram speculation actively hurt, and how would you detect it?
+
+**Tricks and gotchas**
+- Prompt-lookup only wins when output echoes the prompt; free-form creative generation kills acceptance.
+- Setting num_speculative_tokens too high wastes verification compute when drafts miss.
+- The latency win concentrates at low-to-moderate batch sizes; at very large batches the GPU is already saturated.
+- prompt_lookup_min too low triggers speculation on weak matches, dragging acceptance down.
+
+**Common mistakes and how to fix them**
+- Believing speculation changes outputs; correct verification preserves the target distribution exactly, so measure parity.
+- Tuning one knob in isolation; min, max, and num_speculative_tokens interact and must be swept together.
+- Assuming the technique generalizes; validate acceptance rate per workload before enabling it.
+- Enabling it at huge batch sizes; measure that verification overhead does not outweigh the saved steps.
+
+### Baseten (BEI): batching, backpressure, FP8, and TensorRT-LLM for 2x embedding throughput ([source](https://www.baseten.co/blog/how-we-built-bei-high-throughput-embedding-inference/))
+
+Baseten built BEI, a runtime for embedding, reranker, and classifier models, reaching up to 2.05x throughput over vLLM and TEI. The core is NVIDIA TensorRT-LLM (XQA attention, layer fusion) for at least a 15 percent speedup, plus FP8 on H100 for 50 percent-plus more throughput while retaining over 99 percent cosine similarity to the unquantized outputs. The server is four parts: a Rust frontend for I/O, a multi-core tokenizer, a token-based batch manager that packs to a token budget rather than a request count (so variable inputs up to 32K tokens do not OOM), and the C++ TensorRT-LLM engine. Backpressure plus Baseten's traffic-based autoscaling lets it hold 1000-plus concurrent connections.
+
+```mermaid
+flowchart TD
+  REQ["requests (up to 1000+ concurrent)"] --> FE["Rust frontend (I/O)"]
+  FE --> BP{"backpressure gate"}
+  BP -->|"admit"| TOK["multi-core tokenizer"]
+  BP -->|"shed"| REJ["backpressure signal"]
+  TOK --> BATCH["token-based batch manager (pack to token budget)"]
+  BATCH --> ENG["TensorRT-LLM engine (FP8, XQA, layer fusion)"]
+  ENG --> OUT["embeddings / scores"]
+```
+
+**Interview questions this design invites**
+- Why pack a batch by token budget rather than request count for variable-length inputs?
+- How does FP8 give 50 percent throughput while keeping over 99 percent output similarity?
+- What role does backpressure play when 1000-plus clients connect at once?
+- Why put the frontend in Rust and the engine in C++ rather than one runtime?
+- How do XQA and layer fusion contribute the base 15 percent speedup?
+- What is different about serving embeddings/rerankers versus autoregressive decode?
+
+**Tricks and gotchas**
+- Embedding inference is prefill-only (no decode loop), so the batching math differs from chat serving.
+- Token-based packing prevents OOM but needs a max-token cap sized to the 32K input ceiling.
+- FP8 must be quality-gated per model; cosine similarity over 99 percent is the eval bar, not an assumption.
+- Backpressure without a clear client retry signal just moves the collapse to the caller.
+
+**Common mistakes and how to fix them**
+- Batching by request count; switch to token budgets so a few 32K inputs cannot blow memory.
+- Assuming a decode-oriented stack fits embeddings; strip the decode loop and optimize the single forward pass.
+- Shipping FP8 blind; verify cosine similarity against bf16 before enabling.
+- Ignoring the frontend cost; a slow tokenizer or I/O layer caps throughput before the GPU does.
+
+### NVIDIA Dynamo: disaggregated prefill/decode with a KV-aware smart router ([source](https://developer.nvidia.com/blog/introducing-nvidia-dynamo-a-low-latency-distributed-inference-framework-for-scaling-reasoning-ai-models/))
+
+Dynamo is an open-source distributed serving framework built for reasoning models, reporting up to 30x throughput on DeepSeek-R1 671B on GB200 NVL72 and 2x-plus on Llama 70B on Hopper. It disaggregates prefill (compute-bound, low tensor parallelism) from decode (memory-bound, high tensor parallelism) so each phase gets its own parallelism. A Smart Router tracks KV cache across the fleet with a radix tree, scoring prefix overlap to route a request to the worker that already holds the most relevant blocks and minimize recompute. A distributed KV cache manager offloads cold blocks to CPU memory, local disk, or networked object storage (up to petabytes cheaply), a Dynamic GPU Planner shifts capacity between prefill and decode against the SLO, and NIXL provides a uniform data-movement API across the memory tiers.
+
+```mermaid
+flowchart TD
+  REQ["request"] --> ROUTER["smart router (radix tree KV overlap score)"]
+  ROUTER --> PRE["prefill pool (low TP)"]
+  PRE -->|"KV handoff via NIXL"| DEC["decode pool (high TP)"]
+  DEC --> OUT["token stream"]
+  KVM["distributed KV manager (CPU / disk / object store, tiered offload)"] -.-> PRE
+  KVM -.-> DEC
+  PLAN["dynamic GPU planner (SLO-driven)"] -.-> PRE
+  PLAN -.-> DEC
+```
+
+**Interview questions this design invites**
+- Why give prefill low tensor parallelism and decode high tensor parallelism?
+- How does a radix tree over KV blocks let the router cut recompute?
+- What does the KV handoff cost, and why does it need NIXL / a fast fabric?
+- When does disaggregation pay off versus a single pool with chunked prefill?
+- How does the Dynamic GPU Planner decide to move a GPU from prefill to decode?
+- Why is tiered KV offload (CPU/disk/object) worth petabytes of cheap storage?
+
+**Tricks and gotchas**
+- Disaggregation only wins if the prefill-to-decode transfer rides fast interconnect; a slow link becomes the new bottleneck.
+- Phase-specific parallelism means two engine configs to tune and keep in sync, not one.
+- The 30x headline is on Blackwell NVL72 with fast fabric; commodity nodes will not reproduce it.
+- Router prefix scoring helps only when traffic shares prefixes (system prompts, shared docs).
+
+**Common mistakes and how to fix them**
+- Disaggregating a small model at moderate QPS; a single pool with chunked prefill is simpler and usually enough.
+- Ignoring transfer latency; size the interconnect first or the hand-off eats the win.
+- Static prefill/decode split; use an SLO-driven planner so a decode-heavy shift does not starve one pool.
+- Offloading hot KV to slow storage; keep active sequences on GPU and only tier cold blocks.
+
+### Together AI (ATLAS): runtime-learning speculative decoding that adapts to live traffic ([source](https://www.together.ai/blog/adaptive-learning-speculator-system-atlas))
+
+ATLAS keeps the speculative-decoding speedup from degrading when traffic drifts. It pairs a static heavyweight speculator that gives a consistent baseline on any workload with a lightweight adaptive speculator that learns from live traffic in real time, and a confidence-aware controller picks between them and tunes lookahead depth, drafting further when confidence is high and pulling back when it drops. Built on Together Turbo, it reports up to 500 TPS on DeepSeek-V3.1 and 460 TPS on Kimi-K2, roughly 4x baseline with no manual configuration, and a 401 percent speedup over the FP8 baseline on DeepSeek (105 to 501 TPS at batch size 1 on 4 B200 GPUs). Because it learns online, it specializes to the current session, for example a specific code file during a development session.
+
+```mermaid
+flowchart TD
+  REQ["live request"] --> CTRL["confidence-aware controller (pick speculator, set lookahead)"]
+  CTRL --> STATIC["static heavyweight speculator (baseline)"]
+  CTRL --> ADAPT["lightweight adaptive speculator (learns online)"]
+  STATIC --> VERIFY["target model parallel verify"]
+  ADAPT --> VERIFY
+  VERIFY --> OUT["token stream"]
+  OUT -->|"live traffic signal"| ADAPT
+```
+
+**Interview questions this design invites**
+- Why does a static speculator lose acceptance as the workload drifts?
+- How does the controller decide between the static and adaptive speculators?
+- What signal trains the adaptive speculator online, and what is the feedback loop risk?
+- Why does lookahead depth need to track confidence rather than stay fixed?
+- How does online specialization help a long coding session specifically?
+- What is the baseline behind the 401 percent number (FP8, batch 1, 4 B200)?
+
+**Tricks and gotchas**
+- Online learning adds a training loop on the serving path; it must not stall decode.
+- Adaptive gains are session-shaped; a cold or highly varied stream sees less than a focused one.
+- The big multiples are at batch size 1; at high batch the GPU is already saturated and speculation helps less.
+- A confidently wrong adaptive speculator wastes verification, so the confidence estimate itself must be calibrated.
+
+**Common mistakes and how to fix them**
+- Assuming a once-trained speculator stays optimal; measure acceptance over time and adapt if it decays.
+- Reporting batch-1 speedups as fleet throughput; separate latency wins from aggregate throughput.
+- Letting the adaptive model overfit a session and hurt the next; keep the static baseline as a floor.
+- Skipping output-parity checks; adaptation changes drafts, never the verified distribution, so prove it.
+
+### Fireworks AI (FireOptimizer): adaptive speculative execution with workload-trained draft models ([source](https://fireworks.ai/blog/fireoptimizer))
+
+FireOptimizer is Fireworks' adaptation engine that tailors inference to a customer's specific traffic, with adaptive speculative execution as the headline giving up to 3x lower latency. Rather than a generic draft model, it automatically trains and deploys a draft model on the customer's own data (traced production traffic or a sample set), because the higher the draft hit rate the larger the latency win. Their case study is the sharp lesson: a generic draft model hit only 29 percent and actually slowed inference 1.5x, while the specialized draft reached 76 percent and delivered a 2x speedup. Beyond speculation it layers customizable quantization, adaptive caching, and hardware mapping, all profile-driven with no manual hyperparameter tuning, currently on enterprise reserved deployments.
+
+```mermaid
+flowchart TD
+  DATA["customer data (traced prod or sample)"] --> TRAIN["auto-train specialized draft model"]
+  TRAIN --> DRAFT["workload-specific draft model"]
+  REQ["request"] --> DRAFT
+  DRAFT --> VERIFY["target model parallel verify"]
+  VERIFY --> OUT["token stream"]
+  TUNE["profile-driven tuning (quant, caching, hardware map)"] -.-> VERIFY
+```
+
+**Interview questions this design invites**
+- Why does a customized draft model beat a generic one on latency?
+- How can a bad draft model (29 percent hit) make inference slower, not faster?
+- What hit rate is the rough break-even where speculation starts paying off?
+- Why train the draft on traced production data rather than a public corpus?
+- How do quantization, caching, and hardware mapping compose with speculation?
+- What deployment shape (reserved vs on-demand) does per-workload training imply?
+
+**Tricks and gotchas**
+- A low-acceptance draft is net-negative: you pay draft compute and still fall back, so measure before shipping.
+- Training on production traces raises data-handling and privacy questions you must answer.
+- The 3x is a ceiling; the realized number tracks the customer's actual hit rate.
+- Per-workload draft models mean one model per customer to train, deploy, and keep fresh as traffic drifts.
+
+**Common mistakes and how to fix them**
+- Reusing one generic draft across workloads; specialize per workload or acceptance collapses.
+- Ignoring the slowdown risk; gate any draft behind a measured hit rate before enabling.
+- Treating the draft as static; retrain as the customer's traffic distribution shifts.
+- Stacking quant and speculation without eval; verify quality after each layer, not just the final stack.
+
+### Modal: engine choice, quantization, CUDA graphs, and snapshots for throughput ([source](https://modal.com/docs/guide/high-performance-llm-inference))
+
+Modal's guide is the serverless-serving angle: pick the engine to the workload (vLLM for throughput thanks to its prefill/decode scheduling, SGLang for latency-sensitive decode because of lower host overhead), then tune precision and cold starts. FP8 on H100/H200 is the default precision win while immature FP4 is avoided, and for cold-start-bound cases aggressive quantization (even integer or ternary) helps by shrinking bytes to load even when it does not speed inference. CUDA graph capture and JIT compilation raise steady-state throughput but are tricky to cache and add tens of seconds per boot. Modal's headline lever is Memory Snapshots, which serialize a warmed container (GPU snapshots claim 10x cold-start reduction), backed by loading weights from Modal Volumes at 1-2 GB/s, roughly a second per gigabyte.
+
+```mermaid
+flowchart TD
+  REQ["request"] --> ENGINE{"engine choice"}
+  ENGINE -->|"throughput"| VLLM["vLLM (prefill/decode scheduling)"]
+  ENGINE -->|"latency"| SGL["SGLang (low host overhead)"]
+  VLLM --> QUANT["FP8 quantization (H100/H200)"]
+  SGL --> QUANT
+  QUANT --> GRAPH["CUDA graphs + JIT (steady-state throughput)"]
+  COLD["cold start"] --> SNAP["memory snapshot (10x faster boot)"]
+  SNAP --> VOL["weights from Modal Volume (1-2 GB/s)"]
+  VOL --> ENGINE
+  GRAPH --> OUT["token stream"]
+```
+
+**Interview questions this design invites**
+- When do you pick vLLM over SGLang, and what property drives the choice?
+- Why can aggressive quantization help cold starts even without a decode speedup?
+- What is the tradeoff of CUDA graphs and JIT: throughput up, but what cost?
+- How do memory snapshots cut cold-start time by roughly 10x?
+- Why does weight-load bandwidth (1-2 GB/s) set a floor on boot time?
+- On serverless GPU, when is scale-to-zero acceptable and when is it not?
+
+**Tricks and gotchas**
+- CUDA graphs and JIT are hard to cache, so their throughput win can be undone by boot-time penalties on a spiky workload.
+- Snapshotting a warmed process needs code changes to the inference server; it is not transparent.
+- Weight load is bandwidth-bound at about a second per gigabyte, so a multi-GB model still costs real seconds even snapshotted.
+- FP4 support is immature; reaching for it early buys instability, not speed.
+
+**Common mistakes and how to fix them**
+- Enabling CUDA graphs on a scale-to-zero hot path; measure boot cost, or keep a warm buffer instead.
+- Using scale-to-zero for latency-sensitive traffic; reserve it for cold, rarely-used models.
+- Assuming one engine fits all; match vLLM/SGLang to the throughput-vs-latency SLO.
+- Ignoring weight-load bandwidth in the cold-start budget; stream from a fast Volume and size the model down.
+
+_Not reachable: none_
+
+---
+
+## Cost optimization and model routing
+
+### Stanford: FrugalGPT, an LLM cascade that defers to pricier models only when the cheap answer looks unreliable ([source](https://arxiv.org/abs/2305.05176))
+
+FrugalGPT tackles the fact that LLM APIs vary in price by up to two orders of magnitude, so paying frontier rates on every query wastes money on the easy majority. It instantiates an LLM cascade: queries hit a chain of models ordered cheap to expensive, and a learned scorer judges whether the current model's answer is reliable enough to return or whether to escalate. By learning which model combinations to use per query, it matches GPT-4 quality at up to 98% lower cost, or lifts accuracy 4% over GPT-4 at the same spend. The scorer, trained to predict answer reliability, is the load-bearing piece: it lets the system stop as soon as a cheap model is trustworthy.
+
+```mermaid
+flowchart TD
+  Q["query"] --> M1["model 1<br/>cheapest"]
+  M1 --> S1{"scorer<br/>answer reliable?"}
+  S1 -->|"yes"| OUT["return answer"]
+  S1 -->|"no, escalate"| M2["model 2<br/>pricier"]
+  M2 --> S2{"scorer<br/>reliable?"}
+  S2 -->|"yes"| OUT
+  S2 -->|"no, escalate"| M3["model 3<br/>frontier"]
+  M3 --> OUT
+```
+
+**Interview questions this design invites**
+- How do you train the reliability scorer, and what labels does it need?
+- What happens to end-to-end latency when a query walks the whole cascade?
+- How do you order the models in the chain, and does order affect cost?
+- How is the accept/escalate threshold calibrated, and how often re-calibrated?
+- What tasks make the scorer trustworthy versus where does it break down?
+- How do you keep the scorer's own cost from eating the savings?
+
+**Tricks and gotchas**
+- The scorer looks at an actual generated answer, unlike a router that decides blind, so it can catch the cheap model's own mistakes.
+- A miscalibrated cutoff is the killer: too eager to accept quietly drops quality, too eager to escalate pays for multiple models on everything.
+- Verifiable tasks (does the SQL run, does code compile) give a much cleaner escalation signal than open-ended generation.
+- Savings depend on the price gap between cascade stages, so pair a genuinely cheap first stage with an expensive last one.
+
+**Common mistakes and how to fix them**
+- Reporting only cost while quality silently regresses on the hard tail: track quality per bucket, not just aggregate spend.
+- Using model-reported confidence (log-probs) as if it were calibrated truth: prefer a trained scorer or a real verifier where you have ground truth.
+- Setting one global threshold and never revisiting it as traffic drifts: re-check on held-out data periodically.
+
+### LMSYS: RouteLLM, a preference-data router that splits traffic between a strong and a weak model ([source](https://www.lmsys.org/blog/2024-07-01-routellm/))
+
+RouteLLM is an open framework that routes each query to either a cheap weak model or an expensive strong one, deciding before any generation. It trains routers on 55k human preference comparisons from Chatbot Arena, learning to predict which model would win on a given prompt and sending only the queries the weak model would likely lose to the strong model. Four router flavors were built: a similarity-weighted Elo ranker, a matrix-factorization model, a BERT classifier, and a causal-LLM classifier. On MT Bench it hits 95% of GPT-4 quality while making GPT-4 calls on only 14% of traffic (about 85% cost cut in the headline case), and the routers transfer to unseen model pairs like Claude 3 Opus and Llama 3 8B without retraining.
+
+```mermaid
+flowchart TD
+  Q["query"] --> R["router<br/>predict weak-model win prob"]
+  R --> D{"strong model<br/>needed?"}
+  D -->|"low win prob<br/>hard query"| STRONG["strong model<br/>GPT-4 class"]
+  D -->|"high win prob<br/>easy query"| WEAK["weak model<br/>Mixtral class"]
+  STRONG --> OUT["response"]
+  WEAK --> OUT
+  PREF["Chatbot Arena<br/>55k preference pairs"] -.->|"train"| R
+```
+
+**Interview questions this design invites**
+- Router versus cascade: why decide blind here instead of scoring an answer first?
+- How does a preference-trained router generalize to model pairs it never saw?
+- Where do you set the routing threshold, and what curve do you sweep to pick it?
+- Which of the four router architectures would you ship, and why?
+- What does the router cost per call, and how do you keep it from eating savings?
+- How do you detect when the router mis-routes newly-hard queries?
+
+**Tricks and gotchas**
+- A router decides once, blind, before seeing any answer, so it cannot know it was wrong; that is exactly what a cascade fixes.
+- Preference data lets the router learn transferable "hard versus easy" structure, so it survives model swaps without retraining.
+- The router must be strictly cheaper than the models it gates; never make a frontier call just to route.
+- Cost savings are quality-conditional: quoting the cost cut without the paired quality number is meaningless.
+
+**Common mistakes and how to fix them**
+- Training on stale traffic and never re-sweeping: traffic drift moves the frontier, so re-measure and alert on per-bucket quality.
+- Optimizing the router purely for cost so it dumps hard queries on the weak model: load the eval set with the hard tail so this shows as a regression.
+- Assuming one benchmark's savings transfer everywhere (MT Bench cut differs from MMLU): measure on your own traffic distribution.
+
+### Anyscale: a fine-tuned complexity classifier routing between an open and a closed model ([source](https://www.anyscale.com/blog/building-an-llm-router-for-high-quality-and-cost-effective-responses))
+
+Anyscale built a router that sends each query to either Mixtral-8x7B (cheap, open) or GPT-4 (expensive, closed) based on predicted difficulty, hitting baseline quality with up to a 70% cost cut on MT Bench. The router is a causal-LLM classifier fine-tuned from Llama3-8B, and a key finding was that plain binary labels gave too weak a training signal, so they trained a 5-way classifier predicting how well the open model would score on a query (1 low to 5 high). Queries the open model is predicted to handle well (score at or above 4) go to Mixtral; the rest go to GPT-4. Training labels came from an LLM-as-a-judge pipeline where GPT-4 graded Mixtral responses against its own reference answers across 109,101 queries.
+
+```mermaid
+flowchart TD
+  Q["query text only"] --> C["Llama3-8B classifier<br/>predict open-model score 1-5"]
+  C --> T{"predicted score >= 4?"}
+  T -->|"yes, open model likely fine"| WEAK["Mixtral-8x7B<br/>cheap open"]
+  T -->|"no, hard query"| STRONG["GPT-4<br/>expensive closed"]
+  WEAK --> OUT["response"]
+  STRONG --> OUT
+  J["GPT-4 judge vs reference<br/>109k queries"] -.->|"label training data"| C
+```
+
+**Interview questions this design invites**
+- Why did binary labels fail, and how does a 5-way score fix the signal?
+- What are the risks of labeling training data with an LLM-as-a-judge?
+- How do you pick the score cutoff between open and closed models?
+- The classifier sees query text only: what quality does that leave on the table?
+- How would you keep the Llama3-8B router cheaper than the models it gates?
+- How do you monitor for the router mis-scoring newly-hard queries?
+
+**Tricks and gotchas**
+- A finer-grained score (1 to 5) carries more gradient than a hard easy/hard bit, giving a more robust router.
+- The judge is GPT-4 grading against its own answers, so its blind spots become the router's blind spots.
+- The score cutoff is a cost/quality knob: raising it sends more traffic to the cheap model and trades quality for savings.
+- A fine-tuned small model beats a giant general one on this narrow routing task at a fraction of the cost.
+
+**Common mistakes and how to fix them**
+- Trusting judge labels as ground truth: spot-check against human labels, especially on the hard tail.
+- Freezing the cutoff and never re-sweeping as traffic drifts: re-measure the frontier and alert per bucket.
+- Assuming the 70% MT Bench cut transfers to every workload (GSM8K numbers differ): validate on your own traffic.
+
+### IBM Research: a predictive best-value router across a library of models ([source](https://research.ibm.com/blog/LLM-routers))
+
+IBM built a real-time router that acts as an "air traffic controller" for an ensemble of models, predicting before inference which one gives the best accuracy-to-cost ratio for a query and dispatching there. The routing algorithm is trained on public benchmark data to learn each model's strengths and weaknesses, so it can send routine work to small cheap models and reserve large models for hard, high-value queries without running several models at once. On HELM and RouterBench, an 11-model ensemble behind the router beat every individual model operating alone and even slightly edged GPT-4 on some tasks. The result is up to 85% inference cost reduction, roughly 5 cents saved per query, exploiting the fact that some 13B models beat Llama-2 70B on specific tasks.
+
+```mermaid
+flowchart TD
+  Q["query"] --> R["predictive router<br/>estimate best accuracy-to-cost model"]
+  R --> P{"pick from model library"}
+  P -->|"routine"| SMALL["small 13B model"]
+  P -->|"specialized"| MID["task-specialist model"]
+  P -->|"hard / high value"| BIG["large model"]
+  SMALL --> OUT["response"]
+  MID --> OUT
+  BIG --> OUT
+  BENCH["benchmark data<br/>HELM / RouterBench"] -.->|"train"| R
+```
+
+**Interview questions this design invites**
+- How do you route across many models rather than a simple strong/weak pair?
+- Why can a benchmark-trained router beat every single model in the ensemble?
+- How do you keep an 11-model library evaluated and from silently drifting?
+- What does "best value" mean, and how do you weigh price against accuracy?
+- How does routing on benchmark data generalize to live production queries?
+- How do you add or retire a model from the library without retraining everything?
+
+**Tricks and gotchas**
+- Specialization beats size on narrow tasks: a well-matched 13B model can outscore a 70B general model, which is what the router monetizes.
+- Predicting best-value before inference avoids the cost of racing models, unlike a cascade that pays for a first call.
+- More models means more surfaces to evaluate and keep from drifting; the operational cost is real.
+- Training on benchmarks risks a gap with production traffic; the benchmark distribution may not match live intent.
+
+**Common mistakes and how to fix them**
+- Assuming benchmark-trained routing holds on live traffic: shadow-evaluate a sample and monitor per-model quality.
+- Ignoring model drift across a big library: schedule periodic re-evaluation of each model's strengths.
+- Chasing headline cost cuts without a per-query quality floor: track cost per successful request, not raw spend.
+
+### Microsoft Research: LLMLingua, prompt compression that strips low-information tokens ([source](https://www.microsoft.com/en-us/research/blog/llmlingua-innovating-llm-efficiency-with-prompt-compression/))
+
+LLMLingua cuts the input-token bill by removing unimportant tokens from a prompt before it reaches the big model, using a small LM (GPT-2 small or LLaMA-7B) to score token importance by perplexity. It works in two stages: a coarse pass drops whole low-value sentences, then a fine pass compresses remaining tokens individually while preserving coherence, with a distribution-alignment step that instruction-tunes the small model to match the target LLM's patterns. On reasoning benchmarks (GSM8K, BBH) it reaches up to 20x compression with about a 1.5-point performance loss and 20 to 30% lower latency. It ships integrated into LlamaIndex for RAG.
+
+```mermaid
+flowchart TD
+  P["long verbose prompt"] --> SM["small LM<br/>GPT-2 / LLaMA-7B<br/>perplexity token scoring"]
+  SM --> C1["coarse pass<br/>drop low-value sentences"]
+  C1 --> C2["fine pass<br/>drop low-value tokens"]
+  C2 --> SHORT["compressed prompt<br/>up to 20x shorter"]
+  SHORT --> BIG["target big model"]
+  BIG --> OUT["answer"]
+  ALIGN["distribution alignment<br/>tune small LM to target"] -.-> SM
+```
+
+**Interview questions this design invites**
+- When does prompt compression pay off, given the small-LM pass has its own cost?
+- How do you keep compression from dropping the one load-bearing token?
+- Why a two-stage coarse-then-fine approach instead of one pass?
+- How do you set and gate the compression ratio against a quality bar?
+- On which tasks would you refuse to compress at all?
+- How does distribution alignment help the compressed prompt survive a model swap?
+
+**Tricks and gotchas**
+- Compression only pays when input tokens dominate and context is long and redundant; on short prompts the small-LM pass is pure overhead.
+- It is lossy: aggressive ratios can remove the exact detail the answer hinged on.
+- Back off on exact extraction, legal, and code where every token matters.
+- Trimming (send top 3 chunks not top 20) is the blunt safe move to try before compression.
+
+**Common mistakes and how to fix them**
+- Applying one fixed ratio everywhere: gate the ratio behind the same quality eval as any other lever.
+- Compressing output-heavy workloads where input is not the cost driver: profile where the money goes first.
+- Ignoring the compressor model's own token cost in the savings math: net it out before claiming a win.
+
+### Databricks: governed batch LLM inference over warehouse data via ai_query ([source](https://www.databricks.com/blog/introducing-simple-fast-and-scalable-batch-llm-inference-mosaic-ai-model-serving))
+
+Databricks added batch LLM inference to Mosaic AI Model Serving so teams can run models over millions or billions of tokens directly where governed data lives, with no data movement. The interface is a single SQL function, ai_query, callable from notebooks, SQL editors, or scheduled Delta Live Tables pipelines, so analysts run bulk inference without standing up serving infrastructure. Governance flows through Unity Catalog for lineage and security, and the platform auto-scales to the workload, batches whole datasets instead of row-by-row, and adds fault tolerance with automatic retries. This is the batch-versus-online cost lever: bulk work with no latency SLO runs at maximum batch size for far less than interactive pricing.
+
+```mermaid
+flowchart TD
+  T["governed table<br/>Unity Catalog"] --> Q["ai_query(model, prompt)<br/>SQL interface"]
+  Q --> SCALE["auto-scaled batch serving<br/>max batch size, no SLO"]
+  SCALE --> MODEL["base / fine-tuned model"]
+  MODEL --> RETRY{"fault tolerant<br/>auto retry"}
+  RETRY -->|"ok"| RES["results table"]
+  RETRY -->|"transient fail"| SCALE
+  PIPE["notebook / DLT pipeline"] -.-> Q
+```
+
+**Interview questions this design invites**
+- Which traffic is truly offline and belongs on a batch endpoint, not the sync one?
+- Why does batching whole datasets cost less per token than online serving?
+- How does keeping inference next to governed data reduce compliance risk?
+- What latency do you trade away for the batch discount, and when is that acceptable?
+- How does auto-scaling plus retries change the cost and reliability profile?
+- How would you decide batch API versus saturated self-host for a bulk job?
+
+**Tricks and gotchas**
+- A lot of "LLM bill" is bulk work accidentally sitting on the interactive endpoint; spotting it is the design win.
+- No tail-latency constraint means the GPU can run at max batch size, which online serving never achieves.
+- Keeping data in place avoids export/compliance overhead that would otherwise erode the savings.
+- Auto-retry matters at scale: a single transient failure in a billion-token job should not restart everything.
+
+**Common mistakes and how to fix them**
+- Running summarization/classification backfills on the online endpoint at online prices: move them to batch.
+- Assuming batch means unbounded delay: right-size the job so results land inside the business deadline.
+- Skipping governance on bulk jobs over sensitive tables: route through Unity Catalog for lineage and access control.
+
+### Baseten: FP8 quantization for cheaper, faster self-hosted inference ([source](https://www.baseten.co/blog/33-faster-llm-inference-with-fp8-quantization/))
+
+Baseten quantized Mistral 7B to FP8 (8-bit float) using an NVIDIA library compatible with TensorRT-LLM, targeting H100 and Ada/Hopper GPUs that support the format natively. FP8 halves parameter width from 16-bit to 8-bit, dropping VRAM from 16GB to 7GB and, unlike the INT8 they tried before, keeps enough dynamic range to quantize weights, activations, and KV cache without hurting quality. Versus FP16 on H100 they measured a 33% gain in output tokens per second, 31% higher total throughput, 8.5% lower time to first token, and 24% lower cost per million tokens. Quality held: perplexity matched FP16 (near-zero delta) and manual side-by-side across recall, coding, and creative writing showed only minor stylistic variation. This is a self-hosting-only lever; it changes tokens-per-GPU, not per-token API pricing.
+
+```mermaid
+flowchart TD
+  M16["Mistral 7B FP16<br/>16GB VRAM"] --> Q["FP8 quantization<br/>NVIDIA + TensorRT-LLM"]
+  Q --> M8["FP8 model<br/>7GB VRAM<br/>weights + activations + KV cache"]
+  M8 --> SERVE["H100 serving<br/>batched decode"]
+  SERVE --> R["+33% tokens/s<br/>-24% cost/token"]
+  Q --> V{"perplexity + manual eval<br/>quality held?"}
+  V -->|"yes, near-zero delta"| M8
+```
+
+**Interview questions this design invites**
+- Why does FP8 speed up decode, and why is decode bandwidth-bound?
+- Why did FP8 beat INT8 for this workload despite the same bit width?
+- How do you validate that quantization did not silently degrade quality?
+- Why is this lever useless on a per-token API and only real when self-hosting?
+- At what QPS does fixed GPU cost beat per-token API pricing?
+- Why does FP8 help more on long input sequences with heavy prefill?
+
+**Tricks and gotchas**
+- FP8's wider dynamic range versus INT8 is what lets you quantize activations and KV cache, not just weights.
+- Gains depend on batch size and sequence length; the headline number is one operating point (batch 32, 80/100 tokens).
+- Perplexity parity plus manual eval catches regressions a single metric would miss.
+- The lever only exists for models you host; on an API your levers are routing, caching, compression, right-sizing.
+
+**Common mistakes and how to fix them**
+- Quoting a throughput gain from one batch/sequence config as if universal: report the operating point and sweep it.
+- Shipping a quantized model on perplexity alone: add manual side-by-side on real task categories.
+- Self-hosting below the QPS where fixed GPU cost pays off: stay on the API until volume justifies idle-GPU cost.
+
+### Cloudflare: AI Gateway response caching to skip billable provider calls ([source](https://developers.cloudflare.com/ai-gateway/features/caching/))
+
+Cloudflare AI Gateway sits in front of provider APIs and serves identical requests from cache instead of re-hitting the origin, cutting both latency and the number of paid provider calls. The cache key is a hash of provider, endpoint, model, auth headers, and the full request body, so it is exact-match: any variation creates a new entry. Three per-request headers give control: cf-aig-skip-cache bypasses the cache, cf-aig-cache-ttl sets expiry from 60 seconds to a month, and cf-aig-cache-key customizes what counts as identical. It covers text and image responses today, with semantic caching noted as planned to lift hit rates beyond exact match. The cache is volatile, so two simultaneous identical requests may not both hit.
+
+```mermaid
+flowchart TD
+  REQ["request"] --> GW["AI Gateway"]
+  GW --> K["cache key = hash(provider,<br/>endpoint, model, auth, body)"]
+  K --> HIT{"exact match<br/>in cache?"}
+  HIT -->|"hit, within TTL"| CACHED["cached response<br/>no provider call"]
+  HIT -->|"miss"| PROV["provider API"]
+  PROV --> STORE["store with TTL<br/>60s to 1 month"]
+  STORE --> OUT["response"]
+  CACHED --> OUT
+```
+
+**Interview questions this design invites**
+- Why does an exact-match cache rarely fire on free-text prompts?
+- What goes into the cache key, and why include auth headers and full body?
+- How would you extend this to a semantic cache, and what new risk appears?
+- How do you choose a TTL, and which content should never be cached?
+- Why is caching scoped or personalized responses into a shared cache dangerous?
+- How do concurrent identical requests interact with a volatile cache?
+
+**Tricks and gotchas**
+- Exact-match is zero-risk but low hit rate; the real hit rate lives in paraphrases a semantic cache would catch.
+- Including the full request body and params in the key means one trivial difference misses the cache entirely.
+- TTL is the staleness control: cache stable content (policies, definitions), TTL things that move.
+- Never share-cache personalized or tenant-scoped answers; that is a data leak, not a cost win.
+
+**Common mistakes and how to fix them**
+- Expecting big savings from exact-match on free text: layer a tuned semantic cache for paraphrase hits.
+- Caching volatile facts without a TTL: set expiry so moved facts do not serve stale.
+- Sharing a cache across users/tenants for scoped answers: scope the cache key or skip caching those requests.
+
+_Not reachable: none_
+
+---
+
+## Realtime streaming chat
+
+### LinkedIn: end-to-end streaming generative AI assistant with progressive parsing ([source](https://www.linkedin.com/blog/engineering/generative-ai/musings-on-building-a-generative-ai-product))
+
+LinkedIn built their assistant on a three-step RAG pattern: a routing step classifies the query and picks an agent, a retrieval step calls internal RPC APIs (wrapped as LLM-friendly "skills") plus external services like Bing, and a generation step synthesizes the answer. They cut perceived latency with end-to-end token streaming and progressive parsing, firing downstream API calls the moment their parameters appear in the LLM output rather than waiting for the full response. They used small models for routing and retrieval and bigger models for generation, and preferred YAML over JSON in schemas to save tokens. Quality was the hard part: one month to reach 80 percent, four more months to pass 95 percent, backed by a layered eval pipeline with linguist annotation of about 500 daily conversations.
+
+```mermaid
+flowchart LR
+  U["user query"] --> R["routing<br/>(small model)"]
+  R --> RET["retrieval<br/>(internal APIs + Bing)"]
+  RET --> G["generation<br/>(large model)"]
+  G -->|"token stream"| C["client render"]
+  G -->|"progressive parse"| SK["fire skill calls<br/>as params appear"]
+  SK --> RET
+```
+
+**Interview questions this design invites**
+- Why route with a small model and generate with a big one instead of one model for both?
+- How does progressive parsing of the LLM output reduce end-to-end latency, and what breaks if the partial parse is wrong?
+- How do you expose proprietary internal APIs to an LLM safely as "skills"?
+- Why did quality take four extra months when 80 percent came in one, and what does that say about eval-driven development?
+- How would you detect and bound hallucination in a chat product at scale?
+- Chain-of-thought adds hidden reasoning tokens the user never sees; how do you plan capacity for that?
+
+**Tricks and gotchas**
+- Progressive parsing means you fire side-effecting API calls before the model has finished; a later token can contradict an early one.
+- Defensive parsing matters: initial LLM format-error rate was about 10 percent, driven to roughly 0.01 percent with hardening.
+- YAML instead of JSON for schemas measurably cuts token cost on high-volume prompts.
+- Reasoning tokens are invisible latency; time-to-first-token can look fine while total generation balloons.
+
+**Common mistakes and how to fix them**
+- Waiting for the full LLM response before acting: parse and dispatch incrementally instead.
+- One giant model for every stage: split routing/retrieval (cheap, fast) from generation (expensive, high quality).
+- Trusting LLM output format: add tolerant parsing and repair, not strict schema rejection.
+- Treating eval as an afterthought: stand up human plus model-based eval early or the last 15 percent of quality never lands.
+
+### Cloudflare: Durable Objects for persistent WebSockets and auth in AI Gateway ([source](https://blog.cloudflare.com/do-it-again/))
+
+Cloudflare added a WebSocket API to AI Gateway so clients hold a single persistent connection for many inference requests instead of reopening HTTP connections, backed by Durable Objects that reuse the existing Universal Endpoint code. Because WebSocket traffic is asynchronous and multiple streaming inferences can be in flight at once, they tag every message with an eventId so the client can attribute each chunk to the right request. Auth runs either through Cloudflare API tokens in a cf-aig-authorization header or, for browsers that cannot set custom headers, through the sec-websocket-protocol header. Each connection gets a UUID, and streaming requests send initial metadata, then live chunks, then a completion message, at the scale of 3-plus billion daily logs.
+
+```mermaid
+flowchart LR
+  C["client"] -->|"persistent WebSocket"| DO["Durable Object<br/>(per connection UUID)"]
+  DO --> AUTH["auth<br/>(cf-aig-authorization<br/>or sec-websocket-protocol)"]
+  AUTH --> UE["Universal Endpoint<br/>(shared code)"]
+  UE --> INF["AI inference provider"]
+  INF -->|"chunks tagged eventId"| DO
+  DO -->|"stream"| C
+```
+
+**Interview questions this design invites**
+- Why multiplex many inference requests over one WebSocket instead of one connection per request?
+- How does eventId solve response attribution when several streams share a duplex socket?
+- Why do browsers need the sec-websocket-protocol header trick for auth?
+- What does a Durable Object give you that a stateless Worker does not for a long-lived connection?
+- How do you clean up a Durable Object when a client disconnects mid-stream?
+- How would you rate-limit or bill per-request when everything rides one socket?
+
+**Tricks and gotchas**
+- Async duplex sockets make responses ambiguous without an explicit correlation id on every message.
+- Browsers cannot set arbitrary headers on a WebSocket handshake, so auth has to ride the subprotocol field.
+- Reusing the HTTP Universal Endpoint code inside the Durable Object avoids a divergent second code path.
+- A single persistent connection concentrates state, so connection lifecycle and cleanup become the reliability surface.
+
+**Common mistakes and how to fix them**
+- Assuming ordered request/response like HTTP: add an eventId and demultiplex on the client.
+- Opening a new connection per inference: reuse one persistent socket to cut handshake overhead.
+- Forgetting browser header limits: fall back to sec-websocket-protocol for the token.
+- Leaking connection state: pin state to a Durable Object with a UUID and tear it down on close.
+
+### Vercel: Chat SDK for cross-platform agent streaming ([source](https://vercel.com/blog/chat-sdk-brings-agents-to-your-users))
+
+Vercel's Chat SDK is a TypeScript library that runs one agent codebase across Slack, Teams, Google Chat, Discord, Telegram, WhatsApp, GitHub, and Linear. It pipes AI SDK text streams straight into each platform through adapters: Slack renders formatting natively in real time, while platforms without live streaming use a throttled fallback that repeatedly edits the message, running streamed text through each adapter's markdown-to-native converter at every intermediate edit. The adapter layer also normalizes channel and user names, link previews, referenced posts, and image context, and it handles platform limits like WhatsApp's 24-hour messaging window. State persists in Redis or PostgreSQL, supporting distributed locks and key-value cache across bot instances.
+
+```mermaid
+flowchart LR
+  LLM["AI SDK text stream"] --> AD["adapter layer<br/>(markdown to native)"]
+  AD -->|"native streaming"| SL["Slack (live edits)"]
+  AD -->|"throttled fallback<br/>(repeated edits)"| OT["Teams / Telegram /<br/>WhatsApp / Discord"]
+  ST["Redis / PostgreSQL<br/>(locks, kv state)"] --> AD
+```
+
+**Interview questions this design invites**
+- Why is a throttled edit-loop fallback needed when a platform lacks native streaming?
+- What are the tradeoffs of re-editing one message repeatedly versus appending new messages?
+- How do you keep one agent codebase portable across platforms with different formatting models?
+- Why put distributed locks in front of shared bot state, and what race do they prevent?
+- How does a 24-hour messaging window (WhatsApp) change how you queue outbound tokens?
+- Where does session memory live so a conversation survives across bot instances?
+
+**Tricks and gotchas**
+- The throttled fallback re-runs markdown-to-native conversion at each intermediate edit, so conversion cost is paid many times per message.
+- Rapid message edits can hit platform rate limits; throttling is a correctness constraint, not just polish.
+- Different platforms have different native format targets (Block Kit, GFM, code blocks), so one output has many renders.
+- Distributed locks are required because multiple instances may touch the same conversation state.
+
+**Common mistakes and how to fix them**
+- Assuming every platform streams like Slack: detect capability and fall back to throttled edits.
+- Editing on every token: throttle the edit rate to stay under platform limits.
+- Keeping bot state in process memory: move to Redis or PostgreSQL so instances share it.
+- Ignoring platform send windows: buffer and respect constraints like the 24-hour window.
+
+### OpenAI: realtime speech-to-speech and audio model snapshots for voice ([source](https://developers.openai.com/blog/updates-audio-models))
+
+OpenAI shipped updated audio model snapshots aimed at production voice apps: gpt-realtime-mini for native speech-to-speech over the Realtime API, gpt-audio-mini for speech-to-speech in Chat Completions, plus a mini TTS and a mini transcribe model. The realtime model improved instruction-following by 18.6 percent and tool-calling accuracy by 12.9 percent, the TTS model dropped word error rates by about 35 percent, and the transcribe model cut hallucinations by roughly 90 percent versus Whisper v2 in noisy audio and during silence. Turn detection is handled model-side in the speech-to-speech path rather than by an external endpointer, and pricing stayed flat so existing integrations can migrate by snapshot.
+
+```mermaid
+flowchart LR
+  U["user audio"] --> RT["gpt-realtime-mini<br/>(speech-to-speech,<br/>model-side turn detect)"]
+  RT --> OUT["audio out"]
+  subgraph componentized["componentized path"]
+    A["audio in"] --> STT["gpt-4o-mini-transcribe"]
+    STT --> L["LLM"]
+    L --> TTS["gpt-4o-mini-tts"]
+    TTS --> A2["audio out"]
+  end
+```
+
+**Interview questions this design invites**
+- When do you pick native speech-to-speech over a componentized STT plus LLM plus TTS pipeline?
+- What does model-side turn detection buy you versus a separate endpointing model?
+- Why do transcription hallucinations spike during silence or background noise, and how do you measure it?
+- How do you evaluate instruction-following and tool-calling accuracy for a voice model specifically?
+- What is the migration risk of pinning to a dated model snapshot versus a floating alias?
+- How does a unified speech-to-speech model change your latency budget versus a three-stage pipeline?
+
+**Tricks and gotchas**
+- Native speech-to-speech folds turn detection into the model, removing a tunable external endpointer you might want control over.
+- Transcription models hallucinate words during silence; a 90 percent reduction still is not zero.
+- Snapshot-pinned models keep behavior stable but require deliberate migration to get gains.
+- Speech-to-speech and componentized paths have different debuggability; you cannot inspect an intermediate transcript in the fused model.
+
+**Common mistakes and how to fix them**
+- Reaching for a componentized pipeline by default: use native speech-to-speech when you need lowest latency and do not need the intermediate transcript.
+- Ignoring silence handling: pick a transcribe model hardened against hallucination in noise, and gate on confidence.
+- Floating on an unpinned model: pin a snapshot and test before migrating.
+- Assuming tool calls work in voice: measure tool-calling accuracy separately, since it lags text.
+
+### LiveKit: WebRTC over WebSockets for realtime voice agents ([source](https://livekit.com/blog/why-webrtc-beats-websockets-for-voice-ai-agents))
+
+LiveKit argues WebSockets are the wrong transport for voice because they run on TCP, which guarantees ordered delivery by retransmitting lost packets, causing head-of-line blocking: audio that arrived fine sits buffered and unplayed until the gap is filled, and a 200ms retransmit stall destroys conversational flow. WebRTC instead uses UDP with RTP, favoring timing over perfect reliability, so a single lost 20ms frame is barely noticeable. WebRTC also ships adaptive jitter buffers, media-aware congestion control (like Google Congestion Control) that lowers bitrate before loss occurs, built-in echo cancellation and noise suppression, and NAT traversal via ICE, STUN, and TURN. A Selective Forwarding Unit routes media without decoding, and multi-region SFUs let users hit the nearest node to trim latency across the STT, LLM, and TTS pipeline.
+
+```mermaid
+flowchart LR
+  U["user"] -->|"UDP / RTP<br/>(WebRTC)"| SFU["Selective Forwarding Unit<br/>(multi-region)"]
+  SFU --> JB["jitter buffer +<br/>congestion control"]
+  JB --> STT["STT"] --> LLM["LLM"] --> TTS["TTS"]
+  TTS -->|"RTP"| U
+```
+
+**Interview questions this design invites**
+- What is head-of-line blocking and why does it hurt voice more than text?
+- Why is dropping a 20ms audio frame better than a 200ms retransmit stall?
+- What does WebRTC give you out of the box that you would otherwise build (jitter buffer, echo cancel, congestion control)?
+- What is an SFU and why forward media without decoding?
+- Why keep WebSockets for signaling even when media rides WebRTC?
+- How does multi-region SFU placement change the end-to-end latency budget?
+
+**Tricks and gotchas**
+- TCP reliability is a liability for audio: retransmission stalls the whole stream, not just the lost frame.
+- Congestion control that reacts to loss is too late; WebRTC predicts congestion and lowers bitrate first.
+- NAT traversal (ICE/STUN/TURN) is non-trivial and is a reason people wrongly default to WebSockets.
+- An SFU forwards without transcoding, so it scales far better than a decode-re-encode mixer.
+
+**Common mistakes and how to fix them**
+- Defaulting to WebSockets for audio: use WebRTC/UDP so packet loss does not stall playback.
+- Building your own jitter buffer and echo cancellation: use the WebRTC media pipeline that already has them.
+- Transcoding media at the server: use an SFU to forward without decoding.
+- Ignoring geography: deploy multi-region SFUs so users connect to the nearest node.
+
+### Deepgram: eager end-of-turn to overlap the LLM with speech ([source](https://developers.deepgram.com/docs/flux/voice-agent-eager-eot))
+
+Deepgram's Flux fires an EagerEndOfTurn event when it reaches moderate confidence that the user has stopped speaking, letting the agent start LLM generation on a medium-confidence transcript instead of waiting for the high-confidence EndOfTurn, which can shave hundreds of milliseconds off response time. Two thresholds tune the behavior: eager_eot_threshold triggers speculation earlier at the risk of false starts, and eot_threshold governs the reliable finalization. If the user keeps talking after the eager event, a TurnResumed event cancels the speculation, and the agent discards the draft response and waits for the next turn. The tradeoff is roughly 50 to 70 percent more LLM calls in exchange for lower latency.
+
+```mermaid
+flowchart LR
+  SP["user speech"] --> STT["Flux STT"]
+  STT -->|"medium confidence"| EE["EagerEndOfTurn"]
+  EE --> LLM["start LLM (speculative)"]
+  STT -->|"user keeps talking"| TR["TurnResumed<br/>(discard draft)"]
+  TR --> STT
+  STT -->|"high confidence"| EOT["EndOfTurn"]
+  EOT --> RESP["commit response"]
+```
+
+**Interview questions this design invites**
+- Why start the LLM before you are sure the user finished speaking?
+- What happens to the speculative response when TurnResumed fires?
+- How do eager_eot_threshold and eot_threshold trade speed against false starts?
+- What is the cost of speculation (50 to 70 percent more LLM calls) and when is it worth it?
+- How do you make LLM calls cancellable so a discarded draft frees resources?
+- How does this interact with barge-in, where the user interrupts the agent?
+
+**Tricks and gotchas**
+- Eager triggering is speculation: some fraction of LLM calls are thrown away when the user resumes.
+- Lowering the eager threshold cuts latency but raises false-start rate; the two thresholds must be tuned together.
+- Discarded drafts still cost tokens and slots, so the LLM call must be genuinely cancelable.
+- Overlapping generation with speech only helps if downstream (TTS) can also start and cancel cleanly.
+
+**Common mistakes and how to fix them**
+- Waiting for high-confidence end-of-turn before starting: start eagerly on medium confidence and cancel if wrong.
+- Firing eager too aggressively: raise eager_eot_threshold if false starts hurt quality.
+- Not canceling speculative work: wire TurnResumed to abort the LLM call and free the slot.
+- Ignoring the extra LLM spend: budget for 50 to 70 percent more calls before enabling it.
+
+### AssemblyAI: Universal-Streaming immutable transcripts with semantic endpointing ([source](https://www.assemblyai.com/blog/introducing-universal-streaming))
+
+AssemblyAI's Universal-Streaming is a speech-to-text model built for voice agents that emits immutable transcripts in about 300ms: every word is final on first emission and never revised, unlike traditional streaming that emits changeable partials then finals. They report 307ms latency versus a competitor's 516ms, 91 percent word accuracy, and 21 percent fewer errors on alphanumeric data like confirmation codes. Endpointing combines acoustic and semantic features with traditional silence detection rather than relying on silence alone, so the agent detects true end-of-turn without awkward pauses. The service scales from 5 to 50,000-plus concurrent streams, prices at 0.15 dollars per hour of session duration, and drops into LiveKit, Pipecat, Daily, and Vapi.
+
+```mermaid
+flowchart LR
+  A["user audio"] --> US["Universal-Streaming STT"]
+  US -->|"immutable words (~300ms)"| T["transcript (never revised)"]
+  US --> EP["endpointing<br/>(acoustic + semantic + silence)"]
+  EP --> TURN["end-of-turn signal"]
+  T --> LLM["downstream LLM"]
+  TURN --> LLM
+```
+
+**Interview questions this design invites**
+- Why do immutable transcripts simplify a downstream LLM pipeline versus revisable partials?
+- What is lost by never revising a word, and how do you handle a genuine mistake?
+- Why combine acoustic and semantic features with silence for endpointing instead of silence alone?
+- How does pricing by session duration rather than audio length change capacity planning?
+- What does 300ms latency buy you in an interactive voice loop?
+- How do you validate 91 percent accuracy on hard cases like alphanumeric confirmation codes?
+
+**Tricks and gotchas**
+- Immutable means the model must be confident on first emission; there is no take-back if it is wrong.
+- Silence-only endpointing produces awkward pauses; semantic features detect end-of-turn earlier and more naturally.
+- Latency numbers are competitive claims (307ms vs 516ms); measure on your own audio.
+- Billing on session duration, not audio length, means idle-but-open streams still cost money.
+
+**Common mistakes and how to fix them**
+- Reprocessing revisable partials downstream: use immutable transcripts so the LLM never re-reads changed text.
+- Endpointing on silence alone: add acoustic plus semantic signals to cut false and late turn detection.
+- Assuming accuracy is uniform: test alphanumeric and domain-specific inputs separately.
+- Leaving streams open idle: close sessions promptly since billing tracks session duration.
+
+### ElevenLabs: low-latency streaming TTS pipelines for conversational AI ([source](https://elevenlabs.io/blog/enhancing-conversational-ai-latency-with-efficient-tts-pipelines))
+
+ElevenLabs frames low latency as the defining feature of good conversational AI and argues you should stream audio during generation rather than synthesizing a whole response first, so users hear speech before the full sentence is synthesized. They recommend adaptive buffering that adjusts preload to network conditions to avoid gaps and stalls, and parallelizing text preprocessing, synthesis, and audio rendering rather than running them in series. They also advise matching the TTS model to the use case instead of always deploying the heaviest model, trading unnecessary complexity for responsiveness where quality allows.
+
+```mermaid
+flowchart LR
+  TXT["LLM text stream"] --> PRE["text preprocessing"]
+  PRE --> SYN["TTS synthesis<br/>(streaming chunks)"]
+  SYN --> BUF["adaptive buffer<br/>(network-aware)"]
+  BUF --> PLAY["client playback<br/>(starts before full sentence)"]
+  PRE -.parallel.-> SYN
+  SYN -.parallel.-> REN["audio rendering"]
+```
+
+**Interview questions this design invites**
+- Why stream TTS audio chunks instead of synthesizing the full response first?
+- What is time-to-first-byte for TTS and why does it dominate perceived latency?
+- How does adaptive buffering trade off stall risk against latency?
+- When is a lighter TTS model the right call over the highest-quality one?
+- How do you parallelize preprocessing, synthesis, and rendering without audio artifacts?
+- How does TTS latency compose with STT and LLM latency in the full voice loop?
+
+**Tricks and gotchas**
+- Too little buffer causes gaps on jitter; too much buffer adds latency, so buffering must adapt to the network.
+- Streaming TTS lets playback begin before the sentence is done, but chunk boundaries can create audible seams.
+- Always using the heaviest model needlessly inflates latency; match model to use case.
+- Serial preprocess-then-synthesize-then-render wastes time; overlap the stages.
+
+**Common mistakes and how to fix them**
+- Synthesizing the whole utterance before playback: stream chunks so users hear the first words immediately.
+- Fixed buffer sizes: use adaptive buffering that tracks network conditions.
+- Defaulting to the biggest TTS model: pick the lightest model that meets the quality bar.
+- Running the pipeline serially: parallelize preprocessing, synthesis, and rendering.
+
+_Not reachable: none_
+
+---
+
 ## RAG serving
 
 ### Ramp: RAG industry classification into NAICS codes ([source](https://builders.ramp.com/post/industry_classification))
@@ -722,1169 +2949,6 @@ _Not reachable: Faire (Beyond BM25 and dense embeddings) - redirected to a login
 
 ---
 
-## Long-context and the KV cache
-
-### vLLM (UC Berkeley): OS-style paged KV-cache management ([source](https://arxiv.org/abs/2309.06180))
-
-vLLM is a serving system built around PagedAttention, an attention kernel that manages the KV cache in fixed-size blocks like operating-system virtual-memory pages instead of one contiguous buffer per sequence. Because the cache grows and shrinks dynamically during decode, contiguous allocation wastes memory to internal and external fragmentation; paging drives that toward near-zero waste and lets blocks be shared within and across requests. The extra packing means more concurrent sequences fit in the same GPU memory, delivering 2x to 4x throughput over prior systems like FasterTransformer and Orca at matched latency. The gains are largest for long sequences, big models, and parallel-sampling decode strategies where memory pressure is worst.
-
-```mermaid
-flowchart LR
-  R[Request] --> PF[Prefill]
-  PF --> BT[Block table maps logical to physical]
-  BT --> POOL[(Shared physical block pool)]
-  D[Decode step] --> BT
-  BT --> D
-  POOL -. shared prefix blocks .- POOL
-  D --> O[Output tokens]
-```
-
-**Interview questions this design invites**
-
-- Why does a contiguous per-sequence KV buffer waste memory, and which fragmentation type dominates?
-- How does a block table translate logical token positions to physical blocks?
-- What block size trades internal fragmentation against table overhead?
-- How does copy-on-write let parallel samples share a prompt's KV blocks?
-- Why do throughput gains grow with sequence length and batch size?
-- What is the memory-versus-latency relationship once you can pack more sequences?
-
-**Tricks and gotchas**
-
-- Paging adds an indirection per attention access, so the kernel must be written to gather non-contiguous blocks without killing bandwidth.
-- Block size is a real tuning knob: too large wastes the tail block, too small bloats the block table.
-- Sharing blocks across requests needs reference counting and copy-on-write to stay correct when one sequence diverges.
-- Throughput wins depend on there being enough queued requests to fill the freed memory.
-
-**Common mistakes and how to fix them**
-
-- Assuming paging speeds up a single request. It raises concurrency and throughput, not per-token latency; measure aggregate tokens per second.
-- Forgetting the block-table lookup cost. Fuse it into the attention kernel rather than doing it in Python per step.
-- Setting block size by intuition. Sweep it against your real sequence-length distribution.
-- Ignoring reference counting on shared prefixes. Leaked or prematurely freed blocks corrupt other sequences; instrument the pool.
-
-### Character.AI: MQA plus hybrid attention, cross-layer KV sharing, and int8 ([source](https://blog.character.ai/optimizing-ai-inference-at-character-ai-2/))
-
-Character.AI cut KV-cache size by more than 20x by stacking three architectural changes: Multi-Query Attention (roughly 8x smaller than GQA), hybrid local/global attention with sliding windows on 5 of every 6 layers, and KV sharing across neighboring layers for another 2x to 3x. They train models natively in int8 (weights, activations, and the KV cache) rather than post-training quantizing, which needs custom matmul and attention kernels. A stateful inter-turn prefix cache, an LRU tree indexed by rolling hash, hits about 95% across the fleet because the average conversation carries 180 messages of history. Together these cut serving cost 33x since late 2022, at over 20,000 queries per second.
-
-```mermaid
-flowchart TB
-  Q[Query heads] --> MQA[Single shared KV head, MQA]
-  L[Layer stack] --> SW[5 of 6 layers: sliding window local]
-  L --> GL[1 of 6 layers: global attention]
-  MQA --> KV[(int8 KV cache)]
-  SW --> KV
-  KV --> XL[Cross-layer KV sharing 2 to 3x]
-  RH[Rolling-hash LRU tree, 95 pct hit] -. reuse across turns .-> KV
-```
-
-**Interview questions this design invites**
-
-- Why does MQA give a larger cache cut than GQA, and what quality risk does it carry?
-- How does a 5-of-6 local/global layer pattern preserve long-range information cheaply?
-- What makes native int8 training different from post-training quantization for the KV cache?
-- How does a rolling hash key the prefix cache across dialogue turns?
-- Why does a 95% hit rate matter more when average history is 180 messages?
-- Where does cross-layer KV sharing lose quality, and how do you bound it?
-
-**Tricks and gotchas**
-
-- Native int8 requires custom kernels; you cannot bolt it on with a stock stack.
-- Sliding-window local layers need at least some global layers or long-range recall collapses.
-- Rolling-hash prefix keys must handle turn boundaries and tokenizer edges or hit rate degrades silently.
-- Cross-layer sharing couples layers, so a bad share pattern hurts quality unevenly.
-
-**Common mistakes and how to fix them**
-
-- Treating MQA as free. It is aggressive; validate quality on your task before shipping, and fall back to GQA if it regresses.
-- Post-quantizing to int8 and expecting Character.AI's numbers. They trained in int8; PTQ needs its own eval and per-channel scales.
-- Building a flat prefix cache. Use a tree keyed by hashed prefixes so multi-turn history reuses shared ancestors.
-- Sharing KV across arbitrary layers. Place shared and full layers deliberately, keeping enough independent global layers.
-
-### DeepSeek (V2): Multi-head Latent Attention compresses KV into a latent ([source](https://arxiv.org/abs/2405.04434))
-
-DeepSeek-V2 introduces Multi-head Latent Attention, which does not cache full keys and values at all; it down-projects each token into a small latent vector, caches only that latent, and up-projects back to per-head keys and values at attention time. This shrinks the KV cache about 93.3% versus the dense predecessor while keeping quality high. It pairs with DeepSeekMoE, activating only 21B of 236B parameters per token, so both cache memory and per-token compute stay low. RoPE does not commute cleanly with the compression, so DeepSeek splits the head dimension into a positional RoPE-carrying part and a compressed latent part.
-
-```mermaid
-flowchart LR
-  T[Token hidden state] --> DP[Down-project to latent]
-  DP --> LAT[(Cached latent vector)]
-  LAT --> UP[Up-project to per-head K and V]
-  T --> RO[RoPE sub-dimension]
-  UP --> ATT[Attention]
-  RO --> ATT
-  ATT --> MOE[DeepSeekMoE: 21B of 236B active]
-  MOE --> O[Output]
-```
-
-**Interview questions this design invites**
-
-- How does MLA differ from GQA in what actually shrinks the cache formula?
-- Why can you store a latent and reconstruct K and V instead of caching them?
-- Why does RoPE break naive latent compression, and how does splitting the head fix it?
-- What compute cost does the up-projection add per decode step?
-- How do MLA and MoE attack different terms of the serving bill?
-- When would MLA beat GQA despite its extra complexity?
-
-**Tricks and gotchas**
-
-- The RoPE-versus-latent head split is the detail most diagrams get wrong; both parts must be concatenated per head.
-- The up-projection matmul is paid every step, so it must be cheap relative to the memory saved.
-- MoE keeps all experts resident in memory even though only a few activate, so weight memory rises.
-- Latent width is a quality knob: too small and reconstruction loses information.
-
-**Common mistakes and how to fix them**
-
-- Claiming MLA shrinks kv_heads like GQA. It replaces cached K and V with a latent; describe the mechanism, not the head count.
-- Applying RoPE to the whole latent. Split the head so only the positional sub-dimension carries RoPE.
-- Assuming MoE cuts memory. It cuts active compute per token but needs all experts in HBM; budget for that.
-- Picking latent dims by feel. Sweep the down-projection width against quality on long-context evals.
-
-### Google Research (GQA): trade KV heads for speed at near-MHA quality ([source](https://arxiv.org/abs/2305.13245))
-
-Grouped-Query Attention sits between Multi-Head Attention (one KV head per query head) and Multi-Query Attention (a single shared KV head) by using an intermediate number of KV heads, each shared across a group of query heads. This directly shrinks the kv_heads term of the cache formula while keeping quality close to MHA. The paper also gives a recipe to uptrain existing MHA checkpoints into GQA (and MQA) using about 5% of original pre-training compute, so you convert a trained model rather than retrain from scratch. The result reaches quality close to MHA at speed comparable to MQA, which is why GQA is the current default.
-
-```mermaid
-flowchart TB
-  subgraph Q[8 query heads]
-    Q1
-    Q2
-    Q3
-    Q4
-  end
-  Q1 --> G1[KV head 1]
-  Q2 --> G1
-  Q3 --> G2[KV head 2]
-  Q4 --> G2
-  G1 --> KV[(KV cache: 2 heads not 8)]
-  G2 --> KV
-  MHA[MHA checkpoint] -. uptrain 5 pct compute .-> KV
-```
-
-**Interview questions this design invites**
-
-- How does GQA interpolate between MHA and MQA, and what does the group size control?
-- Why does GQA lose less quality than MQA for the same cache saving?
-- How does uptraining convert an MHA checkpoint into GQA cheaply?
-- What is the cache-reduction factor for 32 query heads and 8 KV heads?
-- Why is GQA the safe default over MLA for most deployments?
-- How do you pick the number of KV groups for a target memory budget?
-
-**Tricks and gotchas**
-
-- Uptraining still costs about 5% of pretraining compute; it is cheap, not free.
-- Group size is a direct quality-versus-memory dial; too few KV heads approaches MQA's quality risk.
-- Mean-pooling the original KV heads when initializing groups matters for uptraining quality.
-- GQA shrinks the cache but leaves head_dim and layer count untouched.
-
-**Common mistakes and how to fix them**
-
-- Conflating GQA and MQA. GQA keeps several KV heads; MQA keeps one. State the group count.
-- Expecting free conversion. Budget the 5% uptraining compute and re-evaluate quality after.
-- Setting one KV head to maximize savings. Keep enough groups to stay near MHA quality on your evals.
-- Assuming GQA fixes long-context memory alone. Combine with paging, quantization, or prefix caching.
-
-### NVIDIA: TensorRT-LLM KV-cache early reuse ([source](https://developer.nvidia.com/blog/5x-faster-time-to-first-token-with-nvidia-tensorrt-llm-kv-cache-early-reuse/))
-
-TensorRT-LLM lets shared prefixes (system prompts) be reused as their KV cache is being built rather than only after the whole computation finishes, which cuts redundant prefill during traffic surges. It adds flexible block sizing, letting developers chop KV blocks into sizes from 64 down to 2 tokens so short sequences waste less cache and reuse more precisely. Its eviction algorithm traces dependency trees and evicts dependent (child) blocks before their source (parent) blocks, so reusable prefixes survive under pressure. This yields up to 5x faster time-to-first-token for system-prompt-heavy workloads and about 7% additional speedup from block sizing on LLaMA-70B on H100.
-
-```mermaid
-flowchart LR
-  SP[Shared system prompt] --> ER[Early reuse while prefill in progress]
-  ER --> BLK[(KV blocks, size 2 to 64 tokens)]
-  NEW[New request same prefix] --> BLK
-  BLK --> EV[Eviction: children before parents]
-  BLK --> TTFT[Up to 5x faster TTFT]
-```
-
-**Interview questions this design invites**
-
-- What does early reuse buy over reuse that waits for full prefill completion?
-- How does variable block size reduce wasted cache for short sequences?
-- Why must eviction evict dependent blocks before their source blocks?
-- Where does the 5x TTFT gain come from, and for which workloads?
-- What is the failure mode if a parent prefix block is evicted first?
-- How does this compare to vLLM's fixed-block paging?
-
-**Tricks and gotchas**
-
-- Smaller blocks improve reuse granularity but increase block-table and management overhead.
-- Early reuse only helps when prefixes genuinely repeat, such as a fixed system prompt under a surge.
-- Dependency-aware eviction is essential; naive LRU can evict a shared parent and force recompute for everyone.
-- The 7% block-sizing gain is model and shape specific, not universal.
-
-**Common mistakes and how to fix them**
-
-- Using one large block size everywhere. Match block size to your sequence-length distribution.
-- Treating eviction as plain LRU. Track block dependencies so shared prefixes are evicted last.
-- Expecting TTFT gains without shared prefixes. The win is prefix-reuse; measure your prefix hit rate first.
-- Ignoring management overhead of tiny blocks. Profile the crossover where smaller blocks stop helping.
-
-### NVIDIA: NVFP4 4-bit KV cache ([source](https://developer.nvidia.com/blog/optimizing-inference-for-long-context-and-large-batch-sizes-with-nvfp4-kv-cache/))
-
-NVFP4 is a 4-bit floating-point format for the KV cache that cuts KV memory roughly 50% versus an FP8 cache, effectively doubling the context length, batch size, and concurrency that fit in HBM. Values are dequantized from NVFP4 up to FP8 before the attention math to hold accuracy, and its finer block scaling gives about 5% higher accuracy than MXFP4. Measured accuracy loss is under 1% across LiveCodeBench, MMLU-PRO, MBPP, and Ruler 64K. It optimizes for memory bandwidth and long-context/large-batch serving, reporting up to 3x prefill improvement from higher cache-hit rates and freeing HBM for weights and parallelism.
-
-```mermaid
-flowchart LR
-  KV[K and V tensors] --> QN[Quantize to NVFP4 4-bit]
-  QN --> STORE[(NVFP4 KV cache, ~50 pct of FP8)]
-  STORE --> DQ[Dequantize to FP8]
-  DQ --> ATT[Attention compute]
-  STORE --> CAP[2x context, batch, concurrency]
-```
-
-**Interview questions this design invites**
-
-- Why quantize the KV cache rather than only the weights for long-context serving?
-- Why dequantize NVFP4 to FP8 before attention instead of computing in 4-bit?
-- What does finer block scaling buy over MXFP4?
-- How does halving KV memory translate into doubled context or batch?
-- How would you gate a 4-bit KV format behind an accuracy eval?
-- Why does a smaller cache also help decode bandwidth, not just capacity?
-
-**Tricks and gotchas**
-
-- Block scaling granularity drives the accuracy gap; coarser scales lose more than the headline 1%.
-- The dequant-to-FP8 step is what protects accuracy; skipping it to compute in raw 4-bit degrades quality.
-- Sub-1% loss is benchmark-dependent; your task may be more sensitive, especially at very long context.
-- Freed HBM only helps if you actually raise batch size or context to use it.
-
-**Common mistakes and how to fix them**
-
-- Shipping 4-bit KV on vibes. Gate behind an eval on your own long-context tasks, as the CLAUDE guidance insists.
-- Assuming all 4-bit formats are equal. NVFP4's block scaling beats MXFP4 by about 5%; pick the format deliberately.
-- Quantizing keys and values identically without checking. Keys are often more sensitive; validate per-tensor behavior.
-- Cutting memory but not raising throughput. Deliberately increase batch or context to convert savings into gains.
-
-### Databricks: MixAttention (cross-layer KV sharing plus sliding window) ([source](https://www.databricks.com/blog/mixattention))
-
-MixAttention shrinks the KV cache by combining sliding-window attention (queries attend to only the last 1024 tokens) on most layers, a few retained standard full-attention layers for long-range ability, and KV-cache sharing where multiple layers reuse one layer's KV tensors. Their ablations found that keeping standard attention in the deeper layers matters more for long-context ability than keeping it in the first few layers, and that sharing among sliding-window layers should not be overdone. The best variants (MA-Offset and MA-Pairs) place full-attention layers deep and limit sharing. On a single H100 at 32K context this gives faster inference and larger batch sizes, with quality preserved on commonsense and world knowledge but some regression on reading comprehension.
-
-```mermaid
-flowchart TB
-  IN[Input] --> SW1[Sliding-window layer, last 1024 tokens]
-  SW1 --> SW2[Sliding-window layer]
-  SW2 --> ST[Deep standard full-attention layer]
-  ST --> SH[Layers reuse shared KV]
-  SW1 --> KV[(Reduced KV cache)]
-  ST --> KV
-  SH --> KV
-  KV --> OUT[Output]
-```
-
-**Interview questions this design invites**
-
-- Why does placing full-attention layers deep help long context more than placing them early?
-- How does a 1024-token sliding window bound the per-layer cache?
-- What does cross-layer KV sharing save, and what does it cost in quality?
-- Why does MixAttention regress on reading comprehension but not commonsense?
-- How would you search the space of which layers are full versus windowed versus shared?
-- What is the memory reduction when every l layers share one KV?
-
-**Tricks and gotchas**
-
-- Over-sharing among sliding-window layers hurts quality more than sharing across mixed layers.
-- Long-context ability is sensitive to where the full-attention layers sit, not just how many there are.
-- Reading-comprehension-style tasks are the canary for too aggressive windowing.
-- Gains are reported at 32K on one H100; different context lengths shift the tradeoff.
-
-**Common mistakes and how to fix them**
-
-- Putting the full-attention layers up front. Their ablation says deep placement preserves long context; move them deeper.
-- Sharing KV across as many layers as possible. Cap sharing and keep independent full layers.
-- Validating only on commonsense benchmarks. Add reading-comprehension and retrieval evals to catch the regression.
-- Assuming the window size is free. Sweep window length against your long-range task needs.
-
-### Databricks: automatic prompt (prefix) caching for open models ([source](https://www.databricks.com/blog/accelerating-llm-inference-prompt-caching-open-source-models-databricks))
-
-Databricks added automatic prompt caching that reuses the KV cache whenever an identical prompt prefix reappears across requests, with no user configuration; matching a cached prefix lets the expensive prefill stage be skipped entirely. In production on GPT-OSS models this delivered 2.5x higher per-replica input-token throughput and 3x lower P50 latency, and notably at only a 30% cache hit ratio. Caches are volatile and isolated per tenant, never persisted to storage. It targets repeated-prefix workloads: large shared system prompts, real-time chat, batch document processing, and agent deployments, across GPT-OSS, Gemma 3, and Llama 3.x models.
-
-```mermaid
-flowchart LR
-  REQ[Request with prefix] --> LK{Prefix in cache?}
-  LK -- hit --> SKIP[Skip prefill, reuse KV]
-  LK -- miss --> PF[Prefill and cache prefix]
-  SKIP --> DEC[Decode]
-  PF --> DEC
-  PF --> C[(Volatile per-tenant KV cache)]
-  C --> LK
-```
-
-**Interview questions this design invites**
-
-- Why can matching a prefix skip the entire prefill stage?
-- How can a 30% hit rate still yield 2.5x throughput and 3x lower P50?
-- What isolation guarantees must a multi-tenant prefix cache enforce?
-- Which workloads have naturally high prefix reuse?
-- How does automatic prefix matching differ from an explicit prompt-cache API?
-- Why report P50 latency here rather than P99?
-
-**Tricks and gotchas**
-
-- Exact-prefix matching means a single differing early token misses the whole cache; prompt structure matters.
-- Volatile caches vanish on eviction or restart, so hit rate is workload-dependent, not guaranteed.
-- Multi-tenant isolation is mandatory; a leaked prefix cache would cross user boundaries.
-- The 30%-hit result is specific to those models and prompts; measure your own reuse.
-
-**Common mistakes and how to fix them**
-
-- Placing variable content before the shared prefix. Put the stable system prompt and shared docs first so the prefix matches.
-- Assuming caching helps decode-heavy work. It skips prefill, so it helps long-prompt short-output shapes most.
-- Ignoring tenant isolation. Key caches per tenant and never persist them.
-- Expecting a fixed hit rate. Instrument real prefix reuse before promising latency numbers.
-
-_Not reachable: none_
-
----
-
-## Inference serving at scale
-
-### Anyscale (vLLM): continuous batching plus PagedAttention for 23x throughput ([source](https://www.anyscale.com/blog/continuous-batching-llm-inference))
-
-Anyscale shows that the throughput wall in LLM serving is static batching, where the whole batch is held hostage by its longest-generating member and the GPU idles as members finish. Continuous batching schedules at the iteration level: when a sequence emits its end-of-sequence token, its slot is freed immediately and a waiting request is admitted. vLLM stacks PagedAttention on top, allocating the KV cache in fixed-size blocks instead of one contiguous buffer, cutting memory waste under 4 percent. On Meta OPT-13B on an A100-40GB, the ladder runs naive static batching at baseline, FasterTransformer at 4x, plain continuous batching at 8x, and vLLM at 23x, with the biggest wins when output lengths vary a lot.
-
-```mermaid
-flowchart TD
-  REQ["incoming requests"] --> SCHED["iteration-level scheduler"]
-  SCHED --> BATCH["current batch (dynamic membership)"]
-  BATCH --> STEP["one decode step (all seqs)"]
-  STEP --> DONE{"sequence hit EOS?"}
-  DONE -->|"yes: retire, free slot"| SCHED
-  DONE -->|"no: keep"| BATCH
-  BATCH --> PAGED["PagedAttention KV blocks (non-contiguous, JIT allocated)"]
-  STEP --> OUT["streamed tokens"]
-```
-
-**Interview questions this design invites**
-- Why does static batching leave the GPU idle, and how does iteration-level scheduling fix it?
-- What problem does PagedAttention solve that continuous batching alone does not?
-- Why do high-variance output lengths produce the biggest throughput gain?
-- How does block-based KV allocation drive memory waste below 4 percent?
-- Where does the waiting_served_ratio knob trade prefill against decode?
-- What is the throughput ceiling once the KV cache, not compute, is the bottleneck?
-
-**Tricks and gotchas**
-- The 23x is versus naive static batching; the honest comparison against optimized static (FasterTransformer) is closer to 5-6x.
-- PagedAttention needs a custom attention kernel; you cannot just bolt it onto a stock attention path.
-- Admitting a new sequence still consumes KV blocks, so a full batch can OOM if you do not reserve cache budget.
-- Gains are workload-shaped: uniform short outputs see far less than high-variance chat traffic.
-
-**Common mistakes and how to fix them**
-- Claiming continuous batching alone gives 23x; separate the scheduling win (8x) from the PagedAttention memory win.
-- Assuming bigger batches always help; past the KV-cache limit you thrash, so size batches to the cache budget.
-- Forgetting prefill interference; a long prompt still stalls the batch step, so add chunked prefill.
-- Treating PagedAttention as free; the block table and kernel add bookkeeping you must account for.
-
-### Character.AI: MQA, cross-layer KV sharing, and int8 for 13.5x cheaper serving ([source](https://blog.character.ai/optimizing-ai-inference-at-character-ai/))
-
-Character.AI serves consumer chat at roughly 20,000 queries per second, about 20 percent of Google Search volume, at under one cent per conversation hour. They attack the KV cache directly: multi-query attention collapses the KV heads, cross-layer KV sharing reuses cache across layers, and int8 quantization shrinks the bytes read per decode step. Inter-turn caching keeps a conversation's prefix resident across turns so repeated chat context is not recomputed. The combined result is serving cost cut at least 33x since 2022 launch and about 13.5x cheaper than using leading commercial APIs. The public post emphasizes the economics; the named attention and quantization details live in their companion technical writeup.
-
-```mermaid
-flowchart TD
-  REQ["chat turn"] --> CACHE{"prefix in inter-turn cache?"}
-  CACHE -->|"hit"| DEC["decode (reuse cached KV)"]
-  CACHE -->|"miss"| PRE["prefill"]
-  PRE --> DEC
-  DEC --> MQA["MQA: shared KV heads"]
-  DEC --> XLAYER["cross-layer KV sharing"]
-  DEC --> INT8["int8 weight + KV"]
-  DEC --> OUT["token stream"]
-```
-
-**Interview questions this design invites**
-- How does multi-query attention shrink the KV cache, and what quality risk does it carry?
-- What is cross-layer KV sharing and why is it safe to reuse cache across layers?
-- Why is inter-turn (prefix) caching especially valuable for a chat product?
-- How does int8 quantization convert to serving cost, given decode is bandwidth-bound?
-- What does 20,000 QPS at under a cent per hour imply about batch sizes per GPU?
-- Where does aggressive KV reduction start to hurt output quality?
-
-**Tricks and gotchas**
-- MQA and cross-layer sharing both trade model expressivity for cache size; they must be trained in, not switched on at serving.
-- The 13.5x is versus commercial APIs, a different baseline than versus their own earlier stack (33x).
-- Inter-turn caching needs sticky routing so a returning turn lands on the GPU holding its prefix.
-- int8 is only a win if kernels actually read fewer bytes; a dequant-on-load path can erase it.
-
-**Common mistakes and how to fix them**
-- Conflating MQA with GQA; state that MQA is the extreme (one KV head) and GQA is the tunable middle.
-- Assuming prefix caching is automatic; it requires cache-aware routing and eviction policy.
-- Quoting the cost multiple without the baseline; always say versus what.
-- Ignoring quality gating; every KV or precision cut goes behind an eval before it ships.
-
-### LinkedIn: n-gram speculative decoding for 4x throughput and 66 percent lower P90 ([source](https://www.linkedin.com/blog/engineering/ai/accelerating-llm-inference-with-speculative-decoding-lessons-from-linkedins-hiring-assistant))
-
-LinkedIn's Hiring Assistant emits text that quotes job descriptions and candidate profiles verbatim, so its output is highly predictable from the prompt. They exploit this with n-gram (prompt-lookup) speculative decoding: instead of hosting a separate draft model, they draft the next few tokens straight from patterns already in the input, then verify them in one parallel pass on the target model. Because scoring several tokens costs about the same as scoring one, high acceptance turns into real speed. They report nearly 4x throughput at the same QPS and latency ceiling and a 66 percent average reduction in P90 end-to-end latency, with no quality loss. It runs on their vLLM stack tuned with num_speculative_tokens, prompt_lookup_max, and prompt_lookup_min.
-
-```mermaid
-flowchart TD
-  PROMPT["prompt (job desc + profile)"] --> LOOKUP["n-gram lookup: draft next k tokens from input patterns"]
-  LOOKUP --> VERIFY["target model verifies k tokens in one parallel pass"]
-  VERIFY --> ACC{"accepted?"}
-  ACC -->|"yes"| EMIT["emit accepted tokens"]
-  ACC -->|"first reject"| FALL["fall back to target token"]
-  EMIT --> LOOKUP
-  FALL --> LOOKUP
-```
-
-**Interview questions this design invites**
-- Why does n-gram drafting need no separate draft model, and what does it give up?
-- What property of the Hiring Assistant workload makes acceptance rate high?
-- Why is verifying k tokens roughly as cheap as verifying one?
-- How do prompt_lookup_min and prompt_lookup_max trade acceptance against draft waste?
-- Why report both throughput (4x) and P90 latency (66 percent) rather than one number?
-- When would n-gram speculation actively hurt, and how would you detect it?
-
-**Tricks and gotchas**
-- Prompt-lookup only wins when output echoes the prompt; free-form creative generation kills acceptance.
-- Setting num_speculative_tokens too high wastes verification compute when drafts miss.
-- The latency win concentrates at low-to-moderate batch sizes; at very large batches the GPU is already saturated.
-- prompt_lookup_min too low triggers speculation on weak matches, dragging acceptance down.
-
-**Common mistakes and how to fix them**
-- Believing speculation changes outputs; correct verification preserves the target distribution exactly, so measure parity.
-- Tuning one knob in isolation; min, max, and num_speculative_tokens interact and must be swept together.
-- Assuming the technique generalizes; validate acceptance rate per workload before enabling it.
-- Enabling it at huge batch sizes; measure that verification overhead does not outweigh the saved steps.
-
-### Baseten (BEI): batching, backpressure, FP8, and TensorRT-LLM for 2x embedding throughput ([source](https://www.baseten.co/blog/how-we-built-bei-high-throughput-embedding-inference/))
-
-Baseten built BEI, a runtime for embedding, reranker, and classifier models, reaching up to 2.05x throughput over vLLM and TEI. The core is NVIDIA TensorRT-LLM (XQA attention, layer fusion) for at least a 15 percent speedup, plus FP8 on H100 for 50 percent-plus more throughput while retaining over 99 percent cosine similarity to the unquantized outputs. The server is four parts: a Rust frontend for I/O, a multi-core tokenizer, a token-based batch manager that packs to a token budget rather than a request count (so variable inputs up to 32K tokens do not OOM), and the C++ TensorRT-LLM engine. Backpressure plus Baseten's traffic-based autoscaling lets it hold 1000-plus concurrent connections.
-
-```mermaid
-flowchart TD
-  REQ["requests (up to 1000+ concurrent)"] --> FE["Rust frontend (I/O)"]
-  FE --> BP{"backpressure gate"}
-  BP -->|"admit"| TOK["multi-core tokenizer"]
-  BP -->|"shed"| REJ["backpressure signal"]
-  TOK --> BATCH["token-based batch manager (pack to token budget)"]
-  BATCH --> ENG["TensorRT-LLM engine (FP8, XQA, layer fusion)"]
-  ENG --> OUT["embeddings / scores"]
-```
-
-**Interview questions this design invites**
-- Why pack a batch by token budget rather than request count for variable-length inputs?
-- How does FP8 give 50 percent throughput while keeping over 99 percent output similarity?
-- What role does backpressure play when 1000-plus clients connect at once?
-- Why put the frontend in Rust and the engine in C++ rather than one runtime?
-- How do XQA and layer fusion contribute the base 15 percent speedup?
-- What is different about serving embeddings/rerankers versus autoregressive decode?
-
-**Tricks and gotchas**
-- Embedding inference is prefill-only (no decode loop), so the batching math differs from chat serving.
-- Token-based packing prevents OOM but needs a max-token cap sized to the 32K input ceiling.
-- FP8 must be quality-gated per model; cosine similarity over 99 percent is the eval bar, not an assumption.
-- Backpressure without a clear client retry signal just moves the collapse to the caller.
-
-**Common mistakes and how to fix them**
-- Batching by request count; switch to token budgets so a few 32K inputs cannot blow memory.
-- Assuming a decode-oriented stack fits embeddings; strip the decode loop and optimize the single forward pass.
-- Shipping FP8 blind; verify cosine similarity against bf16 before enabling.
-- Ignoring the frontend cost; a slow tokenizer or I/O layer caps throughput before the GPU does.
-
-### NVIDIA Dynamo: disaggregated prefill/decode with a KV-aware smart router ([source](https://developer.nvidia.com/blog/introducing-nvidia-dynamo-a-low-latency-distributed-inference-framework-for-scaling-reasoning-ai-models/))
-
-Dynamo is an open-source distributed serving framework built for reasoning models, reporting up to 30x throughput on DeepSeek-R1 671B on GB200 NVL72 and 2x-plus on Llama 70B on Hopper. It disaggregates prefill (compute-bound, low tensor parallelism) from decode (memory-bound, high tensor parallelism) so each phase gets its own parallelism. A Smart Router tracks KV cache across the fleet with a radix tree, scoring prefix overlap to route a request to the worker that already holds the most relevant blocks and minimize recompute. A distributed KV cache manager offloads cold blocks to CPU memory, local disk, or networked object storage (up to petabytes cheaply), a Dynamic GPU Planner shifts capacity between prefill and decode against the SLO, and NIXL provides a uniform data-movement API across the memory tiers.
-
-```mermaid
-flowchart TD
-  REQ["request"] --> ROUTER["smart router (radix tree KV overlap score)"]
-  ROUTER --> PRE["prefill pool (low TP)"]
-  PRE -->|"KV handoff via NIXL"| DEC["decode pool (high TP)"]
-  DEC --> OUT["token stream"]
-  KVM["distributed KV manager (CPU / disk / object store, tiered offload)"] -.-> PRE
-  KVM -.-> DEC
-  PLAN["dynamic GPU planner (SLO-driven)"] -.-> PRE
-  PLAN -.-> DEC
-```
-
-**Interview questions this design invites**
-- Why give prefill low tensor parallelism and decode high tensor parallelism?
-- How does a radix tree over KV blocks let the router cut recompute?
-- What does the KV handoff cost, and why does it need NIXL / a fast fabric?
-- When does disaggregation pay off versus a single pool with chunked prefill?
-- How does the Dynamic GPU Planner decide to move a GPU from prefill to decode?
-- Why is tiered KV offload (CPU/disk/object) worth petabytes of cheap storage?
-
-**Tricks and gotchas**
-- Disaggregation only wins if the prefill-to-decode transfer rides fast interconnect; a slow link becomes the new bottleneck.
-- Phase-specific parallelism means two engine configs to tune and keep in sync, not one.
-- The 30x headline is on Blackwell NVL72 with fast fabric; commodity nodes will not reproduce it.
-- Router prefix scoring helps only when traffic shares prefixes (system prompts, shared docs).
-
-**Common mistakes and how to fix them**
-- Disaggregating a small model at moderate QPS; a single pool with chunked prefill is simpler and usually enough.
-- Ignoring transfer latency; size the interconnect first or the hand-off eats the win.
-- Static prefill/decode split; use an SLO-driven planner so a decode-heavy shift does not starve one pool.
-- Offloading hot KV to slow storage; keep active sequences on GPU and only tier cold blocks.
-
-### Together AI (ATLAS): runtime-learning speculative decoding that adapts to live traffic ([source](https://www.together.ai/blog/adaptive-learning-speculator-system-atlas))
-
-ATLAS keeps the speculative-decoding speedup from degrading when traffic drifts. It pairs a static heavyweight speculator that gives a consistent baseline on any workload with a lightweight adaptive speculator that learns from live traffic in real time, and a confidence-aware controller picks between them and tunes lookahead depth, drafting further when confidence is high and pulling back when it drops. Built on Together Turbo, it reports up to 500 TPS on DeepSeek-V3.1 and 460 TPS on Kimi-K2, roughly 4x baseline with no manual configuration, and a 401 percent speedup over the FP8 baseline on DeepSeek (105 to 501 TPS at batch size 1 on 4 B200 GPUs). Because it learns online, it specializes to the current session, for example a specific code file during a development session.
-
-```mermaid
-flowchart TD
-  REQ["live request"] --> CTRL["confidence-aware controller (pick speculator, set lookahead)"]
-  CTRL --> STATIC["static heavyweight speculator (baseline)"]
-  CTRL --> ADAPT["lightweight adaptive speculator (learns online)"]
-  STATIC --> VERIFY["target model parallel verify"]
-  ADAPT --> VERIFY
-  VERIFY --> OUT["token stream"]
-  OUT -->|"live traffic signal"| ADAPT
-```
-
-**Interview questions this design invites**
-- Why does a static speculator lose acceptance as the workload drifts?
-- How does the controller decide between the static and adaptive speculators?
-- What signal trains the adaptive speculator online, and what is the feedback loop risk?
-- Why does lookahead depth need to track confidence rather than stay fixed?
-- How does online specialization help a long coding session specifically?
-- What is the baseline behind the 401 percent number (FP8, batch 1, 4 B200)?
-
-**Tricks and gotchas**
-- Online learning adds a training loop on the serving path; it must not stall decode.
-- Adaptive gains are session-shaped; a cold or highly varied stream sees less than a focused one.
-- The big multiples are at batch size 1; at high batch the GPU is already saturated and speculation helps less.
-- A confidently wrong adaptive speculator wastes verification, so the confidence estimate itself must be calibrated.
-
-**Common mistakes and how to fix them**
-- Assuming a once-trained speculator stays optimal; measure acceptance over time and adapt if it decays.
-- Reporting batch-1 speedups as fleet throughput; separate latency wins from aggregate throughput.
-- Letting the adaptive model overfit a session and hurt the next; keep the static baseline as a floor.
-- Skipping output-parity checks; adaptation changes drafts, never the verified distribution, so prove it.
-
-### Fireworks AI (FireOptimizer): adaptive speculative execution with workload-trained draft models ([source](https://fireworks.ai/blog/fireoptimizer))
-
-FireOptimizer is Fireworks' adaptation engine that tailors inference to a customer's specific traffic, with adaptive speculative execution as the headline giving up to 3x lower latency. Rather than a generic draft model, it automatically trains and deploys a draft model on the customer's own data (traced production traffic or a sample set), because the higher the draft hit rate the larger the latency win. Their case study is the sharp lesson: a generic draft model hit only 29 percent and actually slowed inference 1.5x, while the specialized draft reached 76 percent and delivered a 2x speedup. Beyond speculation it layers customizable quantization, adaptive caching, and hardware mapping, all profile-driven with no manual hyperparameter tuning, currently on enterprise reserved deployments.
-
-```mermaid
-flowchart TD
-  DATA["customer data (traced prod or sample)"] --> TRAIN["auto-train specialized draft model"]
-  TRAIN --> DRAFT["workload-specific draft model"]
-  REQ["request"] --> DRAFT
-  DRAFT --> VERIFY["target model parallel verify"]
-  VERIFY --> OUT["token stream"]
-  TUNE["profile-driven tuning (quant, caching, hardware map)"] -.-> VERIFY
-```
-
-**Interview questions this design invites**
-- Why does a customized draft model beat a generic one on latency?
-- How can a bad draft model (29 percent hit) make inference slower, not faster?
-- What hit rate is the rough break-even where speculation starts paying off?
-- Why train the draft on traced production data rather than a public corpus?
-- How do quantization, caching, and hardware mapping compose with speculation?
-- What deployment shape (reserved vs on-demand) does per-workload training imply?
-
-**Tricks and gotchas**
-- A low-acceptance draft is net-negative: you pay draft compute and still fall back, so measure before shipping.
-- Training on production traces raises data-handling and privacy questions you must answer.
-- The 3x is a ceiling; the realized number tracks the customer's actual hit rate.
-- Per-workload draft models mean one model per customer to train, deploy, and keep fresh as traffic drifts.
-
-**Common mistakes and how to fix them**
-- Reusing one generic draft across workloads; specialize per workload or acceptance collapses.
-- Ignoring the slowdown risk; gate any draft behind a measured hit rate before enabling.
-- Treating the draft as static; retrain as the customer's traffic distribution shifts.
-- Stacking quant and speculation without eval; verify quality after each layer, not just the final stack.
-
-### Modal: engine choice, quantization, CUDA graphs, and snapshots for throughput ([source](https://modal.com/docs/guide/high-performance-llm-inference))
-
-Modal's guide is the serverless-serving angle: pick the engine to the workload (vLLM for throughput thanks to its prefill/decode scheduling, SGLang for latency-sensitive decode because of lower host overhead), then tune precision and cold starts. FP8 on H100/H200 is the default precision win while immature FP4 is avoided, and for cold-start-bound cases aggressive quantization (even integer or ternary) helps by shrinking bytes to load even when it does not speed inference. CUDA graph capture and JIT compilation raise steady-state throughput but are tricky to cache and add tens of seconds per boot. Modal's headline lever is Memory Snapshots, which serialize a warmed container (GPU snapshots claim 10x cold-start reduction), backed by loading weights from Modal Volumes at 1-2 GB/s, roughly a second per gigabyte.
-
-```mermaid
-flowchart TD
-  REQ["request"] --> ENGINE{"engine choice"}
-  ENGINE -->|"throughput"| VLLM["vLLM (prefill/decode scheduling)"]
-  ENGINE -->|"latency"| SGL["SGLang (low host overhead)"]
-  VLLM --> QUANT["FP8 quantization (H100/H200)"]
-  SGL --> QUANT
-  QUANT --> GRAPH["CUDA graphs + JIT (steady-state throughput)"]
-  COLD["cold start"] --> SNAP["memory snapshot (10x faster boot)"]
-  SNAP --> VOL["weights from Modal Volume (1-2 GB/s)"]
-  VOL --> ENGINE
-  GRAPH --> OUT["token stream"]
-```
-
-**Interview questions this design invites**
-- When do you pick vLLM over SGLang, and what property drives the choice?
-- Why can aggressive quantization help cold starts even without a decode speedup?
-- What is the tradeoff of CUDA graphs and JIT: throughput up, but what cost?
-- How do memory snapshots cut cold-start time by roughly 10x?
-- Why does weight-load bandwidth (1-2 GB/s) set a floor on boot time?
-- On serverless GPU, when is scale-to-zero acceptable and when is it not?
-
-**Tricks and gotchas**
-- CUDA graphs and JIT are hard to cache, so their throughput win can be undone by boot-time penalties on a spiky workload.
-- Snapshotting a warmed process needs code changes to the inference server; it is not transparent.
-- Weight load is bandwidth-bound at about a second per gigabyte, so a multi-GB model still costs real seconds even snapshotted.
-- FP4 support is immature; reaching for it early buys instability, not speed.
-
-**Common mistakes and how to fix them**
-- Enabling CUDA graphs on a scale-to-zero hot path; measure boot cost, or keep a warm buffer instead.
-- Using scale-to-zero for latency-sensitive traffic; reserve it for cold, rarely-used models.
-- Assuming one engine fits all; match vLLM/SGLang to the throughput-vs-latency SLO.
-- Ignoring weight-load bandwidth in the cold-start budget; stream from a fast Volume and size the model down.
-
-_Not reachable: none_
-
----
-
-## Realtime streaming chat
-
-### LinkedIn: end-to-end streaming generative AI assistant with progressive parsing ([source](https://www.linkedin.com/blog/engineering/generative-ai/musings-on-building-a-generative-ai-product))
-
-LinkedIn built their assistant on a three-step RAG pattern: a routing step classifies the query and picks an agent, a retrieval step calls internal RPC APIs (wrapped as LLM-friendly "skills") plus external services like Bing, and a generation step synthesizes the answer. They cut perceived latency with end-to-end token streaming and progressive parsing, firing downstream API calls the moment their parameters appear in the LLM output rather than waiting for the full response. They used small models for routing and retrieval and bigger models for generation, and preferred YAML over JSON in schemas to save tokens. Quality was the hard part: one month to reach 80 percent, four more months to pass 95 percent, backed by a layered eval pipeline with linguist annotation of about 500 daily conversations.
-
-```mermaid
-flowchart LR
-  U["user query"] --> R["routing<br/>(small model)"]
-  R --> RET["retrieval<br/>(internal APIs + Bing)"]
-  RET --> G["generation<br/>(large model)"]
-  G -->|"token stream"| C["client render"]
-  G -->|"progressive parse"| SK["fire skill calls<br/>as params appear"]
-  SK --> RET
-```
-
-**Interview questions this design invites**
-- Why route with a small model and generate with a big one instead of one model for both?
-- How does progressive parsing of the LLM output reduce end-to-end latency, and what breaks if the partial parse is wrong?
-- How do you expose proprietary internal APIs to an LLM safely as "skills"?
-- Why did quality take four extra months when 80 percent came in one, and what does that say about eval-driven development?
-- How would you detect and bound hallucination in a chat product at scale?
-- Chain-of-thought adds hidden reasoning tokens the user never sees; how do you plan capacity for that?
-
-**Tricks and gotchas**
-- Progressive parsing means you fire side-effecting API calls before the model has finished; a later token can contradict an early one.
-- Defensive parsing matters: initial LLM format-error rate was about 10 percent, driven to roughly 0.01 percent with hardening.
-- YAML instead of JSON for schemas measurably cuts token cost on high-volume prompts.
-- Reasoning tokens are invisible latency; time-to-first-token can look fine while total generation balloons.
-
-**Common mistakes and how to fix them**
-- Waiting for the full LLM response before acting: parse and dispatch incrementally instead.
-- One giant model for every stage: split routing/retrieval (cheap, fast) from generation (expensive, high quality).
-- Trusting LLM output format: add tolerant parsing and repair, not strict schema rejection.
-- Treating eval as an afterthought: stand up human plus model-based eval early or the last 15 percent of quality never lands.
-
-### Cloudflare: Durable Objects for persistent WebSockets and auth in AI Gateway ([source](https://blog.cloudflare.com/do-it-again/))
-
-Cloudflare added a WebSocket API to AI Gateway so clients hold a single persistent connection for many inference requests instead of reopening HTTP connections, backed by Durable Objects that reuse the existing Universal Endpoint code. Because WebSocket traffic is asynchronous and multiple streaming inferences can be in flight at once, they tag every message with an eventId so the client can attribute each chunk to the right request. Auth runs either through Cloudflare API tokens in a cf-aig-authorization header or, for browsers that cannot set custom headers, through the sec-websocket-protocol header. Each connection gets a UUID, and streaming requests send initial metadata, then live chunks, then a completion message, at the scale of 3-plus billion daily logs.
-
-```mermaid
-flowchart LR
-  C["client"] -->|"persistent WebSocket"| DO["Durable Object<br/>(per connection UUID)"]
-  DO --> AUTH["auth<br/>(cf-aig-authorization<br/>or sec-websocket-protocol)"]
-  AUTH --> UE["Universal Endpoint<br/>(shared code)"]
-  UE --> INF["AI inference provider"]
-  INF -->|"chunks tagged eventId"| DO
-  DO -->|"stream"| C
-```
-
-**Interview questions this design invites**
-- Why multiplex many inference requests over one WebSocket instead of one connection per request?
-- How does eventId solve response attribution when several streams share a duplex socket?
-- Why do browsers need the sec-websocket-protocol header trick for auth?
-- What does a Durable Object give you that a stateless Worker does not for a long-lived connection?
-- How do you clean up a Durable Object when a client disconnects mid-stream?
-- How would you rate-limit or bill per-request when everything rides one socket?
-
-**Tricks and gotchas**
-- Async duplex sockets make responses ambiguous without an explicit correlation id on every message.
-- Browsers cannot set arbitrary headers on a WebSocket handshake, so auth has to ride the subprotocol field.
-- Reusing the HTTP Universal Endpoint code inside the Durable Object avoids a divergent second code path.
-- A single persistent connection concentrates state, so connection lifecycle and cleanup become the reliability surface.
-
-**Common mistakes and how to fix them**
-- Assuming ordered request/response like HTTP: add an eventId and demultiplex on the client.
-- Opening a new connection per inference: reuse one persistent socket to cut handshake overhead.
-- Forgetting browser header limits: fall back to sec-websocket-protocol for the token.
-- Leaking connection state: pin state to a Durable Object with a UUID and tear it down on close.
-
-### Vercel: Chat SDK for cross-platform agent streaming ([source](https://vercel.com/blog/chat-sdk-brings-agents-to-your-users))
-
-Vercel's Chat SDK is a TypeScript library that runs one agent codebase across Slack, Teams, Google Chat, Discord, Telegram, WhatsApp, GitHub, and Linear. It pipes AI SDK text streams straight into each platform through adapters: Slack renders formatting natively in real time, while platforms without live streaming use a throttled fallback that repeatedly edits the message, running streamed text through each adapter's markdown-to-native converter at every intermediate edit. The adapter layer also normalizes channel and user names, link previews, referenced posts, and image context, and it handles platform limits like WhatsApp's 24-hour messaging window. State persists in Redis or PostgreSQL, supporting distributed locks and key-value cache across bot instances.
-
-```mermaid
-flowchart LR
-  LLM["AI SDK text stream"] --> AD["adapter layer<br/>(markdown to native)"]
-  AD -->|"native streaming"| SL["Slack (live edits)"]
-  AD -->|"throttled fallback<br/>(repeated edits)"| OT["Teams / Telegram /<br/>WhatsApp / Discord"]
-  ST["Redis / PostgreSQL<br/>(locks, kv state)"] --> AD
-```
-
-**Interview questions this design invites**
-- Why is a throttled edit-loop fallback needed when a platform lacks native streaming?
-- What are the tradeoffs of re-editing one message repeatedly versus appending new messages?
-- How do you keep one agent codebase portable across platforms with different formatting models?
-- Why put distributed locks in front of shared bot state, and what race do they prevent?
-- How does a 24-hour messaging window (WhatsApp) change how you queue outbound tokens?
-- Where does session memory live so a conversation survives across bot instances?
-
-**Tricks and gotchas**
-- The throttled fallback re-runs markdown-to-native conversion at each intermediate edit, so conversion cost is paid many times per message.
-- Rapid message edits can hit platform rate limits; throttling is a correctness constraint, not just polish.
-- Different platforms have different native format targets (Block Kit, GFM, code blocks), so one output has many renders.
-- Distributed locks are required because multiple instances may touch the same conversation state.
-
-**Common mistakes and how to fix them**
-- Assuming every platform streams like Slack: detect capability and fall back to throttled edits.
-- Editing on every token: throttle the edit rate to stay under platform limits.
-- Keeping bot state in process memory: move to Redis or PostgreSQL so instances share it.
-- Ignoring platform send windows: buffer and respect constraints like the 24-hour window.
-
-### OpenAI: realtime speech-to-speech and audio model snapshots for voice ([source](https://developers.openai.com/blog/updates-audio-models))
-
-OpenAI shipped updated audio model snapshots aimed at production voice apps: gpt-realtime-mini for native speech-to-speech over the Realtime API, gpt-audio-mini for speech-to-speech in Chat Completions, plus a mini TTS and a mini transcribe model. The realtime model improved instruction-following by 18.6 percent and tool-calling accuracy by 12.9 percent, the TTS model dropped word error rates by about 35 percent, and the transcribe model cut hallucinations by roughly 90 percent versus Whisper v2 in noisy audio and during silence. Turn detection is handled model-side in the speech-to-speech path rather than by an external endpointer, and pricing stayed flat so existing integrations can migrate by snapshot.
-
-```mermaid
-flowchart LR
-  U["user audio"] --> RT["gpt-realtime-mini<br/>(speech-to-speech,<br/>model-side turn detect)"]
-  RT --> OUT["audio out"]
-  subgraph componentized["componentized path"]
-    A["audio in"] --> STT["gpt-4o-mini-transcribe"]
-    STT --> L["LLM"]
-    L --> TTS["gpt-4o-mini-tts"]
-    TTS --> A2["audio out"]
-  end
-```
-
-**Interview questions this design invites**
-- When do you pick native speech-to-speech over a componentized STT plus LLM plus TTS pipeline?
-- What does model-side turn detection buy you versus a separate endpointing model?
-- Why do transcription hallucinations spike during silence or background noise, and how do you measure it?
-- How do you evaluate instruction-following and tool-calling accuracy for a voice model specifically?
-- What is the migration risk of pinning to a dated model snapshot versus a floating alias?
-- How does a unified speech-to-speech model change your latency budget versus a three-stage pipeline?
-
-**Tricks and gotchas**
-- Native speech-to-speech folds turn detection into the model, removing a tunable external endpointer you might want control over.
-- Transcription models hallucinate words during silence; a 90 percent reduction still is not zero.
-- Snapshot-pinned models keep behavior stable but require deliberate migration to get gains.
-- Speech-to-speech and componentized paths have different debuggability; you cannot inspect an intermediate transcript in the fused model.
-
-**Common mistakes and how to fix them**
-- Reaching for a componentized pipeline by default: use native speech-to-speech when you need lowest latency and do not need the intermediate transcript.
-- Ignoring silence handling: pick a transcribe model hardened against hallucination in noise, and gate on confidence.
-- Floating on an unpinned model: pin a snapshot and test before migrating.
-- Assuming tool calls work in voice: measure tool-calling accuracy separately, since it lags text.
-
-### LiveKit: WebRTC over WebSockets for realtime voice agents ([source](https://livekit.com/blog/why-webrtc-beats-websockets-for-voice-ai-agents))
-
-LiveKit argues WebSockets are the wrong transport for voice because they run on TCP, which guarantees ordered delivery by retransmitting lost packets, causing head-of-line blocking: audio that arrived fine sits buffered and unplayed until the gap is filled, and a 200ms retransmit stall destroys conversational flow. WebRTC instead uses UDP with RTP, favoring timing over perfect reliability, so a single lost 20ms frame is barely noticeable. WebRTC also ships adaptive jitter buffers, media-aware congestion control (like Google Congestion Control) that lowers bitrate before loss occurs, built-in echo cancellation and noise suppression, and NAT traversal via ICE, STUN, and TURN. A Selective Forwarding Unit routes media without decoding, and multi-region SFUs let users hit the nearest node to trim latency across the STT, LLM, and TTS pipeline.
-
-```mermaid
-flowchart LR
-  U["user"] -->|"UDP / RTP<br/>(WebRTC)"| SFU["Selective Forwarding Unit<br/>(multi-region)"]
-  SFU --> JB["jitter buffer +<br/>congestion control"]
-  JB --> STT["STT"] --> LLM["LLM"] --> TTS["TTS"]
-  TTS -->|"RTP"| U
-```
-
-**Interview questions this design invites**
-- What is head-of-line blocking and why does it hurt voice more than text?
-- Why is dropping a 20ms audio frame better than a 200ms retransmit stall?
-- What does WebRTC give you out of the box that you would otherwise build (jitter buffer, echo cancel, congestion control)?
-- What is an SFU and why forward media without decoding?
-- Why keep WebSockets for signaling even when media rides WebRTC?
-- How does multi-region SFU placement change the end-to-end latency budget?
-
-**Tricks and gotchas**
-- TCP reliability is a liability for audio: retransmission stalls the whole stream, not just the lost frame.
-- Congestion control that reacts to loss is too late; WebRTC predicts congestion and lowers bitrate first.
-- NAT traversal (ICE/STUN/TURN) is non-trivial and is a reason people wrongly default to WebSockets.
-- An SFU forwards without transcoding, so it scales far better than a decode-re-encode mixer.
-
-**Common mistakes and how to fix them**
-- Defaulting to WebSockets for audio: use WebRTC/UDP so packet loss does not stall playback.
-- Building your own jitter buffer and echo cancellation: use the WebRTC media pipeline that already has them.
-- Transcoding media at the server: use an SFU to forward without decoding.
-- Ignoring geography: deploy multi-region SFUs so users connect to the nearest node.
-
-### Deepgram: eager end-of-turn to overlap the LLM with speech ([source](https://developers.deepgram.com/docs/flux/voice-agent-eager-eot))
-
-Deepgram's Flux fires an EagerEndOfTurn event when it reaches moderate confidence that the user has stopped speaking, letting the agent start LLM generation on a medium-confidence transcript instead of waiting for the high-confidence EndOfTurn, which can shave hundreds of milliseconds off response time. Two thresholds tune the behavior: eager_eot_threshold triggers speculation earlier at the risk of false starts, and eot_threshold governs the reliable finalization. If the user keeps talking after the eager event, a TurnResumed event cancels the speculation, and the agent discards the draft response and waits for the next turn. The tradeoff is roughly 50 to 70 percent more LLM calls in exchange for lower latency.
-
-```mermaid
-flowchart LR
-  SP["user speech"] --> STT["Flux STT"]
-  STT -->|"medium confidence"| EE["EagerEndOfTurn"]
-  EE --> LLM["start LLM (speculative)"]
-  STT -->|"user keeps talking"| TR["TurnResumed<br/>(discard draft)"]
-  TR --> STT
-  STT -->|"high confidence"| EOT["EndOfTurn"]
-  EOT --> RESP["commit response"]
-```
-
-**Interview questions this design invites**
-- Why start the LLM before you are sure the user finished speaking?
-- What happens to the speculative response when TurnResumed fires?
-- How do eager_eot_threshold and eot_threshold trade speed against false starts?
-- What is the cost of speculation (50 to 70 percent more LLM calls) and when is it worth it?
-- How do you make LLM calls cancellable so a discarded draft frees resources?
-- How does this interact with barge-in, where the user interrupts the agent?
-
-**Tricks and gotchas**
-- Eager triggering is speculation: some fraction of LLM calls are thrown away when the user resumes.
-- Lowering the eager threshold cuts latency but raises false-start rate; the two thresholds must be tuned together.
-- Discarded drafts still cost tokens and slots, so the LLM call must be genuinely cancelable.
-- Overlapping generation with speech only helps if downstream (TTS) can also start and cancel cleanly.
-
-**Common mistakes and how to fix them**
-- Waiting for high-confidence end-of-turn before starting: start eagerly on medium confidence and cancel if wrong.
-- Firing eager too aggressively: raise eager_eot_threshold if false starts hurt quality.
-- Not canceling speculative work: wire TurnResumed to abort the LLM call and free the slot.
-- Ignoring the extra LLM spend: budget for 50 to 70 percent more calls before enabling it.
-
-### AssemblyAI: Universal-Streaming immutable transcripts with semantic endpointing ([source](https://www.assemblyai.com/blog/introducing-universal-streaming))
-
-AssemblyAI's Universal-Streaming is a speech-to-text model built for voice agents that emits immutable transcripts in about 300ms: every word is final on first emission and never revised, unlike traditional streaming that emits changeable partials then finals. They report 307ms latency versus a competitor's 516ms, 91 percent word accuracy, and 21 percent fewer errors on alphanumeric data like confirmation codes. Endpointing combines acoustic and semantic features with traditional silence detection rather than relying on silence alone, so the agent detects true end-of-turn without awkward pauses. The service scales from 5 to 50,000-plus concurrent streams, prices at 0.15 dollars per hour of session duration, and drops into LiveKit, Pipecat, Daily, and Vapi.
-
-```mermaid
-flowchart LR
-  A["user audio"] --> US["Universal-Streaming STT"]
-  US -->|"immutable words (~300ms)"| T["transcript (never revised)"]
-  US --> EP["endpointing<br/>(acoustic + semantic + silence)"]
-  EP --> TURN["end-of-turn signal"]
-  T --> LLM["downstream LLM"]
-  TURN --> LLM
-```
-
-**Interview questions this design invites**
-- Why do immutable transcripts simplify a downstream LLM pipeline versus revisable partials?
-- What is lost by never revising a word, and how do you handle a genuine mistake?
-- Why combine acoustic and semantic features with silence for endpointing instead of silence alone?
-- How does pricing by session duration rather than audio length change capacity planning?
-- What does 300ms latency buy you in an interactive voice loop?
-- How do you validate 91 percent accuracy on hard cases like alphanumeric confirmation codes?
-
-**Tricks and gotchas**
-- Immutable means the model must be confident on first emission; there is no take-back if it is wrong.
-- Silence-only endpointing produces awkward pauses; semantic features detect end-of-turn earlier and more naturally.
-- Latency numbers are competitive claims (307ms vs 516ms); measure on your own audio.
-- Billing on session duration, not audio length, means idle-but-open streams still cost money.
-
-**Common mistakes and how to fix them**
-- Reprocessing revisable partials downstream: use immutable transcripts so the LLM never re-reads changed text.
-- Endpointing on silence alone: add acoustic plus semantic signals to cut false and late turn detection.
-- Assuming accuracy is uniform: test alphanumeric and domain-specific inputs separately.
-- Leaving streams open idle: close sessions promptly since billing tracks session duration.
-
-### ElevenLabs: low-latency streaming TTS pipelines for conversational AI ([source](https://elevenlabs.io/blog/enhancing-conversational-ai-latency-with-efficient-tts-pipelines))
-
-ElevenLabs frames low latency as the defining feature of good conversational AI and argues you should stream audio during generation rather than synthesizing a whole response first, so users hear speech before the full sentence is synthesized. They recommend adaptive buffering that adjusts preload to network conditions to avoid gaps and stalls, and parallelizing text preprocessing, synthesis, and audio rendering rather than running them in series. They also advise matching the TTS model to the use case instead of always deploying the heaviest model, trading unnecessary complexity for responsiveness where quality allows.
-
-```mermaid
-flowchart LR
-  TXT["LLM text stream"] --> PRE["text preprocessing"]
-  PRE --> SYN["TTS synthesis<br/>(streaming chunks)"]
-  SYN --> BUF["adaptive buffer<br/>(network-aware)"]
-  BUF --> PLAY["client playback<br/>(starts before full sentence)"]
-  PRE -.parallel.-> SYN
-  SYN -.parallel.-> REN["audio rendering"]
-```
-
-**Interview questions this design invites**
-- Why stream TTS audio chunks instead of synthesizing the full response first?
-- What is time-to-first-byte for TTS and why does it dominate perceived latency?
-- How does adaptive buffering trade off stall risk against latency?
-- When is a lighter TTS model the right call over the highest-quality one?
-- How do you parallelize preprocessing, synthesis, and rendering without audio artifacts?
-- How does TTS latency compose with STT and LLM latency in the full voice loop?
-
-**Tricks and gotchas**
-- Too little buffer causes gaps on jitter; too much buffer adds latency, so buffering must adapt to the network.
-- Streaming TTS lets playback begin before the sentence is done, but chunk boundaries can create audible seams.
-- Always using the heaviest model needlessly inflates latency; match model to use case.
-- Serial preprocess-then-synthesize-then-render wastes time; overlap the stages.
-
-**Common mistakes and how to fix them**
-- Synthesizing the whole utterance before playback: stream chunks so users hear the first words immediately.
-- Fixed buffer sizes: use adaptive buffering that tracks network conditions.
-- Defaulting to the biggest TTS model: pick the lightest model that meets the quality bar.
-- Running the pipeline serially: parallelize preprocessing, synthesis, and rendering.
-
-_Not reachable: none_
-
----
-
-## Cost optimization and model routing
-
-### Stanford: FrugalGPT, an LLM cascade that defers to pricier models only when the cheap answer looks unreliable ([source](https://arxiv.org/abs/2305.05176))
-
-FrugalGPT tackles the fact that LLM APIs vary in price by up to two orders of magnitude, so paying frontier rates on every query wastes money on the easy majority. It instantiates an LLM cascade: queries hit a chain of models ordered cheap to expensive, and a learned scorer judges whether the current model's answer is reliable enough to return or whether to escalate. By learning which model combinations to use per query, it matches GPT-4 quality at up to 98% lower cost, or lifts accuracy 4% over GPT-4 at the same spend. The scorer, trained to predict answer reliability, is the load-bearing piece: it lets the system stop as soon as a cheap model is trustworthy.
-
-```mermaid
-flowchart TD
-  Q["query"] --> M1["model 1<br/>cheapest"]
-  M1 --> S1{"scorer<br/>answer reliable?"}
-  S1 -->|"yes"| OUT["return answer"]
-  S1 -->|"no, escalate"| M2["model 2<br/>pricier"]
-  M2 --> S2{"scorer<br/>reliable?"}
-  S2 -->|"yes"| OUT
-  S2 -->|"no, escalate"| M3["model 3<br/>frontier"]
-  M3 --> OUT
-```
-
-**Interview questions this design invites**
-- How do you train the reliability scorer, and what labels does it need?
-- What happens to end-to-end latency when a query walks the whole cascade?
-- How do you order the models in the chain, and does order affect cost?
-- How is the accept/escalate threshold calibrated, and how often re-calibrated?
-- What tasks make the scorer trustworthy versus where does it break down?
-- How do you keep the scorer's own cost from eating the savings?
-
-**Tricks and gotchas**
-- The scorer looks at an actual generated answer, unlike a router that decides blind, so it can catch the cheap model's own mistakes.
-- A miscalibrated cutoff is the killer: too eager to accept quietly drops quality, too eager to escalate pays for multiple models on everything.
-- Verifiable tasks (does the SQL run, does code compile) give a much cleaner escalation signal than open-ended generation.
-- Savings depend on the price gap between cascade stages, so pair a genuinely cheap first stage with an expensive last one.
-
-**Common mistakes and how to fix them**
-- Reporting only cost while quality silently regresses on the hard tail: track quality per bucket, not just aggregate spend.
-- Using model-reported confidence (log-probs) as if it were calibrated truth: prefer a trained scorer or a real verifier where you have ground truth.
-- Setting one global threshold and never revisiting it as traffic drifts: re-check on held-out data periodically.
-
-### LMSYS: RouteLLM, a preference-data router that splits traffic between a strong and a weak model ([source](https://www.lmsys.org/blog/2024-07-01-routellm/))
-
-RouteLLM is an open framework that routes each query to either a cheap weak model or an expensive strong one, deciding before any generation. It trains routers on 55k human preference comparisons from Chatbot Arena, learning to predict which model would win on a given prompt and sending only the queries the weak model would likely lose to the strong model. Four router flavors were built: a similarity-weighted Elo ranker, a matrix-factorization model, a BERT classifier, and a causal-LLM classifier. On MT Bench it hits 95% of GPT-4 quality while making GPT-4 calls on only 14% of traffic (about 85% cost cut in the headline case), and the routers transfer to unseen model pairs like Claude 3 Opus and Llama 3 8B without retraining.
-
-```mermaid
-flowchart TD
-  Q["query"] --> R["router<br/>predict weak-model win prob"]
-  R --> D{"strong model<br/>needed?"}
-  D -->|"low win prob<br/>hard query"| STRONG["strong model<br/>GPT-4 class"]
-  D -->|"high win prob<br/>easy query"| WEAK["weak model<br/>Mixtral class"]
-  STRONG --> OUT["response"]
-  WEAK --> OUT
-  PREF["Chatbot Arena<br/>55k preference pairs"] -.->|"train"| R
-```
-
-**Interview questions this design invites**
-- Router versus cascade: why decide blind here instead of scoring an answer first?
-- How does a preference-trained router generalize to model pairs it never saw?
-- Where do you set the routing threshold, and what curve do you sweep to pick it?
-- Which of the four router architectures would you ship, and why?
-- What does the router cost per call, and how do you keep it from eating savings?
-- How do you detect when the router mis-routes newly-hard queries?
-
-**Tricks and gotchas**
-- A router decides once, blind, before seeing any answer, so it cannot know it was wrong; that is exactly what a cascade fixes.
-- Preference data lets the router learn transferable "hard versus easy" structure, so it survives model swaps without retraining.
-- The router must be strictly cheaper than the models it gates; never make a frontier call just to route.
-- Cost savings are quality-conditional: quoting the cost cut without the paired quality number is meaningless.
-
-**Common mistakes and how to fix them**
-- Training on stale traffic and never re-sweeping: traffic drift moves the frontier, so re-measure and alert on per-bucket quality.
-- Optimizing the router purely for cost so it dumps hard queries on the weak model: load the eval set with the hard tail so this shows as a regression.
-- Assuming one benchmark's savings transfer everywhere (MT Bench cut differs from MMLU): measure on your own traffic distribution.
-
-### Anyscale: a fine-tuned complexity classifier routing between an open and a closed model ([source](https://www.anyscale.com/blog/building-an-llm-router-for-high-quality-and-cost-effective-responses))
-
-Anyscale built a router that sends each query to either Mixtral-8x7B (cheap, open) or GPT-4 (expensive, closed) based on predicted difficulty, hitting baseline quality with up to a 70% cost cut on MT Bench. The router is a causal-LLM classifier fine-tuned from Llama3-8B, and a key finding was that plain binary labels gave too weak a training signal, so they trained a 5-way classifier predicting how well the open model would score on a query (1 low to 5 high). Queries the open model is predicted to handle well (score at or above 4) go to Mixtral; the rest go to GPT-4. Training labels came from an LLM-as-a-judge pipeline where GPT-4 graded Mixtral responses against its own reference answers across 109,101 queries.
-
-```mermaid
-flowchart TD
-  Q["query text only"] --> C["Llama3-8B classifier<br/>predict open-model score 1-5"]
-  C --> T{"predicted score >= 4?"}
-  T -->|"yes, open model likely fine"| WEAK["Mixtral-8x7B<br/>cheap open"]
-  T -->|"no, hard query"| STRONG["GPT-4<br/>expensive closed"]
-  WEAK --> OUT["response"]
-  STRONG --> OUT
-  J["GPT-4 judge vs reference<br/>109k queries"] -.->|"label training data"| C
-```
-
-**Interview questions this design invites**
-- Why did binary labels fail, and how does a 5-way score fix the signal?
-- What are the risks of labeling training data with an LLM-as-a-judge?
-- How do you pick the score cutoff between open and closed models?
-- The classifier sees query text only: what quality does that leave on the table?
-- How would you keep the Llama3-8B router cheaper than the models it gates?
-- How do you monitor for the router mis-scoring newly-hard queries?
-
-**Tricks and gotchas**
-- A finer-grained score (1 to 5) carries more gradient than a hard easy/hard bit, giving a more robust router.
-- The judge is GPT-4 grading against its own answers, so its blind spots become the router's blind spots.
-- The score cutoff is a cost/quality knob: raising it sends more traffic to the cheap model and trades quality for savings.
-- A fine-tuned small model beats a giant general one on this narrow routing task at a fraction of the cost.
-
-**Common mistakes and how to fix them**
-- Trusting judge labels as ground truth: spot-check against human labels, especially on the hard tail.
-- Freezing the cutoff and never re-sweeping as traffic drifts: re-measure the frontier and alert per bucket.
-- Assuming the 70% MT Bench cut transfers to every workload (GSM8K numbers differ): validate on your own traffic.
-
-### IBM Research: a predictive best-value router across a library of models ([source](https://research.ibm.com/blog/LLM-routers))
-
-IBM built a real-time router that acts as an "air traffic controller" for an ensemble of models, predicting before inference which one gives the best accuracy-to-cost ratio for a query and dispatching there. The routing algorithm is trained on public benchmark data to learn each model's strengths and weaknesses, so it can send routine work to small cheap models and reserve large models for hard, high-value queries without running several models at once. On HELM and RouterBench, an 11-model ensemble behind the router beat every individual model operating alone and even slightly edged GPT-4 on some tasks. The result is up to 85% inference cost reduction, roughly 5 cents saved per query, exploiting the fact that some 13B models beat Llama-2 70B on specific tasks.
-
-```mermaid
-flowchart TD
-  Q["query"] --> R["predictive router<br/>estimate best accuracy-to-cost model"]
-  R --> P{"pick from model library"}
-  P -->|"routine"| SMALL["small 13B model"]
-  P -->|"specialized"| MID["task-specialist model"]
-  P -->|"hard / high value"| BIG["large model"]
-  SMALL --> OUT["response"]
-  MID --> OUT
-  BIG --> OUT
-  BENCH["benchmark data<br/>HELM / RouterBench"] -.->|"train"| R
-```
-
-**Interview questions this design invites**
-- How do you route across many models rather than a simple strong/weak pair?
-- Why can a benchmark-trained router beat every single model in the ensemble?
-- How do you keep an 11-model library evaluated and from silently drifting?
-- What does "best value" mean, and how do you weigh price against accuracy?
-- How does routing on benchmark data generalize to live production queries?
-- How do you add or retire a model from the library without retraining everything?
-
-**Tricks and gotchas**
-- Specialization beats size on narrow tasks: a well-matched 13B model can outscore a 70B general model, which is what the router monetizes.
-- Predicting best-value before inference avoids the cost of racing models, unlike a cascade that pays for a first call.
-- More models means more surfaces to evaluate and keep from drifting; the operational cost is real.
-- Training on benchmarks risks a gap with production traffic; the benchmark distribution may not match live intent.
-
-**Common mistakes and how to fix them**
-- Assuming benchmark-trained routing holds on live traffic: shadow-evaluate a sample and monitor per-model quality.
-- Ignoring model drift across a big library: schedule periodic re-evaluation of each model's strengths.
-- Chasing headline cost cuts without a per-query quality floor: track cost per successful request, not raw spend.
-
-### Microsoft Research: LLMLingua, prompt compression that strips low-information tokens ([source](https://www.microsoft.com/en-us/research/blog/llmlingua-innovating-llm-efficiency-with-prompt-compression/))
-
-LLMLingua cuts the input-token bill by removing unimportant tokens from a prompt before it reaches the big model, using a small LM (GPT-2 small or LLaMA-7B) to score token importance by perplexity. It works in two stages: a coarse pass drops whole low-value sentences, then a fine pass compresses remaining tokens individually while preserving coherence, with a distribution-alignment step that instruction-tunes the small model to match the target LLM's patterns. On reasoning benchmarks (GSM8K, BBH) it reaches up to 20x compression with about a 1.5-point performance loss and 20 to 30% lower latency. It ships integrated into LlamaIndex for RAG.
-
-```mermaid
-flowchart TD
-  P["long verbose prompt"] --> SM["small LM<br/>GPT-2 / LLaMA-7B<br/>perplexity token scoring"]
-  SM --> C1["coarse pass<br/>drop low-value sentences"]
-  C1 --> C2["fine pass<br/>drop low-value tokens"]
-  C2 --> SHORT["compressed prompt<br/>up to 20x shorter"]
-  SHORT --> BIG["target big model"]
-  BIG --> OUT["answer"]
-  ALIGN["distribution alignment<br/>tune small LM to target"] -.-> SM
-```
-
-**Interview questions this design invites**
-- When does prompt compression pay off, given the small-LM pass has its own cost?
-- How do you keep compression from dropping the one load-bearing token?
-- Why a two-stage coarse-then-fine approach instead of one pass?
-- How do you set and gate the compression ratio against a quality bar?
-- On which tasks would you refuse to compress at all?
-- How does distribution alignment help the compressed prompt survive a model swap?
-
-**Tricks and gotchas**
-- Compression only pays when input tokens dominate and context is long and redundant; on short prompts the small-LM pass is pure overhead.
-- It is lossy: aggressive ratios can remove the exact detail the answer hinged on.
-- Back off on exact extraction, legal, and code where every token matters.
-- Trimming (send top 3 chunks not top 20) is the blunt safe move to try before compression.
-
-**Common mistakes and how to fix them**
-- Applying one fixed ratio everywhere: gate the ratio behind the same quality eval as any other lever.
-- Compressing output-heavy workloads where input is not the cost driver: profile where the money goes first.
-- Ignoring the compressor model's own token cost in the savings math: net it out before claiming a win.
-
-### Databricks: governed batch LLM inference over warehouse data via ai_query ([source](https://www.databricks.com/blog/introducing-simple-fast-and-scalable-batch-llm-inference-mosaic-ai-model-serving))
-
-Databricks added batch LLM inference to Mosaic AI Model Serving so teams can run models over millions or billions of tokens directly where governed data lives, with no data movement. The interface is a single SQL function, ai_query, callable from notebooks, SQL editors, or scheduled Delta Live Tables pipelines, so analysts run bulk inference without standing up serving infrastructure. Governance flows through Unity Catalog for lineage and security, and the platform auto-scales to the workload, batches whole datasets instead of row-by-row, and adds fault tolerance with automatic retries. This is the batch-versus-online cost lever: bulk work with no latency SLO runs at maximum batch size for far less than interactive pricing.
-
-```mermaid
-flowchart TD
-  T["governed table<br/>Unity Catalog"] --> Q["ai_query(model, prompt)<br/>SQL interface"]
-  Q --> SCALE["auto-scaled batch serving<br/>max batch size, no SLO"]
-  SCALE --> MODEL["base / fine-tuned model"]
-  MODEL --> RETRY{"fault tolerant<br/>auto retry"}
-  RETRY -->|"ok"| RES["results table"]
-  RETRY -->|"transient fail"| SCALE
-  PIPE["notebook / DLT pipeline"] -.-> Q
-```
-
-**Interview questions this design invites**
-- Which traffic is truly offline and belongs on a batch endpoint, not the sync one?
-- Why does batching whole datasets cost less per token than online serving?
-- How does keeping inference next to governed data reduce compliance risk?
-- What latency do you trade away for the batch discount, and when is that acceptable?
-- How does auto-scaling plus retries change the cost and reliability profile?
-- How would you decide batch API versus saturated self-host for a bulk job?
-
-**Tricks and gotchas**
-- A lot of "LLM bill" is bulk work accidentally sitting on the interactive endpoint; spotting it is the design win.
-- No tail-latency constraint means the GPU can run at max batch size, which online serving never achieves.
-- Keeping data in place avoids export/compliance overhead that would otherwise erode the savings.
-- Auto-retry matters at scale: a single transient failure in a billion-token job should not restart everything.
-
-**Common mistakes and how to fix them**
-- Running summarization/classification backfills on the online endpoint at online prices: move them to batch.
-- Assuming batch means unbounded delay: right-size the job so results land inside the business deadline.
-- Skipping governance on bulk jobs over sensitive tables: route through Unity Catalog for lineage and access control.
-
-### Baseten: FP8 quantization for cheaper, faster self-hosted inference ([source](https://www.baseten.co/blog/33-faster-llm-inference-with-fp8-quantization/))
-
-Baseten quantized Mistral 7B to FP8 (8-bit float) using an NVIDIA library compatible with TensorRT-LLM, targeting H100 and Ada/Hopper GPUs that support the format natively. FP8 halves parameter width from 16-bit to 8-bit, dropping VRAM from 16GB to 7GB and, unlike the INT8 they tried before, keeps enough dynamic range to quantize weights, activations, and KV cache without hurting quality. Versus FP16 on H100 they measured a 33% gain in output tokens per second, 31% higher total throughput, 8.5% lower time to first token, and 24% lower cost per million tokens. Quality held: perplexity matched FP16 (near-zero delta) and manual side-by-side across recall, coding, and creative writing showed only minor stylistic variation. This is a self-hosting-only lever; it changes tokens-per-GPU, not per-token API pricing.
-
-```mermaid
-flowchart TD
-  M16["Mistral 7B FP16<br/>16GB VRAM"] --> Q["FP8 quantization<br/>NVIDIA + TensorRT-LLM"]
-  Q --> M8["FP8 model<br/>7GB VRAM<br/>weights + activations + KV cache"]
-  M8 --> SERVE["H100 serving<br/>batched decode"]
-  SERVE --> R["+33% tokens/s<br/>-24% cost/token"]
-  Q --> V{"perplexity + manual eval<br/>quality held?"}
-  V -->|"yes, near-zero delta"| M8
-```
-
-**Interview questions this design invites**
-- Why does FP8 speed up decode, and why is decode bandwidth-bound?
-- Why did FP8 beat INT8 for this workload despite the same bit width?
-- How do you validate that quantization did not silently degrade quality?
-- Why is this lever useless on a per-token API and only real when self-hosting?
-- At what QPS does fixed GPU cost beat per-token API pricing?
-- Why does FP8 help more on long input sequences with heavy prefill?
-
-**Tricks and gotchas**
-- FP8's wider dynamic range versus INT8 is what lets you quantize activations and KV cache, not just weights.
-- Gains depend on batch size and sequence length; the headline number is one operating point (batch 32, 80/100 tokens).
-- Perplexity parity plus manual eval catches regressions a single metric would miss.
-- The lever only exists for models you host; on an API your levers are routing, caching, compression, right-sizing.
-
-**Common mistakes and how to fix them**
-- Quoting a throughput gain from one batch/sequence config as if universal: report the operating point and sweep it.
-- Shipping a quantized model on perplexity alone: add manual side-by-side on real task categories.
-- Self-hosting below the QPS where fixed GPU cost pays off: stay on the API until volume justifies idle-GPU cost.
-
-### Cloudflare: AI Gateway response caching to skip billable provider calls ([source](https://developers.cloudflare.com/ai-gateway/features/caching/))
-
-Cloudflare AI Gateway sits in front of provider APIs and serves identical requests from cache instead of re-hitting the origin, cutting both latency and the number of paid provider calls. The cache key is a hash of provider, endpoint, model, auth headers, and the full request body, so it is exact-match: any variation creates a new entry. Three per-request headers give control: cf-aig-skip-cache bypasses the cache, cf-aig-cache-ttl sets expiry from 60 seconds to a month, and cf-aig-cache-key customizes what counts as identical. It covers text and image responses today, with semantic caching noted as planned to lift hit rates beyond exact match. The cache is volatile, so two simultaneous identical requests may not both hit.
-
-```mermaid
-flowchart TD
-  REQ["request"] --> GW["AI Gateway"]
-  GW --> K["cache key = hash(provider,<br/>endpoint, model, auth, body)"]
-  K --> HIT{"exact match<br/>in cache?"}
-  HIT -->|"hit, within TTL"| CACHED["cached response<br/>no provider call"]
-  HIT -->|"miss"| PROV["provider API"]
-  PROV --> STORE["store with TTL<br/>60s to 1 month"]
-  STORE --> OUT["response"]
-  CACHED --> OUT
-```
-
-**Interview questions this design invites**
-- Why does an exact-match cache rarely fire on free-text prompts?
-- What goes into the cache key, and why include auth headers and full body?
-- How would you extend this to a semantic cache, and what new risk appears?
-- How do you choose a TTL, and which content should never be cached?
-- Why is caching scoped or personalized responses into a shared cache dangerous?
-- How do concurrent identical requests interact with a volatile cache?
-
-**Tricks and gotchas**
-- Exact-match is zero-risk but low hit rate; the real hit rate lives in paraphrases a semantic cache would catch.
-- Including the full request body and params in the key means one trivial difference misses the cache entirely.
-- TTL is the staleness control: cache stable content (policies, definitions), TTL things that move.
-- Never share-cache personalized or tenant-scoped answers; that is a data leak, not a cost win.
-
-**Common mistakes and how to fix them**
-- Expecting big savings from exact-match on free text: layer a tuned semantic cache for paraphrase hits.
-- Caching volatile facts without a TTL: set expiry so moved facts do not serve stale.
-- Sharing a cache across users/tenants for scoped answers: scope the cache key or skip caching those requests.
-
-_Not reachable: none_
-
----
-
 ## Agent orchestration
 
 ### Anthropic: Building effective agents, five composable orchestration patterns ([source](https://www.anthropic.com/research/building-effective-agents))
@@ -2471,559 +3535,6 @@ flowchart LR
 - Fearing multimodal training will hurt text skills. Fix: measure; a good recipe can improve text-only benchmarks.
 
 _Not reachable: none_
-
----
-
-## Post-training pipeline
-
-### Grammarly: CoEdIT, task-specific instruction tuning that beats generalists at a fraction of the params ([source](https://www.grammarly.com/blog/engineering/coedit-text-editing/))
-
-CoEdIT fine-tunes FLAN-T5 (L 770M, XL 3B, XXL 11B) purely with instruction tuning on a dense text-editing dataset. The team took the IteraTeR+ edit corpus, translated its edit categories (Fluency, Coherence, Clarity, Style) into natural-language instructions, and added instruction paraphrases so the model handles varied phrasings of the same intent. No preference tuning is used; SFT alone carries it. Human evaluators preferred CoEdIT-XL (3B) over GPT3-Edit (175B) 64% of the time versus 10%, and CoEdIT-L beats larger instruction-tuned baselines at 12x to 60x fewer parameters while generalizing to unseen adjacent tasks like sentence compression and politeness transfer.
-
-```mermaid
-flowchart TD
-  BASE["FLAN-T5 base (770M / 3B / 11B)"] --> DATA["IteraTeR+ edit data<br/>categories to NL instructions<br/>plus instruction paraphrases"]
-  DATA --> SFT["instruction fine-tune (SFT)<br/>instruction plus input to edited output"]
-  SFT --> EVAL{"eval: benchmarks plus human pref<br/>vs generalist LLMs"}
-  EVAL -->|"win at 12x-60x fewer params"| SERVE["CoEdIT editing model"]
-  EVAL -->|"gap"| DATA
-```
-
-**Interview questions this design invites**
-- Why does a dense, single-domain instruction set let a 3B model beat a 175B generalist on editing?
-- How do you turn an edit-category taxonomy into instruction data without overfitting to phrasing?
-- What role do instruction paraphrases play, and what breaks if you omit them?
-- How would you measure "meaning preservation" in an edit task beyond automated metrics?
-- When does the small-model-plus-narrow-data bet stop paying off?
-- Why choose an encoder-decoder (T5) base for editing rather than a decoder-only LLM?
-
-**Tricks and gotchas**
-- Editing is a behavior/format skill, not a knowledge gap, so SFT alone is the correct and sufficient lever.
-- Paraphrasing instructions is what buys robustness to real user phrasing; the model learns the template as hard as the content.
-- Human preference eval matters here because automated editing metrics under-credit fluency and tone.
-- Generalization to adjacent tasks is a signal the model learned the edit operation, not memorized the dataset.
-
-**Common mistakes and how to fix them**
-- Reaching for a giant generalist when a small tuned model wins: match model scale to a narrow task and tune it.
-- Training on one instruction phrasing per task: add paraphrases so production wording does not fall out of distribution.
-- Trusting only benchmark scores: add human pairwise preference to catch meaning-preservation regressions.
-- Assuming preference tuning is needed: for a bounded edit task, well-curated SFT is the whole job.
-
-### Anyscale: iterative DPO on synthetic preferences with a judge-aligned objective ([source](https://www.anyscale.com/blog/direct-preference-optimization-with-synthetic-data))
-
-Starting from the weak Mistral-7B-Instruct-v0.1, Anyscale skips heavy human labeling and manufactures preferences: sample 10 summaries per article across 20,000 CNN articles at temperature 0.8, then use Llama-3-70B as an LLM judge that writes five multiple-choice questions per article and answers them from each summary alone. The preference rule ("if both summaries answer 3 or more questions correctly, prefer the shorter one, else prefer the more accurate") makes the training signal identical to the eval axis. Full-parameter DPO (learning rate 1e-7, beta 0.03) beat LoRA rank 64, which drifted out of distribution; a second on-policy round regenerating data with the improved model added a 10-plus-percent win-rate boost. Ray runs the frozen reference model on separate nodes (A10G) from the training GPUs (A100) so reference scoring does not idle training hardware.
-
-```mermaid
-flowchart TD
-  BASE["Mistral-7B-Instruct-v0.1"] --> GEN["sample 10 summaries/article<br/>20k CNN articles, temp 0.8"]
-  GEN --> JUDGE["Llama-3-70B judge<br/>5 MCQs, answer from summary"]
-  JUDGE --> PREF["pref rule: both 3+ correct then shorter<br/>else higher accuracy"]
-  PREF --> DPO["full-param DPO<br/>lr 1e-7, beta 0.03<br/>reference model on separate Ray nodes"]
-  DPO --> EVAL{"eval: QandA accuracy plus compression"}
-  EVAL -->|"dominates pareto vs GPT-4o"| DONE["aligned summarizer"]
-  EVAL -->|"regenerate on-policy"| GEN
-```
-
-**Interview questions this design invites**
-- Why does aligning the preference rule to the eval metric matter, and how could it backfire?
-- Why did full fine-tune beat LoRA rank 64 for DPO here when LoRA usually suffices?
-- What does the beta parameter control in DPO, and why is 0.03 low?
-- Why run the reference model on separate nodes, and what does that cost or save?
-- What makes a second on-policy DPO round help, and when does iterating stop helping?
-- How do you trust an LLM judge as both label source and evaluator without circularity?
-
-**Tricks and gotchas**
-- LLM-as-judge replaces human preference labels, but training and eval sharing the judge risks optimizing the judge, not real quality.
-- Tiny learning rates (1e-7) are load-bearing for DPO stability; too high yields gibberish and off-topic drift.
-- LoRA's constrained parameter space pushed problematic token likelihoods up, causing out-of-distribution outputs.
-- Decoupling reference-model scoring onto cheaper GPUs removes idle time on the expensive training node.
-- On-policy iteration mimics production multi-round DPO (Llama 3.1 style) but needs stability checks each round.
-
-**Common mistakes and how to fix them**
-- Assuming LoRA always matches full fine-tune: for preference tuning on a weak base, validate against full fine-tune before committing.
-- Setting an aggressive DPO learning rate: keep it very small and watch for OOD generation.
-- SFT on chosen-only data and expecting DPO-level gains: chosen-only discards the rejected-sample signal.
-- Reusing one judge for labels and eval without a human-anchored check: periodically calibrate the judge to humans.
-
-### Shopify: a fine-tuned Qwen3-32B Flow agent with a weekly LLM-judge retraining flywheel ([source](https://shopify.engineering/fine-tuning-agent-shopify-flow))
-
-Shopify full-fine-tunes Qwen3-32B with FSDP across two H200 nodes (a 12-hour cycle, enabling weekly retrains). With no pre-launch production conversations, they reverse-engineered training data: sample validated production workflows (live 7-plus days, from merchants with multiple workflows), use stronger LLMs to write plausible natural-language requests, and build multi-turn tool-call sequences of ideal behavior. The key move was representing workflows in Python rather than Flow's native JSON DSL, shifting the task in-distribution and lifting syntactic correctness 22 points and semantic correctness 13 points on identical data. A 1% deployment exposed a 35% activation-rate gap versus synthetic scores, which the flywheel closes: an LLM judge calibrated to human labels and activation rates scores production conversations, routes good ones into training and quarantines bad ones, and retrains weekly. The agent now serves most traffic at 68% lower cost than the frontier model it replaced.
-
-```mermaid
-flowchart TD
-  PROD["validated production workflows<br/>live 7+ days, multi-workflow merchants"] --> SYN["reverse-engineer synthetic data<br/>LLM writes NL requests<br/>multi-turn tool-call sequences<br/>workflows as Python, not JSON DSL"]
-  SYN --> SFT["full fine-tune Qwen3-32B<br/>FSDP, 2x H200, 12h cycle"]
-  SFT --> EVAL{"eval: benchmarks then 1% traffic<br/>activation rate vs frontier"}
-  EVAL -->|"pass"| SERVE["serve majority traffic<br/>68% cheaper than frontier"]
-  SERVE --> JUDGE["weekly LLM judge<br/>calibrated to human labels<br/>route good, quarantine bad"]
-  JUDGE --> SYN
-```
-
-**Interview questions this design invites**
-- Why does representing workflows as Python instead of the native JSON DSL move the task in-distribution?
-- How do you bootstrap training data for an agent with zero pre-launch production conversations?
-- Why did offline benchmarks look ready while 1% traffic showed a 35% activation gap?
-- How do you calibrate an LLM judge to human labels and to a product metric like activation rate?
-- What quality filters keep the weekly flywheel from ingesting bad conversations?
-- Why full fine-tune a 32B model here instead of LoRA?
-
-**Tricks and gotchas**
-- Output-format representation (Python vs JSON DSL) can matter more than data volume for correctness.
-- The model is sensitive to formatting minutiae: tool naming, ordering, JSON field order, system-prompt alignment; training must mirror production exactly.
-- Offline eval overstates readiness; a small live slice is the real gate.
-- The flywheel's quarantine step is what prevents low-quality production data from poisoning the next model.
-
-**Common mistakes and how to fix them**
-- Training in the native serialization because it is "correct": pick the representation the base model handles best, even if it needs translation at serve time.
-- Trusting synthetic-scenario benchmarks as a promotion gate: gate on live activation rate before scaling traffic.
-- Letting training and production formatting drift: pin tool naming, field ordering, and prompts identically across both.
-- Feeding all production logs back unfiltered: route by a calibrated judge and quarantine low-quality examples.
-
-### Mercari: a QLoRA-tuned 2B model that beats GPT-3.5 on attribute extraction at 14x lower cost ([source](https://engineering.mercari.com/en/blog/entry/20240913-fine-tuning-an-llm-to-extract-dynamically-specified-attributes/))
-
-Mercari fine-tunes gemma-2b-it with QLoRA (4-bit base) on a single A100 to extract dynamically specified attributes from marketplace listings. Data is templated prompt-response pairs (listing description, extraction instruction, target attribute keys, extracted values), focused on the 20 highest-volume product categories. After training they apply 4-bit post-training quantization (q4_k_m via llama.cpp), cutting model size roughly 95% versus the base. The tuned 2B model beats gpt-3.5-turbo-0125 by more than 5 BLEU points, controls hallucination better than prompt engineering alone, and is estimated more than 14x cheaper than the commercial API.
-
-```mermaid
-flowchart TD
-  BASE["gemma-2b-it (4-bit, QLoRA)"] --> DATA["templated pairs<br/>listing + instruction + target keys to values<br/>top 20 categories"]
-  DATA --> SFT["QLoRA SFT on single A100"]
-  SFT --> QUANT["4-bit PTQ (q4_k_m, llama.cpp)<br/>~95% size cut"]
-  QUANT --> EVAL{"eval: BLEU vs GPT-3.5-turbo"}
-  EVAL -->|"+5 BLEU, ~14x cheaper"| SERVE["attribute extractor"]
-  EVAL -->|"gap"| DATA
-```
-
-**Interview questions this design invites**
-- Why is a 2B QLoRA model a good fit for structured attribute extraction versus a large API model?
-- How does templating the prompt-response format improve extraction reliability?
-- Is BLEU a sound metric for attribute extraction, and what would you add?
-- Why quantize to 4-bit after training, and what accuracy risk does q4_k_m carry?
-- Why start with only the top 20 categories, and how do you expand coverage safely?
-- Where does fine-tuning beat prompt engineering for hallucination control here?
-
-**Tricks and gotchas**
-- QLoRA plus a small base makes single-GPU tuning feasible and serving cheap.
-- Templated, consistent formatting is what teaches the extraction skill; the model learns the template hard.
-- Post-training 4-bit quantization compounds the cost win but must be eval-checked for quality loss.
-- "Dynamically specified attributes" means the instruction carries the target keys at inference; training must reflect that variability.
-
-**Common mistakes and how to fix them**
-- Defaulting to a commercial API for a narrow extraction task: a small tuned model can beat it at a fraction of cost.
-- Relying on BLEU alone: add exact-match or field-level accuracy for structured outputs.
-- Quantizing without re-evaluating: run the eval gate on the quantized artifact, not just the fp checkpoint.
-- Inconsistent prompt templates: standardize one template so the model does not learn spurious variation.
-
-### Grab: LoRA then full fine-tune of Qwen2-VL for multilingual document OCR ([source](https://engineering.grab.com/custom-vision-llm-at-grab))
-
-Grab builds a custom vision LLM on Qwen2-VL 2B for OCR and key-information extraction on onboarding documents. LoRA worked for Latin scripts but underperformed on Thai and Vietnamese because open vision encoders lacked non-Latin visual training, so they switched to full fine-tuning in two stages: continual pre-training on synthetic OCR data, then full-parameter fine-tuning on task documents, yielding +70pp accuracy on Thai and +40pp on Vietnamese. To cut cost they then built a 1B model pairing Qwen2-VL's vision encoder with a Qwen2.5 0.5B decoder, trained in four stages (projector alignment, vision enhancement, language-specific visual training, task fine-tuning); the 1B matches the 2B's accuracy at lower latency. Data is synthetic OCR images (Bahasa, Thai, Vietnamese, English from Common Crawl) plus real ID cards and licenses auto-labeled via the internal Documint platform. The models serve live eKYC onboarding for merchants, drivers, and users.
-
-```mermaid
-flowchart TD
-  BASE["Qwen2-VL 2B (vision LLM)"] --> LORA["LoRA attempt<br/>ok for Latin, weak on Thai/Vietnamese"]
-  LORA --> CPT["continual pre-train<br/>synthetic OCR (Bahasa/Thai/Viet/Eng)"]
-  CPT --> FFT["full fine-tune on real docs<br/>Documint auto-labeled ID/licenses<br/>+70pp Thai, +40pp Vietnamese"]
-  FFT --> DISTILL["custom 1B: Qwen2-VL encoder + Qwen2.5 0.5B decoder<br/>4-stage training"]
-  DISTILL --> EVAL{"eval: extraction accuracy, latency"}
-  EVAL -->|"1B matches 2B, lower latency"| SERVE["live eKYC onboarding"]
-```
-
-**Interview questions this design invites**
-- Why did LoRA fail on Thai and Vietnamese while working on Latin scripts?
-- When is continual pre-training justified before task fine-tuning for a vision model?
-- How do you build a smaller 1B model that matches a 2B one, and what are the four training stages doing?
-- What is the role of synthetic OCR data versus real labeled documents?
-- How do you evaluate OCR and key-info extraction accuracy across scripts?
-- What privacy and labeling controls does auto-labeling ID documents require?
-
-**Tricks and gotchas**
-- LoRA cannot add capability a frozen vision encoder never learned; missing non-Latin visual coverage needs full training or continual pre-training.
-- Two-stage (continual pre-train then full fine-tune) separates learning to see the script from learning the extraction task.
-- Composing a smaller model from an existing encoder plus a small decoder recovers most accuracy at lower latency.
-- Synthetic images from a broad corpus supply script coverage that real document volume alone cannot.
-
-**Common mistakes and how to fix them**
-- Assuming LoRA suffices for multimodal domain shift: test per-script and fall back to full fine-tune where the encoder is weak.
-- Skipping continual pre-training on new scripts: add it when the base encoder lacks visual coverage.
-- Optimizing only the large model: distill or recompose into a smaller model to hit latency and cost targets.
-- Labeling sensitive ID docs ad hoc: use a controlled auto-labeling pipeline with privacy handling.
-
-### LinkedIn: EON, Llama-based domain foundation models via instruction tuning plus RLHF/DPO ([source](https://www.linkedin.com/blog/engineering/generative-ai/how-we-built-domain-adapted-foundation-genai-models-to-power-our-platform))
-
-LinkedIn adapts open Llama 3.1 8B and 70B into its EON models through multi-task instruction tuning on roughly 200M tokens of diverse instructions enriched with reasoning traces, plus prompt-simplification strategies that cut prompt size 30%. A second alignment phase applies RLHF and DPO for preference and safety, including synthetically generated safe outputs for harmful-content scenarios. Domain knowledge comes from LinkedIn's proprietary Economic Graph (jobs, candidates, skills, professional interactions). The 8B variant improved candidate-job matching accuracy, beating GPT-4o mini and Llama-3-8B-instruct by 4 and 30 absolute points respectively, and EON-8B is 75x cheaper than GPT-4 and 6x cheaper than GPT-4o. EON powers the Hiring Assistant, where nearly 90% of LLM calls flow through an EON-based evaluation agent scoring candidate-job fit.
-
-```mermaid
-flowchart TD
-  BASE["Llama 3.1 8B / 70B"] --> IT["multi-task instruction tuning<br/>~200M tokens + reasoning traces<br/>prompt simplification (-30% size)"]
-  IT --> ALIGN["alignment: RLHF + DPO<br/>preference + safety<br/>synthetic safe outputs"]
-  ALIGN --> DOM["Economic Graph domain data<br/>jobs, candidates, skills"]
-  DOM --> EVAL{"eval: candidate-job matching accuracy"}
-  EVAL -->|"beats GPT-4o mini +4pp, 75x cheaper than GPT-4"| SERVE["Hiring Assistant eval agent<br/>~90% of LLM calls"]
-  EVAL -->|"gap"| IT
-```
-
-**Interview questions this design invites**
-- Why layer RLHF and DPO on top of instruction tuning rather than SFT alone here?
-- How does a proprietary knowledge graph inject domain adaptation without baking stale facts?
-- What does prompt simplification buy, and how does it cut 30% of prompt size?
-- Why measure against both a smaller GPT-4o mini and an open Llama baseline?
-- How do reasoning traces in the instruction data change model behavior?
-- What safety re-evaluation is required after preference tuning?
-
-**Tricks and gotchas**
-- Preference and safety alignment can shift what the model will say, so safety eval must re-run after DPO/RLHF, not just task accuracy.
-- Synthetic safe outputs for harmful prompts are a deliberate safety-alignment data source.
-- A 75x cost gap versus GPT-4 is the business case for domain foundation models over frontier APIs at platform scale.
-- Routing 90% of calls through one evaluation agent makes that model's quality and cost the dominant lever.
-
-**Common mistakes and how to fix them**
-- Adding RLHF/DPO without a safety regression check: always re-run safety and quality eval after alignment.
-- Baking domain facts into weights: keep churny knowledge in a graph or retrieval, tune behavior.
-- Benchmarking against only one baseline: compare to both a cheap frontier model and the open base.
-- Ignoring prompt bloat: simplify and standardize prompts to cut token cost before scaling.
-
-### Cloudflare: multi-LoRA edge serving of customer adapters on shared bases ([source](https://blog.cloudflare.com/fine-tuned-inference-with-loras/))
-
-Cloudflare's Workers AI keeps base models (Llama 2, Mistral, Gemma) always warm on GPUs and dynamically loads and swaps customer LoRA adapters against them, so many fine-tuned requests run on one foundation copy. It uses the Punica kernel's Segmented Gather Matrix-Vector Multiplication (SGMV) to store a single base copy while batching requests across different adapters. LoRA A and B matrices load on demand from R2 or cache, with hot adapters kept local; switching adapters is a millisecond-scale add/subtract of weight matrices. Four base variants accept LoRAs (llama-2-7b-chat, mistral-7b-instruct-v0.2, gemma-2b-it, gemma-7b-it). In open beta, adapters must be under 100MB and rank at most 8, quantized bases are unsupported, and there is a 30-adapter-per-account limit.
-
-```mermaid
-flowchart TD
-  REQ["request + adapter id"] --> ROUTE["route to base + adapter"]
-  BASE["shared base always warm<br/>Llama 2 / Mistral / Gemma"] --> ROUTE
-  STORE["adapter A/B matrices in R2/cache<br/><100MB, rank <=8"] -->|"load on demand, hot cached"| ROUTE
-  ROUTE --> SGMV["Punica SGMV kernel<br/>single base copy, batch across adapters"]
-  SGMV --> OUT["fine-tuned inference at edge<br/>ms-scale adapter swap"]
-```
-
-**Interview questions this design invites**
-- How does multi-LoRA serving batch requests that use different adapters against one base?
-- What does the Punica SGMV kernel solve that naive per-adapter serving does not?
-- Why keep the base always warm, and how does that eliminate cold starts?
-- What drives the 100MB and rank-8 limits, and how do they affect adapter quality?
-- How do you cache hot adapters while loading cold ones on demand without latency spikes?
-- Why are quantized bases unsupported in this serving path?
-
-**Tricks and gotchas**
-- One warm base plus many small adapters replaces N full model copies; this is the core multi-LoRA economics.
-- Adapter swap is a cheap matrix add/subtract, so rollback and A/B are just route changes.
-- On-demand adapter loading from object storage needs a hot-cache tier to avoid per-request download latency.
-- Rank and size caps bound memory and batching but limit how much behavior an adapter can encode.
-
-**Common mistakes and how to fix them**
-- Serving one full model per customer: share a base and load adapters to cut memory and cost dramatically.
-- Assuming any LoRA rank serves at the edge: respect rank and size limits or serving degrades.
-- Ignoring cold-adapter latency: cache frequently used adapters and load others asynchronously.
-- Mixing quantized bases into the multi-LoRA path: use supported precisions for the shared base.
-
-### Spotify: rejection-sampling SFT plus DPO for preference-aligned query expansion ([source](https://research.atspotify.com/2025/7/optimizing-query-expansions-via-llm-preference-alignment))
-
-Spotify's Aligned Query Expansion (AQE) tackles vocabulary mismatch between user queries and documents. A zero-shot LLM generates multiple expansion candidates, and each is scored by the position of the relevant document when that expansion is issued to the downstream search system (higher rank, higher score), using query-document pairs from click-through data or annotation. Two sequential alignment steps follow: Rejection Sampling Fine-Tuning on the single highest-scored expansion, then DPO on (high-score, low-score) expansion pairs. On Natural Questions, AQE reaches 30.8% top-1 accuracy versus 28.5% for a generate-then-filter baseline, and cuts query-generation compute by roughly 70% because it no longer generates many candidates to re-rank at serve time.
-
-```mermaid
-flowchart TD
-  BASE["zero-shot LLM<br/>generate expansion candidates"] --> SCORE["score by relevant-doc rank<br/>from downstream search<br/>click-through / annotated pairs"]
-  SCORE --> RSFT["Rejection Sampling SFT<br/>train on highest-scored expansion"]
-  RSFT --> DPO["DPO on (high-score, low-score) pairs"]
-  DPO --> EVAL{"eval: top-1 accuracy, latency"}
-  EVAL -->|"30.8% vs 28.5%, ~70% faster"| SERVE["real-time query expansion"]
-  EVAL -->|"gap"| SCORE
-```
-
-**Interview questions this design invites**
-- Why does scoring expansions by downstream retrieval rank give a better signal than an intrinsic metric?
-- How do RSFT and DPO complement each other, and why run RSFT first?
-- Where does the 70% latency win come from versus generate-then-filter?
-- How do you source preference pairs from click-through data without amplifying position bias?
-- What eval beyond top-1 accuracy would you add for a production search system?
-- How do you keep the expansion model aligned as the document corpus and query mix shift?
-
-**Tricks and gotchas**
-- Grounding the preference score in the actual downstream search ranking aligns training with the real objective.
-- RSFT on the best candidate warms the model before DPO sharpens the preference between good and bad expansions.
-- Removing the generate-many-then-rerank step at serve time is what delivers the 70% compute saving.
-- Click-through-derived preferences carry position and popularity bias that can leak into the model.
-
-**Common mistakes and how to fix them**
-- Filtering many candidates at inference: bake the preference into the model so it emits a good expansion directly.
-- Using an intrinsic scorer detached from search: score by downstream retrieval rank instead.
-- Jumping straight to DPO: run rejection-sampling SFT first for a stable starting policy.
-- Trusting click data uncritically: debias for position and popularity before building preference pairs.
-
-_Not reachable: none_
-
----
-
-## LLM lifecycle
-
-### Hugging Face: FineWeb, a decontaminated open pretraining corpus ([source](https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1))
-
-FineWeb turns 96 Common Crawl snapshots into a 15-trillion-token English pretraining set that trains better models than prior open corpora. The recipe is a pipeline, not a dataset: text extraction from WARC, language identification, a small set of quality heuristics chosen by ablation out of fifty-plus candidates, and aggressive MinHash deduplication both within and across dumps. FineWeb-Edu goes further, training a classifier to keep only the most educational text (1.3T tokens), which sharply lifts knowledge and reasoning benchmarks like MMLU and ARC. The whole curation codebase and the ablation models were released, so the data recipe is as reproducible as a model.
-
-```mermaid
-flowchart TD
-  CC["96 Common Crawl dumps"] --> EXT["extract text (WARC)"]
-  EXT --> LID["language ID + filter"]
-  LID --> QF["quality heuristics<br/>(ablation-chosen)"]
-  QF --> DEDUP["MinHash dedup<br/>(within + across dumps)"]
-  DEDUP --> DECON["decontaminate vs eval sets"]
-  DECON --> FW["FineWeb 15T tokens"]
-  FW --> CLF["educational classifier"]
-  CLF --> FWE["FineWeb-Edu 1.3T tokens"]
-```
-
-**Interview questions this design invites**
-- Why does deduplication improve a model rather than just shrink the dataset?
-- How do you pick a small set of quality filters instead of stacking fifty?
-- What is training-set decontamination and why is it non-negotiable before you report a benchmark?
-- Why does an educational-quality classifier beat raw web text on reasoning benchmarks?
-- How does keep rate (a small fraction of raw Common Crawl) change your token budget and pretrain plan?
-
-**Tricks and gotchas**
-- Dedup cuts memorization and eval leakage, so it improves generalization per token, not just storage.
-- Filters must be validated on downstream benchmarks via ablation, not chosen because they look reasonable.
-- Cross-dump dedup matters as much as within-dump; the same page recurs across snapshots.
-- FineWeb-Edu shows a learned filter can beat volume: fewer, better tokens win on hard benchmarks.
-
-**Common mistakes and how to fix them**
-- Reporting a benchmark score without decontaminating; fix by removing eval-overlapping documents first and reporting the check.
-- Treating "more tokens" as strictly better; fix by ablating quality filters and measuring downstream, not corpus size.
-- Skipping cross-document dedup; fix with MinHash/LSH across the whole corpus.
-- Assuming the web is usable as-is; fix by budgeting for a heavy pipeline that keeps a small fraction.
-
-### Google DeepMind: Chinchilla and the compute-optimal split ([source](https://arxiv.org/abs/2203.15556))
-
-Chinchilla asked, for a fixed compute budget, how to split it between model size and training tokens. Training over 400 models from 70M to 16B parameters and fitting the loss surface, the answer was that size and tokens should scale roughly equally, about 20 tokens per parameter, and that the models of the day were badly undertrained. The proof point: a 70B Chinchilla trained on 1.4T tokens beat the 280B Gopher at the same compute, and is cheaper to serve. The lesson reshaped how everyone sizes a pretrain, and later work refined it for the inference-heavy regime where you overtrain a smaller model on purpose.
-
-```mermaid
-flowchart TD
-  C["fixed compute budget C ~ 6ND"] --> FIT["fit loss over 400+ models"]
-  FIT --> OPT["compute-optimal:<br/>scale N and D together"]
-  OPT --> RULE["~20 tokens per parameter"]
-  RULE --> CH["70B Chinchilla > 280B Gopher<br/>at equal compute"]
-  CH --> INF["inference-aware:<br/>overtrain a smaller model"]
-```
-
-**Interview questions this design invites**
-- Given a compute budget, how do you choose model size versus number of training tokens?
-- Why were pre-Chinchilla models undertrained, and what did that cost?
-- When do you deliberately violate Chinchilla-optimal, and why?
-- How does planning to serve billions of tokens change the optimal model size?
-- What does the C ~ 6ND approximation let you estimate on the whiteboard?
-
-**Tricks and gotchas**
-- Chinchilla-optimal minimizes training compute, not lifetime cost; serving shifts the optimum smaller.
-- The 20-tokens-per-parameter rule is a fast whiteboard sanity check for any proposed pretrain.
-- A smaller, well-trained model can beat a larger undertrained one and is cheaper forever.
-- The scaling law has irreducible loss (the E term); more scale has diminishing, not unlimited, returns.
-
-**Common mistakes and how to fix them**
-- Making the model bigger to improve it; fix by scaling tokens alongside parameters to stay compute-optimal.
-- Ignoring inference cost when sizing; fix by overtraining a smaller model if you will serve at scale.
-- Quoting scaling laws as exact; fix by treating them as fitted trends with an irreducible floor.
-- Under-budgeting data; fix by computing the token target from the parameter count before committing compute.
-
-### Meta: the Llama 3 herd, an end-to-end open recipe ([source](https://ai.meta.com/research/publications/the-llama-3-herd-of-models/))
-
-Llama 3 documents the whole lifecycle for 8B, 70B, and 405B models: careful pre-processing and curation of pretraining data, a scaled dense-transformer pretrain, a staged context-length extension near the end of pretraining, and a deliberately simple post-training loop of SFT plus rejection sampling plus DPO rather than complex online RL. The team's stated levers are data, scale, and managing complexity, and the choice of DPO over PPO is explicitly about stability and scalability. It is the closest thing to a public reference for building a strong open base and instruct model together.
-
-```mermaid
-flowchart TD
-  DATA["curated pretraining data"] --> PT["dense transformer pretrain<br/>(GQA, RoPE, RMSNorm)"]
-  PT --> LC["staged context extension<br/>(long-document continued train)"]
-  LC --> BASE["base model (8B / 70B / 405B)"]
-  BASE --> SFT["SFT on curated instructions"]
-  SFT --> RS["rejection sampling<br/>(keep best of N)"]
-  RS --> DPO["DPO on preference pairs"]
-  DPO --> CHAT["Llama 3 Instruct"]
-```
-
-**Interview questions this design invites**
-- Why extend context in a staged step near the end of pretraining rather than pretraining long from the start?
-- Why did Meta choose SFT plus DPO over PPO-based RLHF?
-- What does rejection sampling add between SFT and DPO?
-- How do data curation choices differ between the pretraining and post-training corpora?
-- What makes a 405B pretrain a lab-scale decision most teams should not copy?
-
-**Tricks and gotchas**
-- Context extension is a late-stage continued-training step, not a from-scratch long pretrain; it is far cheaper.
-- Rejection sampling (best-of-N against a reward signal) generates strong SFT-style data before DPO.
-- DPO trades some ceiling for stability and scalability versus online PPO.
-- Post-training data quality assurance is treated as rigorously as pretraining data curation.
-
-**Common mistakes and how to fix them**
-- Assuming you must run online RL for alignment; fix by starting with the simpler SFT-plus-DPO recipe.
-- Pretraining at long context throughout; fix with a staged extension to save compute.
-- Copying the 405B plan on a startup budget; fix by adapting an open Llama base via mid- and post-training.
-- Curating only pretraining data; fix by applying equal QA to the post-training set.
-
-### OpenAI: InstructGPT and the RLHF three-stage recipe ([source](https://openai.com/index/instruction-following/))
-
-InstructGPT is the canonical demonstration that alignment, not scale, is what makes a base model useful. The recipe is three stages: supervised fine-tuning on human-written demonstrations, a reward model trained on human rankings of model outputs under a Bradley-Terry objective, and PPO reinforcement learning that optimizes the policy against that reward with a KL penalty back to the SFT model. The headline result is that a 1.3B InstructGPT is preferred by humans over the 175B GPT-3 on instruction following, at a hundredth of the parameters, because the base model already had the capability and only needed to be pointed at human intent.
-
-```mermaid
-flowchart TD
-  BASE["GPT-3 base model"] --> SFT["SFT on human demonstrations"]
-  SFT --> GEN["sample multiple outputs"]
-  GEN --> RANK["humans rank outputs"]
-  RANK --> RM["reward model<br/>(Bradley-Terry)"]
-  SFT --> PPO["PPO policy optimization"]
-  RM --> PPO
-  PPO -.KL penalty to SFT.-> PPO
-  PPO --> INS["InstructGPT (aligned)"]
-```
-
-**Interview questions this design invites**
-- Why does a 1.3B aligned model beat a 175B base on instruction following?
-- What is the reward model learning, and why train it on rankings rather than absolute scores?
-- What does the KL penalty to the SFT model prevent?
-- Where does RLHF introduce sycophancy or an alignment tax, and how do you measure it?
-- When would you replace this pipeline with DPO?
-
-**Tricks and gotchas**
-- The base model already holds the capability; RLHF elicits and directs it, it does not add knowledge.
-- Ranking comparisons are easier and more reliable for humans than absolute quality scores.
-- The KL leash stops the policy from drifting off-distribution and reward-hacking.
-- Reward models are themselves gameable; they need their own red-teaming.
-
-**Common mistakes and how to fix them**
-- Believing alignment needs a bigger model; fix by investing in SFT plus preference data instead.
-- Removing or under-weighting the KL term; fix by tuning it so the policy stays near the reference.
-- Trusting the reward model blindly; fix by auditing it for hackable shortcuts and sycophancy.
-- Measuring only helpfulness; fix by tracking false-refusal and safety as co-equal gates.
-
-### Anthropic: Constitutional AI, alignment from AI feedback ([source](https://www.anthropic.com/research/constitutional-ai-harmlessness-from-ai-feedback))
-
-Constitutional AI replaces most human harm labels with AI feedback against a short written constitution (roughly 75 principles). In the supervised phase the model critiques and revises its own responses to be more harmless, then fine-tunes on the revisions; in the RL phase a preference model trained on AI comparisons drives RLAIF. The payoff is a Pareto improvement: the resulting model is both more helpful and more harmless than plain RLHF, and it engages with adversarial prompts by explaining objections instead of giving evasive non-answers, all while shrinking the human-labeling bottleneck.
-
-```mermaid
-flowchart TD
-  CON["written constitution<br/>(~75 principles)"] --> CRIT["model self-critiques<br/>+ revises responses"]
-  CRIT --> SFT["SFT on revised responses"]
-  SFT --> AICMP["model compares pairs<br/>(AI feedback)"]
-  CON --> AICMP
-  AICMP --> PM["preference model"]
-  PM --> RLAIF["RLAIF policy optimization"]
-  SFT --> RLAIF
-  RLAIF --> MODEL["helpful + harmless model"]
-```
-
-**Interview questions this design invites**
-- How does RLAIF cut the human-labeling cost of RLHF?
-- What moves from a bottleneck of labelers to a bottleneck of constitution design?
-- Why can a constitution-driven model be both more helpful and more harmless than RLHF?
-- How do you keep AI feedback from amplifying the base model's own biases?
-- Where does human oversight still enter a mostly-AI-feedback pipeline?
-
-**Tricks and gotchas**
-- The self-critique-and-revise loop generates alignment training data with almost no human labels.
-- Explaining an objection beats a flat refusal; it is both safer and more helpful.
-- The constitution is a small, auditable artifact, easier to inspect than millions of labels.
-- AI feedback inherits the labeler model's blind spots; the constitution must actively counter them.
-
-**Common mistakes and how to fix them**
-- Assuming safety requires armies of human labelers; fix with AI feedback against explicit principles.
-- Writing a vague constitution; fix by making principles concrete enough to drive consistent critiques.
-- Over-refusing to look safe; fix by rewarding engaged, explained objections over evasive non-answers.
-- Trusting AI feedback uncritically; fix by auditing it against a human gold set and the constitution.
-
-### DeepSeek: R1 and reinforcement learning from verifiable rewards ([source](https://arxiv.org/abs/2501.12948))
-
-DeepSeek-R1 shows that reasoning can be grown by reinforcement learning with rule-based rewards rather than human preference labels. R1-Zero starts from a base model and skips SFT entirely, using GRPO (Group Relative Policy Optimization) with rewards from answer-matching and code execution plus a format reward. Chain-of-thought, self-reflection, verification, and "aha" self-corrections emerge from the RL alone, lifting AIME 2024 pass@1 from 15.6 to 71.0 percent. The full R1 adds a small cold-start SFT for readability, but the core lesson is that where a reward is verifiable, RL can teach reasoning without preference data.
-
-```mermaid
-flowchart TD
-  BASE["DeepSeek-V3 base"] --> RL["GRPO reinforcement learning"]
-  VER["rule-based reward<br/>(answer match, code exec)"] --> RL
-  FMT["format reward"] --> RL
-  RL --> EMERGE["emergent CoT,<br/>self-reflection, verification"]
-  EMERGE --> ZERO["R1-Zero (no SFT)"]
-  ZERO --> CS["small cold-start SFT<br/>(readability)"]
-  CS --> R1["DeepSeek-R1"]
-```
-
-**Interview questions this design invites**
-- When can you replace a preference reward model with a rule-based verifier?
-- What tasks have verifiable rewards, and what do you do when they do not?
-- How does chain-of-thought emerge from RL without being explicitly supervised?
-- Why add a small cold-start SFT to R1-Zero rather than shipping the pure-RL model?
-- How does GRPO differ from PPO in what it needs?
-
-**Tricks and gotchas**
-- A checker (unit tests, a math verifier) is a cheaper, harder-to-hack reward than a learned preference model.
-- Reasoning behaviors can be incentivized, not just imitated, when the reward is verifiable.
-- Pure RL can hurt readability and language mixing; a light SFT fixes presentation without losing the gains.
-- Verifiable rewards only cover verifiable tasks; open-ended quality still needs preference methods.
-
-**Common mistakes and how to fix them**
-- Using a preference model where a checker exists; fix by rewarding verifiable correctness directly.
-- Assuming you always need SFT before RL; fix by trying rule-based RL from the base for reasoning.
-- Applying verifiable-reward RL to subjective tasks; fix by reserving it for math, code, and checkable outputs.
-- Shipping raw pure-RL outputs; fix with a small cold-start SFT for readability and format.
-
-### vLLM: PagedAttention for high-throughput serving ([source](https://blog.vllm.ai/2023/06/20/vllm.html))
-
-vLLM attacks the real serving bottleneck: the KV cache. Naive serving over-reserves contiguous memory for each sequence and wastes 60 to 80 percent of it to fragmentation, capping batch size and throughput. PagedAttention borrows OS virtual-memory paging, storing the KV cache in non-contiguous blocks with a lookup table, which drives near-zero waste and lets sequences share cache (for a common prompt) cheaply. Combined with continuous batching, it delivers up to 24x the throughput of naive HuggingFace serving with no model change, which is why it became a default inference engine.
-
-```mermaid
-flowchart TD
-  REQ["incoming requests<br/>(varied lengths)"] --> CB["continuous batching"]
-  CB --> PA["PagedAttention"]
-  PA --> BLK["KV cache in paged blocks"]
-  BLK --> TBL["block table (like page table)"]
-  TBL --> SHARE["shared blocks for common prefix"]
-  SHARE --> GPU["GPU stays saturated"]
-  GPU --> OUT["up to 24x throughput"]
-```
-
-**Interview questions this design invites**
-- Why is LLM decoding memory-bandwidth bound rather than compute bound?
-- How does KV-cache fragmentation cap batch size and throughput?
-- What does paging the KV cache borrow from operating systems, and what does it buy?
-- How does continuous batching differ from static batching, and why does it help variable-length traffic?
-- When does prompt/prefix sharing across requests pay off?
-
-**Tricks and gotchas**
-- The KV cache, not FLOPs, is the serving bottleneck; shrink and manage it and throughput follows.
-- Non-contiguous paged blocks kill the over-reservation waste of contiguous allocation.
-- Continuous batching keeps the GPU full when requests finish at different times.
-- Shared KV blocks make a common system prompt nearly free across concurrent requests.
-
-**Common mistakes and how to fix them**
-- Sizing serving by FLOPs; fix by budgeting KV-cache memory and bandwidth first.
-- Using static batching for chat; fix with continuous batching for variable-length requests.
-- Allocating contiguous per-sequence KV memory; fix with paged blocks to remove fragmentation.
-- Recomputing a shared system prompt per request; fix by sharing or caching its KV.
-
-### Character.AI: serving 20k+ QPS chat at low cost ([source](https://blog.character.ai/optimizing-ai-inference-at-character-ai-2/))
-
-Character.AI serves conversational traffic at over 20,000 queries per second, so inference cost is the business. Their stack stacks KV-cache reductions: multi-query attention and cross-layer cache sharing shrink the cache at the source, INT8 quantization of weights, activations, and the KV cache cuts memory and speeds decoding, and a tree-structured inter-turn cache with an LRU policy, indexed by a rolling hash of prefix tokens, reuses KV across turns of a multi-turn chat that share a prefix. The result is a cost per query low enough to run a consumer chat product at scale.
-
-```mermaid
-flowchart TD
-  CHAT["multi-turn chat traffic<br/>(20k+ QPS)"] --> MQA["multi-query attention<br/>+ cross-layer cache sharing"]
-  MQA --> INT8["INT8 weights, activations, KV"]
-  INT8 --> TREE["inter-turn KV cache<br/>(tree, LRU, rolling-hash key)"]
-  TREE --> HIT["prefix cache hit reuses KV"]
-  HIT --> CHEAP["low cost per query"]
-```
-
-**Interview questions this design invites**
-- Why does multi-query attention shrink the KV cache, and what does it cost in quality?
-- How does an inter-turn KV cache exploit the structure of a multi-turn conversation?
-- What are the risks of INT8-quantizing the KV cache, not just the weights?
-- How do you key and evict a prefix cache across many concurrent conversations?
-- How do you eval-gate an aggressive serving optimization so quality does not regress?
-
-**Tricks and gotchas**
-- MQA and cross-layer sharing cut the KV cache multiplicatively, the biggest single serving lever.
-- Multi-turn chats share long prefixes; caching their KV across turns avoids recomputation.
-- A rolling-hash prefix key with an LRU tree makes cache reuse cheap to index at scale.
-- Quantizing the KV cache, not just weights, is where much of the memory win comes from.
-
-**Common mistakes and how to fix them**
-- Ignoring conversation structure; fix by caching KV across turns keyed on the shared prefix.
-- Quantizing only weights; fix by also quantizing activations and the KV cache under an eval gate.
-- Using full multi-head attention at this QPS; fix with MQA/GQA to shrink the cache.
-- Shipping a compression without a quality check; fix by gating on the full eval suite, not a spot check.
 
 ---
 
