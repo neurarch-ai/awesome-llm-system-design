@@ -8,14 +8,14 @@ node tools/build.mjs
 
 This rebuilds four files from `topics/` plus the sources in this folder:
 
-- **CASE-STUDIES.md** — per topic: the comparative block from `comparisons/` followed by the case list read from that topic's `## Seen in production` section.
-- **CASE-TEARDOWNS.md** — the per-topic teardown sections in `teardowns/`, concatenated.
-- **CASE-STUDIES-BY-COMPANY.md** and **CASE-STUDIES-BY-INDUSTRY.md** — pivots of the same case list (grouped by company / by industry).
+- **CASE-STUDIES.md**, per topic: the comparative block from `comparisons/` followed by the case list read from that topic's `## Seen in production` section.
+- **CASE-TEARDOWNS.md**: the per-topic teardown sections in `teardowns/`, concatenated.
+- **CASE-STUDIES-BY-COMPANY.md** and **CASE-STUDIES-BY-INDUSTRY.md**: pivots of the same case list (grouped by company / by industry).
 
 ## Sources you edit
 
-- `comparisons/NN.md` — the visual-first comparative block for topic `NN` (what they share, a divergence Mermaid diagram, a choices side-by-side table, the math that separates the approaches, a tradeoff quadrant plot).
-- `teardowns/NN.md` — the per-case teardowns for topic `NN` (design diagram, interview questions, tricks, common mistakes).
+- `comparisons/NN.md`: the visual-first comparative block for topic `NN` (what they share, a divergence Mermaid diagram, a choices side-by-side table, the math that separates the approaches, a tradeoff quadrant plot).
+- `teardowns/NN.md`: the per-case teardowns for topic `NN` (design diagram, interview questions, tricks, common mistakes).
 
 ## Adding a case
 
