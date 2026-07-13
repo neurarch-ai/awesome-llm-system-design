@@ -17,7 +17,7 @@ they compress vectors, and whether they run one retrieval stage or two.
 | Vespa | HNSW-IF hybrid | int8 vectors | Yes (dense + inverted file) | Full-precision rescore (depth 4000) | 1B 100-dim int8 vectors; 90% recall@10 under 50ms at ~$6K/month; CRUD-friendly |
 | LinkedIn | IVFPQ (Galene) | Matryoshka 2048-dim for ANN, 4096-dim for ranker | Not stated | DCNv2 learned ranker (L2 stage) | 1B+ profiles; weekly batch + daily CDC delta; one model trains both dimensions |
 | Instacart | FAISS ANN | Not stated | No (keyword and category complement EBR) | Downstream ranker | Daily FAISS index rebuild; 95% query embedding cache hit; +4.1% cart-adds in A/B |
-| Etsy | HNSW | 4-bit PQ | Yes (term + neural) | Not stated | 62x memory reduction; +5.58% purchase rate; hard-negative training |
+| Etsy | HNSW | 4-bit PQ | Yes (term + neural) | Not stated | Compact 4-bit PQ codes; +5.58% purchase rate; hard-negative training |
 | Dropbox | Not stated | 8-bit custom scaling, full dimension | No | Not stated | Ran 11 models through MTEB to pick multilingual-e5-large (MRR 0.5044 vs 0.3299 runner-up); 4KB/doc metadata cap forced dimension choice |
 | Walmart | Inverted index + neural | Not stated | Yes (inverted + neural) | Not stated | Hybrid system for tail product queries where lexical precision matters; two channels to maintain |
 | Faire | SPLADE over Elasticsearch | Sparse neural | Yes (sparse neural is the lexical-style channel) | Not stated | Interpretable sparse-neural retrieval; term expansion on existing ES infra |

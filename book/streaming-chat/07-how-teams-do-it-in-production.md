@@ -20,7 +20,7 @@ reliability.
 | AssemblyAI Universal-Streaming | streaming STT | voice (STT front-end) | immutable transcripts, never revised | ~300ms endpointing floor | immutable words on first emission; acoustic + semantic + silence endpointing |
 | ElevenLabs | streaming TTS | voice (TTS back-end) | adaptive buffering per network conditions | parallel preprocessing, synthesis, rendering | stream audio chunks before the full sentence is synthesized |
 | Cartesia Sonic | streaming TTS | voice (TTS back-end) | 135ms model latency target | state-space model for speed | state-space architecture trades some quality for 135ms TTS first-byte |
-| Slack | WebSocket gateway | text | stateful channel servers, 500ms global delivery SLA | stateful servers complicate scaling and failover | persistent WebSocket channels with stateful servers per channel |
+| Slack | WebSocket gateway | text | stateful channel servers, ~500ms global delivery | stateful servers complicate scaling and failover | persistent WebSocket channels with stateful servers per channel |
 | Discord | WebSocket via Elixir GenServer | text | 5M concurrent sessions, Manifold fan-out | Elixir BEAM handles massive concurrent actor count | per-session GenServer actors; Manifold for fan-out to many listeners |
 | Daily / Pipecat Smart Turn v3 | WebRTC, open stack | voice | semantic VAD, 12ms CPU inference, 8MB model | open-source, self-hosted | smallest semantic turn-detection model publicly benchmarked |
 | Krisp | CPU turn-detection model | voice | 6M-weight model, no GPU required | fully CPU, cheap | tiny CPU model decides speak / listen / wait per frame |

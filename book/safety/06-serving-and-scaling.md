@@ -18,8 +18,8 @@ survives the cheap tier.
 For input guards: a regex and blocklist catches obvious patterns in microseconds. A
 small distilled classifier adds 10-30ms and catches the next tier. A full guard-LLM
 (80-150ms) only sees the small residual that the cheap tiers flagged as ambiguous.
-Roblox's distilled classifiers handle 99.99% of their 750k RPS at the fast tier;
-the expensive decision runs on 0.01% of traffic.
+Roblox's distilled classifiers handle the vast majority of their 750k RPS at the fast tier;
+the expensive decision runs on only a small fraction of traffic.
 
 For output guards: a fast fine-tuned toxicity classifier runs in 20-40ms. An
 LLM-judge guardrail runs in 80-150ms and is reserved for borderline verdicts.

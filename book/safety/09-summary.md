@@ -15,7 +15,7 @@
 - **The cascade is the latency solution.** Cheap tier first (regex, blocklist, small
   distilled classifier), expensive guard-LLM only for ambiguous survivors. Expected
   cost falls when the escalation fraction is small. Roblox runs 750k RPS by keeping
-  99.99% of traffic on distilled classifiers.
+  the vast majority of traffic on distilled classifiers.
 - **Measure both sides of the tradeoff.** Attack success rate on an adversarial eval
   set tells you catch rate. False-refusal rate on a benign eval set tells you cost
   to legitimate users. Reporting only catch rate is incomplete. Anthropic held the

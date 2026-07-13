@@ -84,11 +84,11 @@ architecture trained on a separate objective; it does not share the base model's
 persuadability. For adversarial robustness, the independence of the guard from the
 main model is the property that matters.
 
-**Q: Roblox flags 0.01% of traffic. How does that shape their cascade design?**
+**Q: Roblox escalates only a small fraction of traffic to the expensive tier. How does that shape their cascade design?**
 
-A: It means the expensive guard-LLM is called on at most 0.01% of requests if the
+A: It means the expensive guard-LLM is called on only a small fraction of requests if the
 cheap tier is calibrated correctly. The expected cost is approximately equal to the
-cheap tier cost for 99.99% of requests. The distilled classifiers dominate the
+cheap tier cost for the overwhelming majority of requests. The distilled classifiers dominate the
 economics and the latency profile. The expensive model can be larger and slower
 than you would ever tolerate at full throughput, because it almost never runs.
 
