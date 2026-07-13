@@ -141,6 +141,30 @@ often right, you get multiple tokens per big-model step. Net effect: fewer
 expensive decode steps for the same output. Covered further in the planned
 serving topic.
 
+### When to use which
+
+Confirm whether you are memory-bound or compute-bound first, then pick from the levers above.
+
+Attention variant (mostly a training-time choice):
+
+| Option | Reach for it when | Cost / skip it when |
+|---|---|---|
+| MHA | Quality is paramount and context is short, so the cache is not the constraint | Largest KV cache; skip for long-context or high-concurrency serving |
+| GQA | You want a safe default: most of MHA quality at a fraction of the cache | Fixed cache ratio; skip when memory is truly the wall and you control training |
+| MQA | Extreme concurrency and cost targets where one KV head is acceptable | More quality risk than GQA, gate on eval; skip when quality headroom is thin |
+| MLA | KV cache is the binding long-context constraint and you train or control the model | Training-time change plus the RoPE split-head fix; skip when you only serve a fixed off-the-shelf model |
+
+Serving and memory levers (bolt onto a fixed model):
+
+| Option | Reach for it when | Cost / skip it when |
+|---|---|---|
+| Continuous batching | Always, as the first throughput win | Makes KV memory the binding constraint; effectively never skip |
+| Paged attention | Fragmentation is capping how many sequences you fit | Negligible block-management overhead; skip only if your stack lacks it |
+| Prefix caching | Many requests share a long prefix (system prompt, shared doc) | No help when context changes every call; skip for all-unique prompts |
+| KV-cache quantization | Long-context memory is the wall on a model you cannot retrain | Quality hit you must measure; skip when quality headroom is thin |
+| Speculative decoding | Decode-bound at low or moderate batch with predictable output | Wasted draft compute at high batch or novel text; skip when already memory-saturated |
+| MoE | Compute per token is the wall and you want capacity without paying every param | All experts sit in memory plus routing complexity; skip when memory-bound, not compute-bound |
+
 ## 4. Putting it together
 
 A strong closing synthesis:

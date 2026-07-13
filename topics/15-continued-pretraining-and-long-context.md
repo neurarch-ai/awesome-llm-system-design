@@ -344,6 +344,31 @@ weak eval. A model can pass the easy test and be broken on anything real.
   dominated by local prediction. Gate on the retrieval and aggregation evals, not on
   perplexity alone.
 
+### When to use which
+
+The two independent axes each offer competing tools; picking the wrong one wastes the
+run. First, how to close a capability gap (the adaptation axis):
+
+| Option | Reach for it when | Cost / skip it when |
+|---|---|---|
+| Full continued pretraining (DAPT) with replay | A broad distributional shift (a domain or language) with billions of in-domain tokens | Forgetting risk needs replay and a modest re-warm peak; skip below billions of tokens or you memorize and forget |
+| LoRA / QLoRA adapters | A lighter domain nudge where you must bound forgetting by construction and keep cost low | A lower ceiling on how much domain it absorbs; skip for a large distributional shift that wants full DAPT |
+| SFT | The gap is a narrow behavior or format needing thousands of examples | Teaches format, not a broad prior; skip when the gap is a whole domain or language |
+| RAG / retrieval | The gap is a fixed set of facts or a corpus you retrieve chunks from | Does not shift the base's prior; skip when the model needs a new register or style, not facts |
+| From-scratch pretrain | No open base in the target distribution exists at all | Lab-scale cost; almost never justified when an adaptable base exists (see topic 14) |
+| General-data replay mix | Any full continued-pretraining run where general benchmarks must not regress | A few percent already cuts forgetting sharply; skip only if you accept a measured breadth loss |
+
+Then, how to push the window out (the length axis), from crudest to most refined:
+
+| Option | Reach for it when | Cost / skip it when |
+|---|---|---|
+| Naive extrapolation (raise max position) | Never; listed only to reject it | Fails catastrophically past the trained window, the config number is not the capability |
+| Linear position interpolation (PI) | A simple baseline extension with a short continued-train run | Uniform scaling blurs high-frequency local resolution and hurts short prompts |
+| NTK-aware / ABF (raise the RoPE base) | Moderate extension with little or no fine-tuning (Code Llama, base 10000 to 1e6) | A hand-tuned base, less principled than YaRN for aggressive targets |
+| YaRN | Aggressive extension to 128K+ at roughly 0.1 percent of pretraining tokens with minimal short-context loss | Temperature and ramp need tuning, more moving parts than PI |
+| LongRoPE | Extreme length (2M+) where a searched, length-dependent rescale is worth the cost | Evolutionary search cost plus a short-context recovery step to avoid regression |
+| ALiBi | You want train-short-test-long extrapolation with no RoPE rescaling at all | Not a RoPE model and some quality cost; skip when your base already ships RoPE |
+
 ## 5. Bottlenecks and scaling
 
 | Bottleneck | First sign | Fix | Tradeoff |

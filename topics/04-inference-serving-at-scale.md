@@ -248,6 +248,30 @@ the batch size continuous batching can sustain, which raises throughput again. T
 non-negotiable: every precision drop goes behind a quality eval before it ships,
 never on assumption.
 
+### When to use which
+
+Start from the bottleneck (utilization, TPOT spikes, model does not fit, spikes) and pick the matching lever.
+
+Batching and phase scheduling:
+
+| Option | Reach for it when | Cost / skip it when |
+|---|---|---|
+| Continuous batching | Always, as the baseline for GPU utilization | KV memory becomes the binding constraint; effectively never skip |
+| Chunked prefill | Long prefills spike TPOT for in-flight decode on a shared pool | Chunk size is a throughput-versus-latency knob to tune; skip when prompts are short and uniform |
+| Disaggregated prefill / decode | Prefill and decode SLOs genuinely conflict at fleet scale | KV handoff needs fast interconnect; skip for a single small model at moderate QPS (chunked prefill is enough) |
+| Speculative decoding | Decode-bound at lower batch with predictable output | Verification overhead outweighs the win at very high batch or novel text; skip when the GPU is already saturated |
+
+Parallelism and scaling:
+
+| Option | Reach for it when | Cost / skip it when |
+|---|---|---|
+| Tensor parallelism (TP) | Fit a model or cut single-request latency, inside one node | All-reduce every layer needs NVLink; skip across slow links or nodes |
+| Pipeline parallelism (PP) | Scale across nodes once a single node runs out of GPUs | Pipeline bubble hurts single-request latency; skip when latency-critical and TP fits |
+| Replication | Throughput once one copy fits on its GPUs | Linear GPU spend; skip when a single copy does not fit |
+| Expert parallelism | Large MoE whose experts do not fit per GPU | All-to-all traffic plus a load-balance problem; skip for dense models |
+| KV-cache offload (CPU / NVMe) | Many bursty concurrent sessions exceed GPU memory | Transfer latency on resume, risky on the hot path; skip when latency-critical |
+| SLO-aware admission + warm-buffer autoscaling | Hold p99 under spikes and overload | Some idle capacity and shed load; skip when traffic is flat and never saturates |
+
 ## 5. Bottlenecks and scaling
 
 | Bottleneck | Cause | Fix |

@@ -233,6 +233,24 @@ Swapping adapters is also your fast rollback and your A/B mechanism: promote a n
 adapter, route a slice of traffic to it, revert by pointing the route back. No
 redeploy of the base.
 
+### When to use which
+
+Given a domain gap, walk the ladder in cost order and stop at the first rung that clears the quality bar. The first table picks the adaptation strategy; the second picks the training method once you have decided to train.
+
+| Option | Reach for it when | Cost / skip it when |
+|---|---|---|
+| Prompt engineering | Format, tone, or decomposition is the gap; you want an instant, free baseline before anything trains | Cannot inject facts you do not have, or a skill the base genuinely lacks |
+| RAG (retrieval) | The gap is knowledge (docs, catalog, tickets) that changes and must cite sources | Adds a retrieval path; will not fix a behavior or format problem baked into the model |
+| SFT (supervised fine-tune) | You need consistent format, tone, or a task skill, and have a few thousand clean labeled examples | No labeled data and no path to one; facts that move (use RAG instead) |
+| Preference tuning (DPO / RLHF) | A quality axis SFT cannot capture (helpfulness, picking the better of two valid answers) survives SFT | Format-and-tone problems SFT already solved; adds cost and can over-steer safety |
+
+| Training method | Reach for it when | Cost / skip it when |
+|---|---|---|
+| LoRA / QLoRA | Almost always: cheap adapters, one frozen base hosts many, fast rollback; QLoRA when the base must fit a single commodity GPU | Rare cases needing a deep, whole-model behavior shift |
+| Full fine-tune | Large dataset, a big shift from the base, or LoRA left accuracy on the table | Cost, memory, a fresh multi-gigabyte model per task, and you lose cheap multi-adapter serving |
+| DPO | You have decided to preference-tune and want the simple, stable path (no separate reward model) | Rarely wrong as the first choice; skip if plain SFT already meets the bar |
+| RLHF | You need a reusable reward signal or finer control than DPO offers | Complex, unstable, multi-model pipeline; overkill for most domain tasks |
+
 ## 6. Bottlenecks and scaling
 
 | Bottleneck | Cause | Fix |

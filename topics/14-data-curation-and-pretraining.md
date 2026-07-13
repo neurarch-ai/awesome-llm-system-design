@@ -435,6 +435,32 @@ is a fault-tolerant system:
 Naming failure recovery unprompted is a strong senior signal. Candidates who
 describe pretraining as "call the training loop for three weeks" have never run one.
 
+### When to use which
+
+The pipeline and the run present competing options at almost every stage; the two
+tables below say when each earns its cost. First the data and tokenizer choices that
+set the capability ceiling:
+
+| Option | Reach for it when | Cost / skip it when |
+|---|---|---|
+| Heuristic quality filters | You want cheap, interpretable rules and an audit trail on any corpus | Blunt at the margin; keep only the few rules that move downstream evals, do not stack fifty |
+| Learned quality classifier (FineWeb-Edu style) | You have a known-good reference and want fewer, higher-value tokens that lift MMLU and ARC | Bakes in reference bias and can narrow diversity; skip when the reference is narrow or you cannot ablate it |
+| Exact hash / substring dedup | Always, as the cheap first pass that kills byte-identical documents | Catches only identical copies, never sufficient alone against timestamp or header near-duplicates |
+| MinHash plus LSH fuzzy dedup | The corpus spans trillions of tokens with cross-dump near-duplicates you cannot all-pairs compare | Maximal global dedup over-removes valid common text; tune `b` and `r` and ablate the aggressiveness |
+| Decontamination against eval sets | Always, before the first token, reporting the overlap you dropped | Never skip; embedding overlap catches paraphrase at higher cost, exact n-gram is the cheap floor |
+| Larger tokenizer vocabulary | A multilingual or code-heavy mix where high fertility inflates tokens per word | Grows the embedding and softmax params, undertrains rare tokens; skip for a narrow English base |
+
+Then the architecture and systems choices that set the size and decide feasibility:
+
+| Option | Reach for it when | Cost / skip it when |
+|---|---|---|
+| Dense transformer | Serving VRAM is tight and you want the simplest parallelism and predictable per-token cost | Capacity is capped at the FLOPs you pay per token; skip when you need more parameters than that budget allows |
+| Mixture-of-experts | You want frontier capacity at a small active per-token FLOP count on a constrained compute budget | Every expert still sits in VRAM and routing adds all-to-all traffic; skip when serving memory or systems complexity binds |
+| Grouped-query attention (over MHA / MQA) | You commit at pretraining to a cheap KV cache at serve time with near-MHA quality | A slight quality gap versus full MHA; push to MQA only if the serving budget needs an even smaller cache |
+| Chinchilla-optimal sizing | A fixed training budget and you are minimizing training compute for a target loss | Training-optimal ignores inference; overtrain a smaller model past 20 tokens per parameter when you will serve it billions of times |
+| FP8 precision (over bf16) | A frontier-scale run where halving activation and communication bytes buys throughput (DeepSeek-V3) | Numerical fragility needs careful scaling; stay on bf16 with fp32 master weights when stability matters more than speed |
+| Parallelism and sharding (TP / PP / EP, ZeRO / FSDP) | The model or its optimizer state does not fit one GPU | Every axis adds communication that lowers MFU; keep tensor parallel in-node, reach for expert parallelism only if MoE forces it |
+
 ## 5. Bottlenecks and scaling
 
 | Bottleneck | First sign | Fix | Tradeoff |

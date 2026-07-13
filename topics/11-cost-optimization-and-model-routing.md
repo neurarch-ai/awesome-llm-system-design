@@ -201,6 +201,20 @@ because traffic drift moves the curve: re-sweep periodically and alert on per-bu
 quality, not just aggregate cost. A cost drop with no quality tracking is a silent
 quality cut waiting to be discovered.
 
+### When to use which
+
+Find where the money goes (input tokens, output tokens, or request count), then apply the cheapest lever for that term. These compose: route first, cascade within a bucket, cache in front of both.
+
+| Lever | Reach for it when | Cost / skip it when |
+|---|---|---|
+| Model routing | You must pick a model before spending (latency too tight for two calls) and have a real difficulty signal | Decides once blind; a router tuned on old traffic mis-routes newly-hard queries |
+| Cascades / deferral | You can afford a cheap call first and the task has a trustworthy confidence or verification signal (code, SQL, math, extraction) | Miscalibrated cutoff pays for both models on everything; the signal is soft on open-ended generation |
+| Semantic caching | Repeated or paraphrased queries over stable content (definitions, policies) | Loose threshold serves a different question's answer; never share-cache scoped or personalized replies |
+| Prompt compression | Input tokens dominate and context is long, verbose, and redundant | Costs a small-model pass and is lossy, so back off on exact extraction, legal, code |
+| Right-sizing per task | Narrow subtasks (routing, classification, extraction, embeddings, reranking) a small model handles at a fraction of the cost | More models to host, evaluate, and keep from drifting |
+| Quantization / FP8 + batching | You self-host above the QPS where fixed GPU cost beats per-token API price | Applies only to models you host, not to API pricing; below that QPS the API wins |
+| Batch API vs online | Bulk work with no user waiting (backfills, nightly jobs) that tolerates hours of latency | Interactive traffic under a latency SLO |
+
 ## 5. Bottlenecks and scaling
 
 | Bottleneck | Cause | Fix |

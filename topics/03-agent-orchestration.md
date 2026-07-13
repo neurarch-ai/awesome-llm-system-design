@@ -122,6 +122,19 @@ places to fail, and harder debugging. Default to a single well-tooled agent;
 reach for multiple only when one context cannot hold the job. Say this; it shows
 judgment rather than hype.
 
+### When to use which
+
+Three orthogonal choices: how many agents, how they plan, and how they hold state. Default to the cheap, coherent option and add structure only when the job forces it.
+
+| Choice | Reach for it when | Cost / skip it when |
+|---|---|---|
+| Single well-tooled agent | Default: one context can hold the job, so it is cheaper, coherent, and easy to trace | The job genuinely needs isolated contexts or separable parallel subtasks |
+| Multi-agent (orchestrator + subagents) | Subtasks are truly separable (research, then write) or each needs its own context | Complexity theater: more calls, more latency, harder debugging, multiplied tokens |
+| Reactive (ReAct) looping | Simple, flexible tasks with a small tool set and a short horizon | Can wander and rack up steps, so it always needs a hard step cap |
+| Plan-then-execute | The workflow has a known shape (support resolution), so cost stays predictable | Rigid when the task surprises; re-plan only on contradiction |
+| Working state in context | The ticket and tool results so far drive the next step | It grows every step and re-pays prefill; summarize or prune before it blows the budget |
+| Long-term memory (RAG) | Past resolutions, customer history, or learned policies exceed the context window | Retrieval overhead; do not stuff everything in, retrieve only the relevant pieces |
+
 ## 5. Bottlenecks and scaling
 
 | Bottleneck | Cause | Fix |

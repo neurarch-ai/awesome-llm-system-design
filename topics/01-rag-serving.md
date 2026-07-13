@@ -152,6 +152,28 @@ of [topic 02](02-long-context-and-kv-cache.md); for RAG specifically, note that
 long retrieved contexts make the **prefill** large, so prefill cost matters more
 here than in short-prompt chat.
 
+### When to use which
+
+The pieces above are a menu, not a checklist. Pick per corpus, latency budget, and quality bar.
+
+Chunking strategy:
+
+| Option | Reach for it when | Cost / skip it when |
+|---|---|---|
+| Recursive / structural chunking | Docs carry structure (headings, code, tables) that naive splits destroy | Corpus is flat unstructured text with no markup to split on |
+| Overlap window | Answers straddle chunk boundaries and get cut in half | Duplicated tokens inflate index size and cost; skip when chunks are already self-complete |
+| Contextual chunking (prepend summary) | Chunks lose meaning alone (pronouns, "this section" references) | Extra LLM pass per chunk at ingest; skip when chunks already stand alone |
+
+Retrieval, index, and re-ranking:
+
+| Option | Reach for it when | Cost / skip it when |
+|---|---|---|
+| HNSW index | Recall and latency both matter and RAM budget is comfortable | High memory per vector; skip at 50M+ vectors on a tight memory budget |
+| IVF-PQ index | 50M+ vectors where index memory is the dominant cost | Quantization loses some recall; skip when top recall is the bar and the corpus fits HNSW |
+| Dense vector retrieval | Semantic and paraphrase matching, where wording differs from the query | Queries are exact keyword, code, or ID lookups that lexical nails |
+| Hybrid (dense + BM25 / lexical) | Queries mix rare terms, names, and codes with semantics | Two systems to tune and weight; skip for purely semantic matching on a small corpus |
+| Cross-encoder re-ranker | Recall is fine but top-5 precision is the quality ceiling and latency has slack | Extra hop and per-pair compute; skip under a tight first-token budget or when vector top-k is already precise |
+
 ## 5. Bottlenecks and scaling
 
 | Bottleneck | First sign | Fix | Tradeoff |

@@ -128,6 +128,22 @@ upserts** so a changed item re-embeds and updates in place. HNSW handles inserts
 well; IVF may need periodic re-clustering as the distribution drifts. State the
 freshness target and pick accordingly.
 
+### When to use which
+
+Two decisions dominate: which ANN index structure holds the vectors, and which retrieval channels run in front of it. The first table picks the index; the second picks the search strategy.
+
+| Index | Reach for it when | Cost / skip it when |
+|---|---|---|
+| Exact (flat / brute force) | Small corpus, or you need a ground-truth recall baseline to measure ANN against | Linear scan is too slow at 100M vectors per query |
+| HNSW (graph) | Memory is not the constraint and you want top recall and latency with easy incremental inserts | Stores the graph plus full vectors, so RAM cost balloons at 100M+ |
+| IVF-PQ (cluster + quantize) | 100M+ vectors where memory is the binding constraint and you accept some recall loss | Quantization costs recall; a drifting distribution needs periodic re-clustering |
+
+| Strategy | Reach for it when | Cost / skip it when |
+|---|---|---|
+| Dense (ANN) only | Pure semantic match over stable text where exact tokens do not matter | Misses SKUs, error codes, names, rare or out-of-domain terms |
+| Hybrid (dense + BM25) | Queries mix meaning with exact terms; the expected default at senior level | Two channels to run and fuse (for example reciprocal rank fusion) |
+| Cross-encoder re-rank | You need precise ordering at the very top for a human reader | Expensive per pair; skip when a downstream ranker will re-score anyway |
+
 ## 5. Bottlenecks and scaling
 
 | Bottleneck | First sign | Fix | Tradeoff |
