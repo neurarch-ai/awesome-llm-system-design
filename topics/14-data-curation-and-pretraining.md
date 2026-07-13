@@ -285,7 +285,7 @@ With clean tokens in hand, the objective is the one simple part. A decoder-only
 transformer factorizes the sequence probability autoregressively and minimizes the
 token-averaged negative log-likelihood (cross-entropy) of the next token:
 
-$$p_{\theta}(x) = \prod_{t=1}^{T} p_{\theta}(x_t \mid x_{<t}), \qquad \mathcal{L}(\theta) = -\frac{1}{T}\sum_{t=1}^{T} \log p_{\theta}(x_t \mid x_{<t})$$
+$$p_{\theta}(x) = \prod_{t=1}^{T} p_{\theta}(x_t \mid x_{\lt t}), \qquad \mathcal{L}(\theta) = -\frac{1}{T}\sum_{t=1}^{T} \log p_{\theta}(x_t \mid x_{\lt t})$$
 
 Report it as **perplexity** (exponentiated loss) or, to compare across tokenizers,
 **bits-per-byte**:

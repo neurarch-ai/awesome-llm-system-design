@@ -77,9 +77,9 @@ flowchart TD
 
 **The math that separates them.**
 
-$$\textbf{pretraining objective (next-token cross-entropy): } \mathcal{L} = -\frac{1}{T}\sum_{t=1}^{T} \log p_{\theta}(x_t \mid x_{<t})$$
+$$\textbf{pretraining objective (next-token cross-entropy): } \mathcal{L} = -\frac{1}{T}\sum_{t=1}^{T} \log p_{\theta}(x_t \mid x_{\lt t})$$
 
-$$\textbf{perplexity (report and compare bases): } \text{PPL} = \exp\!\left(-\frac{1}{T}\sum_{t=1}^{T} \log p_{\theta}(x_t \mid x_{<t})\right)$$
+$$\textbf{perplexity (report and compare bases): } \text{PPL} = \exp\!\left(-\frac{1}{T}\sum_{t=1}^{T} \log p_{\theta}(x_t \mid x_{\lt t})\right)$$
 
 $$\textbf{compute budget and Chinchilla-optimal split: } C \approx 6 N D, \quad D^{\ast} \approx 20\, N$$
 
@@ -209,7 +209,7 @@ $$\textbf{MinHash estimator (why it is cheap): } \Pr[\min h(A) = \min h(B)] = J(
 
 $$\textbf{LSH banding (candidate S-curve, } b \textbf{ bands of } r \textbf{ rows): } \Pr[\text{candidate}] = 1 - \left(1 - J^{r}\right)^{b}$$
 
-$$\textbf{pretraining objective (next-token cross-entropy): } \mathcal{L} = -\frac{1}{T}\sum_{t=1}^{T} \log p_{\theta}(x_t \mid x_{<t})$$
+$$\textbf{pretraining objective (next-token cross-entropy): } \mathcal{L} = -\frac{1}{T}\sum_{t=1}^{T} \log p_{\theta}(x_t \mid x_{\lt t})$$
 
 $$\textbf{bits-per-byte (tokenizer-invariant comparison): } \text{BPB} = \frac{\mathcal{L}}{\ln 2} \cdot \frac{n_{\text{tokens}}}{n_{\text{bytes}}}$$
 

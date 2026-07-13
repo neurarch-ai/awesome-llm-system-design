@@ -383,7 +383,7 @@ $$\max_{\pi_\theta}\ \mathbb{E}_{x, y\sim\pi_\theta(\cdot\mid x)}\big[r(x,y)\big
 
 In practice PPO implements the penalty per token: the effective reward at token $t$ is the terminal reward minus a log-ratio,
 
-$$\tilde{r}_t = r(x,y)\cdot\mathbb{1}[t=T]\ -\ \beta \log\frac{\pi_\theta(y_t\mid x,y_{<t})}{\pi_\text{ref}(y_t\mid x,y_{<t})}.$$
+$$\tilde{r}_t = r(x,y)\cdot\mathbb{1}[t=T]\ -\ \beta \log\frac{\pi_\theta(y_t\mid x,y_{\lt t})}{\pi_\text{ref}(y_t\mid x,y_{\lt t})}.$$
 
 Summing that log-ratio over the sequence is a single-sample Monte Carlo estimate of the sequence-level KL, so the "KL penalty" and the "KL regularizer" are the same object realized token by token. The closed-form optimum of the regularized objective is the reward-tilted reference distribution:
 
@@ -883,7 +883,7 @@ Conditioning refers to how differently the loss curves along different direction
 
 **Q: Walk me through what actually happens at each step to turn model outputs into a chosen token.**
 
-The model produces a vector of logits $z\in\mathbb{R}^{|V|}$, one per vocabulary entry, for the next position. A softmax turns those logits into a probability distribution, optionally after temperature scaling and truncation filters like top-k or top-p. A decoding rule then selects a token: greedy takes $\arg\max_i z_i$, sampling draws from the (possibly truncated) distribution, and beam search keeps several partial sequences ranked by cumulative log-probability $\sum_t \log p(y_t\mid y_{<t})$. The chosen token is appended and fed back in, so the entire process is autoregressive and each step's cost is dominated by one forward pass over the current context. The pipeline looks like this:
+The model produces a vector of logits $z\in\mathbb{R}^{|V|}$, one per vocabulary entry, for the next position. A softmax turns those logits into a probability distribution, optionally after temperature scaling and truncation filters like top-k or top-p. A decoding rule then selects a token: greedy takes $\arg\max_i z_i$, sampling draws from the (possibly truncated) distribution, and beam search keeps several partial sequences ranked by cumulative log-probability $\sum_t \log p(y_t\mid y_{\lt t})$. The chosen token is appended and fed back in, so the entire process is autoregressive and each step's cost is dominated by one forward pass over the current context. The pipeline looks like this:
 
 ```mermaid
 flowchart LR
@@ -900,7 +900,7 @@ The key point is that "which token" is a policy layered on top of the same proba
 
 **Q: Greedy versus beam search: what does beam actually optimize, and why does it hurt open-ended generation?**
 
-Greedy picks the single highest-probability token each step, which is locally optimal but can miss a higher-probability full sequence. Beam search keeps the $B$ highest-scoring partial hypotheses by cumulative log-probability $\sum_t \log p(y_t\mid y_{<t})$ and expands all of them, approximating $\arg\max_y \sum_t \log p(y_t\mid y_{<t})$, the most probable overall sequence. For short, constrained tasks like translation or summarization there is a fairly peaked "correct" output, so searching for high total probability genuinely helps quality. For open-ended generation this backfires: the highest-probability sequences are often degenerate, showing repetitive loops and bland, generic phrasing, because human text is not the maximum-likelihood sequence and beam over-optimizes for a metric that rewards safe, high-frequency continuations. So beam is a search tool matched to low-entropy tasks, not a universal quality knob.
+Greedy picks the single highest-probability token each step, which is locally optimal but can miss a higher-probability full sequence. Beam search keeps the $B$ highest-scoring partial hypotheses by cumulative log-probability $\sum_t \log p(y_t\mid y_{\lt t})$ and expands all of them, approximating $\arg\max_y \sum_t \log p(y_t\mid y_{\lt t})$, the most probable overall sequence. For short, constrained tasks like translation or summarization there is a fairly peaked "correct" output, so searching for high total probability genuinely helps quality. For open-ended generation this backfires: the highest-probability sequences are often degenerate, showing repetitive loops and bland, generic phrasing, because human text is not the maximum-likelihood sequence and beam over-optimizes for a metric that rewards safe, high-frequency continuations. So beam is a search tool matched to low-entropy tasks, not a universal quality knob.
 
 **Q: Why does maximizing sequence probability produce repetition and blandness rather than good text?**
 
@@ -976,7 +976,7 @@ A discriminative model learns the conditional $p(y\mid x)$ directly: it only nee
 
 **Q: Give the one-line summary of how autoregressive, diffusion, GAN, and VAE models each generate data, and what fundamentally distinguishes their objectives.**
 
-Autoregressive models factorize $p(x)=\prod_t p(x_t\mid x_{<t})$ into a product of conditionals and predict one element at a time by exact maximum likelihood. VAEs learn an encoder-decoder pair and maximize a lower bound (the ELBO) on the log-likelihood through a latent variable. GANs skip likelihood entirely and train a generator against a discriminator in a minimax game, $\min_G\max_D \mathbb{E}_{x\sim p_{\text{data}}}[\log D(x)]+\mathbb{E}_{z\sim p(z)}[\log(1-D(G(z)))]$, so that generated samples become indistinguishable from real ones. Diffusion models learn to reverse a fixed gradual noising process, training a denoiser with a simple regression loss that is a bound on likelihood. The key axis is how each treats likelihood: autoregressive gives it exactly, VAE and diffusion optimize bounds, and GAN abandons it for an adversarial signal.
+Autoregressive models factorize $p(x)=\prod_t p(x_t\mid x_{\lt t})$ into a product of conditionals and predict one element at a time by exact maximum likelihood. VAEs learn an encoder-decoder pair and maximize a lower bound (the ELBO) on the log-likelihood through a latent variable. GANs skip likelihood entirely and train a generator against a discriminator in a minimax game, $\min_G\max_D \mathbb{E}_{x\sim p_{\text{data}}}[\log D(x)]+\mathbb{E}_{z\sim p(z)}[\log(1-D(G(z)))]$, so that generated samples become indistinguishable from real ones. Diffusion models learn to reverse a fixed gradual noising process, training a denoiser with a simple regression loss that is a bound on likelihood. The key axis is how each treats likelihood: autoregressive gives it exactly, VAE and diffusion optimize bounds, and GAN abandons it for an adversarial signal.
 
 **Q: When would you reach for a diffusion model over a GAN, and vice versa?**
 
@@ -988,7 +988,7 @@ Autoregressive models give exact likelihood and very stable training but sample 
 
 | Family | Likelihood | Sampling speed | Training stability | Mode coverage |
 |---|---|---|---|---|
-| Autoregressive | Exact $\prod_t p(x_t\mid x_{<t})$ | Slow, one pass per token (serial) | Very stable (MLE / cross-entropy) | Strong (MLE penalizes dropping mass) |
+| Autoregressive | Exact $\prod_t p(x_t\mid x_{\lt t})$ | Slow, one pass per token (serial) | Very stable (MLE / cross-entropy) | Strong (MLE penalizes dropping mass) |
 | VAE | Lower bound (ELBO) | Fast, single decoder pass | Stable | Broad but blurry; risk of posterior collapse |
 | GAN | None (implicit) | Fast, single forward pass | Least stable (minimax saddle) | Weak; prone to mode collapse |
 | Diffusion | Bound (variational / score) | Slow, many denoising steps | Stable (simple regression loss) | Strong (likelihood-bounding objective) |
@@ -1059,7 +1059,7 @@ taking the unconditional prediction and pushing it in the direction of the condi
 
 **Q: Why do autoregressive LLMs give exact likelihood and train stably, yet sample slowly?**
 
-An autoregressive model factorizes the joint probability of a sequence exactly via the chain rule, $p(x)=\prod_t p(x_t\mid x_{<t})$, and each conditional is a softmax over the vocabulary, so the total log-likelihood $\log p(x)=\sum_t \log p(x_t\mid x_{<t})$ is a sum of exact per-token log-probabilities with no bound or approximation. Training is just maximum likelihood, equivalently cross-entropy per token, which is a stable objective with a clear decreasing metric, and teacher forcing lets all positions be trained in parallel in one pass. The catch is at inference: because each token conditions on all previous tokens, you must generate strictly left to right, one forward pass per token, so sampling is inherently sequential and its latency grows with output length. That is the fundamental tradeoff versus one-pass generators: exactness and training stability in exchange for serial, length-proportional sampling.
+An autoregressive model factorizes the joint probability of a sequence exactly via the chain rule, $p(x)=\prod_t p(x_t\mid x_{\lt t})$, and each conditional is a softmax over the vocabulary, so the total log-likelihood $\log p(x)=\sum_t \log p(x_t\mid x_{\lt t})$ is a sum of exact per-token log-probabilities with no bound or approximation. Training is just maximum likelihood, equivalently cross-entropy per token, which is a stable objective with a clear decreasing metric, and teacher forcing lets all positions be trained in parallel in one pass. The catch is at inference: because each token conditions on all previous tokens, you must generate strictly left to right, one forward pass per token, so sampling is inherently sequential and its latency grows with output length. That is the fundamental tradeoff versus one-pass generators: exactness and training stability in exchange for serial, length-proportional sampling.
 
 **Q: What is the difference between an autoencoder and a variational autoencoder, and why can't you sample from a plain autoencoder?**
 
@@ -1067,7 +1067,7 @@ A plain autoencoder learns a deterministic encoder that maps $x$ to a single lat
 
 **Q: Diffusion and autoregressive models both bound or give exact likelihood, so why is diffusion parallel over positions while autoregressive is serial?**
 
-Their serial axis is different. An autoregressive model's dependency is over sequence positions: token $t$ needs tokens $x_{<t}$, so generation is strictly left to right and cannot be parallelized across positions, though all positions of a known sequence train in parallel via teacher forcing. A diffusion model's dependency is over denoising steps, not positions: at each step it denoises the entire signal (all pixels or all latents) at once in a single parallel network call, but you must run many such steps in sequence to walk from noise to data. So diffusion is parallel within a step and serial across steps, while autoregression is parallel within training but serial across positions at inference. This is why diffusion latency is set by the step count (attacked by DDIM and distillation) whereas autoregressive latency is set by output length (attacked by speculative decoding and parallel-token methods).
+Their serial axis is different. An autoregressive model's dependency is over sequence positions: token $t$ needs tokens $x_{\lt t}$, so generation is strictly left to right and cannot be parallelized across positions, though all positions of a known sequence train in parallel via teacher forcing. A diffusion model's dependency is over denoising steps, not positions: at each step it denoises the entire signal (all pixels or all latents) at once in a single parallel network call, but you must run many such steps in sequence to walk from noise to data. So diffusion is parallel within a step and serial across steps, while autoregression is parallel within training but serial across positions at inference. This is why diffusion latency is set by the step count (attacked by DDIM and distillation) whereas autoregressive latency is set by output length (attacked by speculative decoding and parallel-token methods).
 
 ## Commonly asked, commonly missed
 
@@ -1081,7 +1081,7 @@ The common wrong answer is that more relevant context is always better, so quali
 
 **Q: Model A has lower perplexity than model B on your held-out text, so it will be the better chat assistant, right?**
 
-Wrong: perplexity ranks models on next-token likelihood over a corpus, and that is only weakly coupled to whether users prefer the assistant's answers. Perplexity is $\exp$ of the average per-token cross-entropy, $\text{PPL} = \exp\big(-\frac{1}{N}\sum_{i} \log p(x_i \mid x_{<i})\big)$, so it rewards spreading probability well over generic text and is dominated by the many easy, high-frequency tokens rather than the few decision-point tokens that determine if a response is correct, helpful, or safe. A model tuned by RLHF often has higher perplexity than its base because alignment sharpens the distribution and sacrifices likelihood on generic web text, yet it is vastly preferred by users. Perplexity is also sensitive to tokenizer and domain, so cross-model comparison is only valid on identical tokenization. Use it as a pretraining smoke test, not as a proxy for chat quality, which needs preference evals or task benchmarks.
+Wrong: perplexity ranks models on next-token likelihood over a corpus, and that is only weakly coupled to whether users prefer the assistant's answers. Perplexity is $\exp$ of the average per-token cross-entropy, $\text{PPL} = \exp\big(-\frac{1}{N}\sum_{i} \log p(x_i \mid x_{\lt i})\big)$, so it rewards spreading probability well over generic text and is dominated by the many easy, high-frequency tokens rather than the few decision-point tokens that determine if a response is correct, helpful, or safe. A model tuned by RLHF often has higher perplexity than its base because alignment sharpens the distribution and sacrifices likelihood on generic web text, yet it is vastly preferred by users. Perplexity is also sensitive to tokenizer and domain, so cross-model comparison is only valid on identical tokenization. Use it as a pretraining smoke test, not as a proxy for chat quality, which needs preference evals or task benchmarks.
 
 **Q: A mixture-of-experts model has 8x the parameters of a dense model, so where exactly is it cheaper, and where is it not?**
 

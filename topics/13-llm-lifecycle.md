@@ -294,7 +294,7 @@ flowchart TD
 The forward pass factorizes the sequence probability autoregressively, and
 pretraining minimizes the token-averaged negative log-likelihood (cross-entropy):
 
-$$p_{\theta}(x) = \prod_{t=1}^{T} p_{\theta}(x_t \mid x_{<t}), \qquad \mathcal{L}(\theta) = -\frac{1}{T}\sum_{t=1}^{T} \log p_{\theta}(x_t \mid x_{<t})$$
+$$p_{\theta}(x) = \prod_{t=1}^{T} p_{\theta}(x_t \mid x_{\lt t}), \qquad \mathcal{L}(\theta) = -\frac{1}{T}\sum_{t=1}^{T} \log p_{\theta}(x_t \mid x_{\lt t})$$
 
 Report it as **perplexity** (exponentiated loss) or **bits-per-byte** (tokenizer-invariant, so you can compare across vocabularies):
 
@@ -404,7 +404,7 @@ Post-training is where the most interview questions and the most confusion live,
 so carry the four equations. **SFT** is just cross-entropy on the completion, with
 the prompt tokens masked out of the loss:
 
-$$\mathcal{L}_{\text{SFT}} = -\sum_{t \in \text{completion}} \log \pi_{\theta}(y_t \mid y_{<t}, x)$$
+$$\mathcal{L}_{\text{SFT}} = -\sum_{t \in \text{completion}} \log \pi_{\theta}(y_t \mid y_{\lt t}, x)$$
 
 **Reward model** learns human preference under Bradley-Terry (the same logistic
 model behind Elo), trained on ranked pairs of a chosen `y_w` and rejected `y_l`:
