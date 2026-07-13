@@ -61,10 +61,11 @@ in the index.
 
 **Read path (query embedding):** embed one query per request, latency-bound.
 Cache query embeddings: the same or near-identical query often arrives many
-times. Instacart caches embeddings for over 95% of queries in a feature store
-and only runs the encoder live for novel queries. A 50ms total budget leaves
-perhaps 5ms for query embedding, so cache misses must still be fast; a
-384-dim MiniLM-L6 inference on CPU is around 5ms per query single-threaded.
+times. Instacart, for example, runs a two-tower items model served via FAISS
+ANN with daily index rebuilds, separating the offline embedding work from the
+online query path. A 50ms total budget leaves perhaps 5ms for query embedding,
+so cache misses must still be fast; a 384-dim MiniLM-L6 inference on CPU is
+around 5ms per query single-threaded.
 
 ## Freshness
 

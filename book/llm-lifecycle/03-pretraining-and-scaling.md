@@ -69,18 +69,19 @@ be 160B tokens (20 per parameter).
 ![Chinchilla-optimal vs inference-aware overtraining](assets/fig-chinchilla-vs-overtrained.png)
 
 *The dashed line at 20 tokens per parameter is Chinchilla-optimal for
-training. Models like Llama 3 8B (about 1800 tok/param) and Mistral 7B (about
-1000 tok/param) deliberately sit far above it: they trade extra training FLOPs
-for a permanently cheaper inference cost at scale. A 405B model, by contrast,
-stays near Chinchilla-optimal because serving it is already expensive enough
-that further overtraining would not pay off.*
+training. Llama 3 8B (about 1800 tok/param) sits far above it, deliberately
+trading extra training FLOPs for a permanently cheaper inference cost at scale.
+Mistral 7B is shown as an illustrative overtrained point; its token count was
+not publicly disclosed. Llama 3 405B (about 38 tok/param, from roughly 15.6T
+tokens) sits closer to Chinchilla-optimal: further overtraining a model that
+expensive to serve would not pay off.*
 
 ## When to use which approach
 
 | Reach for | When | Instead of |
 |---|---|---|
 | Compute-optimal pretrain (Chinchilla ratio) | minimizing training compute for a research run or a prototype | overtraining, which pays off only when serving at scale |
-| Inference-aware overtraining (Llama, Mistral) | you will serve billions of tokens and the forever cost of inference dominates | compute-optimal sizing that leaves a large expensive model to serve |
+| Inference-aware overtraining (Llama 3 8B) | you will serve billions of tokens and the forever cost of inference dominates | compute-optimal sizing that leaves a large expensive model to serve |
 | Mid-training on an open base (most product teams) | limited compute budget and an open base covers the capability need | from-scratch pretrain that requires lab-scale resources |
 | From-scratch pretrain | genuinely new capability not in any open base (a new language, a new modality, a frontier advance) | adapting, which would have sufficed |
 

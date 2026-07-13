@@ -76,10 +76,9 @@ let you tune recall against latency and memory at query time without rebuilding.
 ### HNSW with product quantization (HNSW + PQ)
 
 Stores HNSW graph edges at full precision but compresses vector payloads with
-PQ. Etsy uses HNSW with 4-bit PQ on their search index and reports a 62x
-memory reduction relative to full float32, while recovering precision with a
-full-precision rescore of the shortlist. This gives HNSW's excellent graph
-traversal recall with a smaller RAM footprint.
+PQ. Etsy uses HNSW with 4-bit PQ on their search index, trading recall for
+memory, and recovers precision with a full-precision rescore of the shortlist.
+This gives HNSW's excellent graph traversal recall with a smaller RAM footprint.
 
 ### DiskANN (Vamana graph, SSD-backed)
 
@@ -105,8 +104,7 @@ $$\mathcal{L}\_{aniso} = \eta \lVert r_{\parallel} \rVert^{2} + \lVert r_{\perp}
 
 where $r_{\parallel}$ is the error component parallel to the query and
 $r_{\perp}$ the orthogonal component. Penalizing $r_{\parallel}$ more
-preserves the high inner products that rank first. ScaNN reported roughly
-twice the QPS of competing libraries at the same recall on glove-100-angular.
+preserves the high inner products that rank first. ScaNN achieves the best recall-vs-QPS on ann-benchmarks for CPU-bound serving.
 **Reusing a Euclidean-tuned quantizer for inner-product search quietly loses
 recall; ScaNN's anisotropic loss is the fix.**
 

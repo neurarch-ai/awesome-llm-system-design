@@ -20,9 +20,9 @@ runs a cheap tier first: a regex and blocklist that catches obvious patterns, a
 keyword-level heuristic for known attack templates, and a small distilled classifier
 for the survivors. The large guard-LLM (a 7B instruction-tuned model like Llama
 Guard or an Anthropic Constitutional Classifier) only sees inputs that survive the
-fast tiers. Roblox serves 6.1 billion messages per day by keeping 99.99% of
-traffic on the distilled tier; the expensive classifier is a rounding error in
-compute terms.
+fast tiers. Roblox, for example, runs multi-model text and voice moderation at
+750k requests per second by keeping the vast majority of traffic on its distilled
+classifier tier; the expensive classifier sees only a small fraction of requests.
 
 ## Prompt injection defense
 

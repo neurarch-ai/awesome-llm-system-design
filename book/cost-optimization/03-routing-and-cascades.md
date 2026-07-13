@@ -16,14 +16,12 @@ dispatches accordingly. Three flavors, each with a different data requirement:
   outside the patterns.
 - **Classifier router.** A fine-tuned small model (or an LLM-as-a-judge
   pipeline) labels a training set with difficulty or category, then a lightweight
-  classifier maps query text to tier. Anyscale trained a Llama-3 8B classifier
-  to predict how well Mixtral would score a query (1-5 scale) and routes to GPT-4
-  only when the predicted score is below 4.
+  classifier maps query text to tier. Anyscale uses a fine-tuned classifier that
+  routes by query complexity between closed and open models.
 - **Preference router.** Trains on human preference data (which model did people
   prefer on which query) to predict the cheap model's win probability.
-  RouteLLM is the canonical example: trained on 55,000 Chatbot Arena comparisons,
-  it routes only about 14% of traffic to GPT-4 while retaining 95% of GPT-4
-  quality on MT Bench.
+  RouteLLM is the canonical example: it routes a small fraction of traffic to the
+  strong model while retaining most of its quality, achieving about 85% cost cut.
 
 The expected savings from a router are:
 

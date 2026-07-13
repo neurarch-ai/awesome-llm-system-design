@@ -83,8 +83,7 @@ where $p_o$ is the observed agreement fraction between judge and human labels, a
 $p_e$ is the agreement expected by chance given the label marginals. Values near
 0 mean the judge is guessing; values near 1 mean near-perfect agreement. A judge
 is typically trusted for gating once kappa clears a bar (Pinterest reports 73.7%
-exact match as its analog for a fine-tuned relevance judge on a 5-level scale,
-with 91.7% within one level).
+exact match as its analog for a fine-tuned relevance judge on a 5-level scale).
 
 If kappa is below your threshold, fix the rubric first. Do not adjust the gate
 tolerance to compensate for a bad instrument; fix the instrument. A low kappa

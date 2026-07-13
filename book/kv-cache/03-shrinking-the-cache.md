@@ -29,8 +29,9 @@ $$r_{\text{GQA}} = \frac{h_{\text{kv}}}{h_q} = \frac{8}{32} = \frac{1}{4}$$
 The KV cache shrinks to one quarter of MHA's with negligible quality loss on most
 benchmarks. This is why GQA is the default in Llama 3, Mistral, Gemma, and most
 production models: the group size $g = h_q / h_{\text{kv}}$ is a direct
-quality-versus-memory dial, and the conversion from an MHA checkpoint costs only
-5% of pretraining compute. If you do nothing else, do this.
+quality-versus-memory dial, and GQA converts cheaply from an MHA checkpoint via
+a short uptraining run (see Ainslie et al., GQA paper). If you do nothing else,
+do this.
 
 ### Multi-query attention (MQA): the aggressive cut
 
@@ -99,7 +100,7 @@ fewer bits; attention is computed in higher precision after dequantization.
 The memory reduction is:
 
 $$r_{\text{quant}} = \frac{b_{\text{low}}}{b_{\text{high}}} \quad \Rightarrow \quad
-  \frac{4}{16} = \frac{1}{4} \Rightarrow 4\times \text{ context, batch, or concurrency}$$
+  \frac{4}{8} = \frac{1}{2} \Rightarrow 2\times \text{ context, batch, or concurrency (FP8 to NVFP4)}$$
 
 ![KV quantization: memory saved vs quality retained](assets/fig-kv-quant-tradeoff.png)
 

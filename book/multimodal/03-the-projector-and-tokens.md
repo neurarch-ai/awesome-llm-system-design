@@ -20,12 +20,14 @@ $$\text{prefill compute} \approx O\!\left((n_\text{text} + n_\text{img})^2 \cdot
 
 KV cache memory grows linearly with sequence length at every layer:
 
-$$\text{KV bytes} = 2 \cdot L \cdot (n_\text{text} + n_\text{img}) \cdot d_\text{kv} \cdot b_\text{prec}$$
+$$M_{\text{kv}} = 2 \cdot (n_{\text{text}} + n_{\text{img}}) \cdot L \cdot n_{\text{kv}} \cdot d_{\text{head}} \cdot p_{\text{bytes}}$$
 
-where $L$ is the number of decoder layers, $d_\text{kv}$ is the KV head dimension,
-and $b_\text{prec}$ is bytes per value (2 for fp16). A 4096-token image in a
-32-layer model at $d_\text{kv} = 128$ in fp16 adds roughly 67 MB to the KV cache,
-per request.
+where $L$ is the number of decoder layers, $n_{\text{kv}}$ is the number of KV
+heads (1 for MQA, $h_q / g$ for GQA), $d_{\text{head}}$ is the per-head
+dimension, and $p_{\text{bytes}}$ is bytes per value (2 for fp16). A 4096-token
+image in a 32-layer GQA model with $n_{\text{kv}} = 8$ and $d_{\text{head}} =
+128$ in fp16 adds roughly 512 MB to the KV cache per request (8x the 64 MB a
+single-head MQA model would need for the same image).
 
 For $k$ images in one request, cost stacks linearly:
 
