@@ -87,7 +87,7 @@ $$\text{cost per million tokens} = \frac{\text{GPU hourly rate} \times 10^6}{\te
 
 For an H100 at \$3 per GPU-hour and 80 tokens/s/GPU throughput:
 
-$$\text{cost} = \frac{3 \times 10^6}{80 \times 3600} \approx \$10.4 \text{ per million tokens}$$
+$$\text{cost} = \frac{3 \times 10^6}{80 \times 3600} \approx 10.4 \text{ USD per million tokens}$$
 
 Doubling throughput per GPU halves cost. This is why continuous batching,
 quantization, and speculative decoding have disproportionate business impact: each

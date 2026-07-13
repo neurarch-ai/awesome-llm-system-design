@@ -19,7 +19,7 @@ which phase is the wall, so profile before optimizing.
 
 **Q: What is the KV-cache memory formula, and why does it matter?**
 
-A: $\text{kv\_bytes} \approx 2 \cdot L \cdot S \cdot h_{\text{kv}} \cdot d_{\text{head}} \cdot b \cdot B$.
+A: $\text{kv-bytes} \approx 2 \cdot L \cdot S \cdot h_{\text{kv}} \cdot d_{\text{head}} \cdot b \cdot B$.
 For a single 100k-token session on a 32-layer GQA model (8 KV heads, $d_{\text{head}} = 128$,
 FP16, batch 1): $2 \times 32 \times 100000 \times 8 \times 128 \times 2 \approx 13.1$ GB.
 The weights of the same model are 14 GB. At 100 concurrent sessions the cache is
@@ -88,7 +88,7 @@ the hit rate benefit of prefix caching at multi-node scale.
 
 A: Llama 3 8B has $L = 32$ layers, $h_{\text{kv}} = 8$ (GQA), $d_{\text{head}} = 128$, FP16.
 
-$$\text{kv\_bytes} = 2 \times 32 \times 32000 \times 8 \times 128 \times 2 = 4.29 \text{ GB per session}$$
+$$\text{kv-bytes} = 2 \times 32 \times 32000 \times 8 \times 128 \times 2 = 4.29 \text{ GB per session}$$
 
 At 1000 concurrent sessions: 4.29 TB. A single H100 node (8 GPUs, 80 GB each,
 640 GB total) cannot hold this. You need either: (a) aggressive prefix caching

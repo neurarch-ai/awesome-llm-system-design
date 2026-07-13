@@ -63,7 +63,7 @@ over-blocking.
 A useful way to state the operating point constraint is: fix the false-refusal rate
 budget and read off the catch rate you can achieve, or vice versa:
 
-$$\text{Recall} \Bigl|_{\text{FRR} \leq \delta} = \max \Bigl\{ \frac{TP}{TP + FN} : \frac{FP}{FP + TN} \leq \delta \Bigr\}$$
+$$\text{Recall} \Bigl|_{\text{FRR} \leq \delta} = \max \Bigl\lbrace \frac{TP}{TP + FN} : \frac{FP}{FP + TN} \leq \delta \Bigr\rbrace$$
 
 During training, the KL-anchored objective keeps refusal training from wrecking
 benign behavior:

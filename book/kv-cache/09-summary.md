@@ -6,7 +6,7 @@
   100k-token session on a 32-layer GQA model in FP16 costs over 13 GB of cache.
   The weights of the same model cost 14 GB. At 100 concurrent sessions the weights
   are still 14 GB; the cache is 1.3 TB. Recite the formula:
-  $\text{kv\_bytes} \approx 2 \cdot L \cdot S \cdot h_{\text{kv}} \cdot d_{\text{head}} \cdot b \cdot B$.
+  $\text{kv-bytes} \approx 2 \cdot L \cdot S \cdot h_{\text{kv}} \cdot d_{\text{head}} \cdot b \cdot B$.
 
 - **Decode is memory-bandwidth-bound; prefill is compute-bound.** Each decode step
   reads the full model plus the full cache to emit one token (roughly 1 FLOPs/byte,

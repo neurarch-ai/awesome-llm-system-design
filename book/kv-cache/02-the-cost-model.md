@@ -21,7 +21,7 @@ dominates cost for any output longer than a few tokens.
 
 The arithmetic makes this concrete. For a decode step with a 7B model in FP16:
 
-$$I_{\text{decode}} \approx \frac{2 N_{\text{active}}}{2 N_{\text{active}} + \text{kv\_bytes}} \quad \text{FLOPs/byte}$$
+$$I_{\text{decode}} \approx \frac{2 N_{\text{active}}}{2 N_{\text{active}} + \text{kv-bytes}} \quad \text{FLOPs/byte}$$
 
 When the KV cache is small, $I_{\text{decode}} \approx 1$ FLOPs/byte. A modern GPU
 needs roughly 150 FLOPs/byte of memory bandwidth to stay compute-bound. Decode
@@ -50,7 +50,7 @@ one entry per layer per generated token, and it never shrinks until the session 
 The size formula is worth memorizing because it is the diagnosis for every
 long-context memory problem:
 
-$$\text{kv\_bytes} \approx 2 \cdot L \cdot S \cdot h_{\text{kv}} \cdot d_{\text{head}} \cdot b \cdot B$$
+$$\text{kv-bytes} \approx 2 \cdot L \cdot S \cdot h_{\text{kv}} \cdot d_{\text{head}} \cdot b \cdot B$$
 
 where:
 
@@ -68,7 +68,7 @@ The factor of 2 at the front is for K and V.
 **Worked example.** $L=32$, $S=100\,000$ tokens, $h_{\text{kv}}=8$ (GQA),
 $d_{\text{head}}=128$, $b=2$ (FP16), $B=1$ sequence:
 
-$$\text{kv\_bytes} = 2 \times 32 \times 100\,000 \times 8 \times 128 \times 2 \approx 13.1 \text{ GB}$$
+$$\text{kv-bytes} = 2 \times 32 \times 100\,000 \times 8 \times 128 \times 2 \approx 13.1 \text{ GB}$$
 
 A single 100k-token session costs more than 13 GB of KV cache. At 100 concurrent
 sessions that is 1.3 TB: far beyond any single GPU. And the model weights for a

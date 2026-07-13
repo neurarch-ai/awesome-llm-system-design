@@ -1,7 +1,7 @@
 # 3. Shrinking the cache
 
 With the cost model in hand, the question becomes: which term of the
-$\text{kv\_bytes}$ formula do we attack? This section covers the two families:
+$\text{kv-bytes}$ formula do we attack? This section covers the two families:
 attention-architecture changes (train-time, attack $h_{\text{kv}}$ or replace it)
 and quantization (serving-time, attack $b$).
 
