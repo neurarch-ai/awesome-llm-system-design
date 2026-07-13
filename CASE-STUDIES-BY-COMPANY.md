@@ -1,6 +1,6 @@
 # Case studies, by company
 
-The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by company so you can see how one org approaches the same LLM problem across problems. 209 case studies, 97 companies. Deep teardowns of many of these live in [CASE-TEARDOWNS.md](CASE-TEARDOWNS.md).
+The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by company so you can see how one org approaches the same LLM problem across problems. 219 case studies, 97 companies. Deep teardowns of many of these live in [CASE-TEARDOWNS.md](CASE-TEARDOWNS.md).
 
 ---
 
@@ -16,6 +16,17 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Visual Instruction Tuning](https://arxiv.org/abs/2304.08485) *(Multimodal Serving)*
 - [Florence-2: a unified representation for vision tasks](https://arxiv.org/abs/2311.06242) *(Multimodal Serving)*
 - [LLMLingua: prompt compression for LLM efficiency](https://www.microsoft.com/en-us/research/blog/llmlingua-innovating-llm-efficiency-with-prompt-compression/) *(Cost Optimization And Model Routing)*
+
+### Google (8)
+
+- [RAGO: systematic performance optimization for RAG serving](https://arxiv.org/abs/2503.14649) *(RAG Serving)*
+- [GQA: Training Generalized Multi-Query Transformer Models](https://arxiv.org/abs/2305.13245) *(Long Context And KV Cache)*
+- [Fast inference from transformers via speculative decoding](https://arxiv.org/abs/2211.17192) *(Inference Serving At Scale)*
+- [ShieldGemma: generative AI content moderation](https://arxiv.org/abs/2407.21772) *(Safety And Guardrails)*
+- [Announcing ScaNN: efficient vector similarity search](https://research.google/blog/announcing-scann-efficient-vector-similarity-search/) *(Semantic Search And Embeddings)*
+- [Flamingo: a visual language model for few-shot learning](https://arxiv.org/abs/2204.14198) *(Multimodal Serving)*
+- [PaLI-X: on scaling up a multilingual vision-language model](https://arxiv.org/abs/2305.18565) *(Multimodal Serving)*
+- [Training Compute-Optimal Large Language Models (Chinchilla)](https://arxiv.org/abs/2203.15556) *(LLM Lifecycle)*
 
 ### LinkedIn (8)
 
@@ -39,6 +50,16 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Uber's GenAI Gateway](https://www.uber.com/blog/genai-gateway/) *(Cost Optimization And Model Routing)*
 - [Genie: Uber's Gen AI On-Call Copilot](https://www.uber.com/us/en/blog/genie-ubers-gen-ai-on-call-copilot/) *(Production Monitoring And Observability)*
 
+### Anthropic (7)
+
+- [Prompt caching with Claude](https://claude.com/blog/prompt-caching) *(Long Context And KV Cache)*
+- [Building effective agents](https://www.anthropic.com/research/building-effective-agents) *(Agent Orchestration)*
+- [How we built our multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system) *(Agent Orchestration)*
+- [Writing effective tools for agents, with agents](https://www.anthropic.com/engineering/writing-tools-for-agents) *(Agent Orchestration)*
+- [Code execution with MCP: building more efficient agents](https://www.anthropic.com/engineering/code-execution-with-mcp) *(Agent Orchestration)*
+- [Constitutional Classifiers: defending against universal jailbreaks](https://www.anthropic.com/research/constitutional-classifiers) *(Safety And Guardrails)*
+- [Constitutional AI: Harmlessness from AI Feedback](https://www.anthropic.com/research/constitutional-ai-harmlessness-from-ai-feedback) *(LLM Lifecycle)*
+
 ### Databricks (7)
 
 - [Creating High Quality RAG Applications with Databricks](https://www.databricks.com/blog/building-high-quality-rag-applications-databricks) *(RAG Serving)*
@@ -49,15 +70,15 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Implementing LLM Guardrails for Safe GenAI Deployment](https://www.databricks.com/blog/implementing-llm-guardrails-safe-and-responsible-generative-ai-deployment-databricks) *(Safety And Guardrails)*
 - [Simple, Fast, Scalable Batch LLM Inference](https://www.databricks.com/blog/introducing-simple-fast-and-scalable-batch-llm-inference-mosaic-ai-model-serving) *(Cost Optimization And Model Routing)*
 
-### Google (7)
+### Meta (7)
 
-- [RAGO: systematic performance optimization for RAG serving](https://arxiv.org/abs/2503.14649) *(RAG Serving)*
-- [GQA: Training Generalized Multi-Query Transformer Models](https://arxiv.org/abs/2305.13245) *(Long Context And KV Cache)*
-- [Fast inference from transformers via speculative decoding](https://arxiv.org/abs/2211.17192) *(Inference Serving At Scale)*
-- [ShieldGemma: generative AI content moderation](https://arxiv.org/abs/2407.21772) *(Safety And Guardrails)*
-- [Announcing ScaNN: efficient vector similarity search](https://research.google/blog/announcing-scann-efficient-vector-similarity-search/) *(Semantic Search And Embeddings)*
-- [Flamingo: a visual language model for few-shot learning](https://arxiv.org/abs/2204.14198) *(Multimodal Serving)*
-- [PaLI-X: on scaling up a multilingual vision-language model](https://arxiv.org/abs/2305.18565) *(Multimodal Serving)*
+- [How to fine-tune: focus on effective datasets](https://ai.meta.com/blog/how-to-fine-tune-llms-peft-dataset-curation/) *(Post Training Pipeline)*
+- [Llama Guard: LLM-based input-output safeguard](https://arxiv.org/abs/2312.06674) *(Safety And Guardrails)*
+- [Llama Prompt Guard 2](https://developer.meta.com/ai/docs/model-cards-and-prompt-formats/prompt-guard/) *(Safety And Guardrails)*
+- [Faiss: a library for efficient similarity search](https://engineering.fb.com/2017/03/29/data-infrastructure/faiss-a-library-for-efficient-similarity-search/) *(Semantic Search And Embeddings)*
+- [Embedding-based Retrieval in Facebook Search](https://arxiv.org/abs/2006.11632) *(Semantic Search And Embeddings)*
+- [Chameleon: mixed-modal early-fusion foundation models](https://arxiv.org/abs/2405.09818) *(Multimodal Serving)*
+- [The Llama 3 Herd of Models](https://ai.meta.com/research/publications/the-llama-3-herd-of-models/) *(LLM Lifecycle)*
 
 ### NVIDIA (7)
 
@@ -68,24 +89,6 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Content Moderation and Safety Checks with NeMo Guardrails](https://developer.nvidia.com/blog/content-moderation-and-safety-checks-with-nvidia-nemo-guardrails/) *(Safety And Guardrails)*
 - [NVLM: open frontier-class multimodal LLMs](https://research.nvidia.com/labs/adlr/NVLM-1/) *(Multimodal Serving)*
 - [Accelerating VLM inference with TensorRT Edge-LLM](https://developer.nvidia.com/blog/accelerating-llm-and-vlm-inference-for-automotive-and-robotics-with-nvidia-tensorrt-edge-llm/) *(Multimodal Serving)*
-
-### Anthropic (6)
-
-- [Prompt caching with Claude](https://claude.com/blog/prompt-caching) *(Long Context And KV Cache)*
-- [Building effective agents](https://www.anthropic.com/research/building-effective-agents) *(Agent Orchestration)*
-- [How we built our multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system) *(Agent Orchestration)*
-- [Writing effective tools for agents, with agents](https://www.anthropic.com/engineering/writing-tools-for-agents) *(Agent Orchestration)*
-- [Code execution with MCP: building more efficient agents](https://www.anthropic.com/engineering/code-execution-with-mcp) *(Agent Orchestration)*
-- [Constitutional Classifiers: defending against universal jailbreaks](https://www.anthropic.com/research/constitutional-classifiers) *(Safety And Guardrails)*
-
-### Meta (6)
-
-- [How to fine-tune: focus on effective datasets](https://ai.meta.com/blog/how-to-fine-tune-llms-peft-dataset-curation/) *(Post Training Pipeline)*
-- [Llama Guard: LLM-based input-output safeguard](https://arxiv.org/abs/2312.06674) *(Safety And Guardrails)*
-- [Llama Prompt Guard 2](https://developer.meta.com/ai/docs/model-cards-and-prompt-formats/prompt-guard/) *(Safety And Guardrails)*
-- [Faiss: a library for efficient similarity search](https://engineering.fb.com/2017/03/29/data-infrastructure/faiss-a-library-for-efficient-similarity-search/) *(Semantic Search And Embeddings)*
-- [Embedding-based Retrieval in Facebook Search](https://arxiv.org/abs/2006.11632) *(Semantic Search And Embeddings)*
-- [Chameleon: mixed-modal early-fusion foundation models](https://arxiv.org/abs/2405.09818) *(Multimodal Serving)*
 
 ### Anyscale (5)
 
@@ -111,12 +114,20 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [How we evaluate AI models and LLMs for GitHub Copilot](https://github.blog/ai-and-ml/generative-ai/how-we-evaluate-models-for-github-copilot/) *(Evaluation System)*
 - [Inside Copilot's new code embedding model](https://github.blog/news-insights/product-news/copilot-new-embedding-model-vs-code/) *(Semantic Search And Embeddings)*
 
-### Hugging Face (4)
+### Hugging Face (5)
 
 - [Unlocking longer generation with KV cache quantization](https://huggingface.co/blog/kv-cache-quantization) *(Long Context And KV Cache)*
 - [Introducing smolagents](https://huggingface.co/blog/smolagents) *(Agent Orchestration)*
 - [Preference Tuning LLMs with Direct Preference Optimization Methods](https://huggingface.co/blog/pref-tuning) *(Post Training Pipeline)*
 - [Introducing Idefics2: a powerful 8B vision-language model](https://huggingface.co/blog/idefics2) *(Multimodal Serving)*
+- [FineWeb: decanting the web for the finest text data at scale](https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1) *(LLM Lifecycle)*
+
+### OpenAI (4)
+
+- [A practical guide to building agents](https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf) *(Agent Orchestration)*
+- [How to implement LLM guardrails](https://developers.openai.com/cookbook/examples/how_to_use_guardrails) *(Safety And Guardrails)*
+- [Updates for developers building with voice](https://developers.openai.com/blog/updates-audio-models) *(Realtime Streaming Chat)*
+- [Aligning language models to follow instructions (InstructGPT)](https://openai.com/index/instruction-following/) *(LLM Lifecycle)*
 
 ### Pinterest (4)
 
@@ -145,6 +156,12 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [The Baseten inference stack](https://www.baseten.co/resources/guide/the-baseten-inference-stack/) *(Inference Serving At Scale)*
 - [33% faster LLM inference with FP8 quantization](https://www.baseten.co/blog/33-faster-llm-inference-with-fp8-quantization/) *(Cost Optimization And Model Routing)*
 
+### Character.AI (3)
+
+- [Optimizing AI Inference at Character.AI](https://blog.character.ai/optimizing-ai-inference-at-character-ai-2/) *(Long Context And KV Cache)*
+- [Optimizing AI Inference at Character.AI](https://blog.character.ai/optimizing-ai-inference-at-character-ai/) *(Inference Serving At Scale)*
+- [Optimizing AI Inference at Character.AI](https://blog.character.ai/optimizing-ai-inference-at-character-ai-2/) *(LLM Lifecycle)*
+
 ### Discord (3)
 
 - [Developing Rapidly with Generative AI](https://discord.com/blog/developing-rapidly-with-generative-ai) *(Evaluation System)*
@@ -168,12 +185,6 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Leveraging RAG-powered LLMs for Analytical Tasks](https://engineering.grab.com/transforming-the-analytics-landscape-with-RAG-powered-LLM) *(RAG Serving)*
 - [A custom vision LLM to improve document processing](https://engineering.grab.com/custom-vision-llm-at-grab) *(Post Training Pipeline)*
 - [How LLMs make content moderation more precise](https://www.grab.com/inside-grab/stories/how-large-language-models-help-us-make-more-precise-content-moderation-decisions/) *(Safety And Guardrails)*
-
-### OpenAI (3)
-
-- [A practical guide to building agents](https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf) *(Agent Orchestration)*
-- [How to implement LLM guardrails](https://developers.openai.com/cookbook/examples/how_to_use_guardrails) *(Safety And Guardrails)*
-- [Updates for developers building with voice](https://developers.openai.com/blog/updates-audio-models) *(Realtime Streaming Chat)*
 
 ### Ramp (3)
 
@@ -199,6 +210,11 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Asymmetric Retrieval: spend on docs, embed queries for free](https://blog.vespa.ai/asymmetric-retrieval-spend-on-docs-queries-for-free/) *(RAG Serving)*
 - [Billion-scale vector search using hybrid HNSW-IF](https://blog.vespa.ai/vespa-hybrid-billion-scale-vector-search/) *(Semantic Search And Embeddings)*
 
+### Ai2 (2)
+
+- [Molmo and PixMo: open weights and open data for VLMs](https://arxiv.org/abs/2409.17146) *(Multimodal Serving)*
+- [Dolma: an Open Corpus of Three Trillion Tokens for Language Model Pretraining Research](https://arxiv.org/abs/2402.00159) *(LLM Lifecycle)*
+
 ### Airbnb (2)
 
 - [Automation Platform v2: improving conversational AI](https://medium.com/airbnb-engineering/automation-platform-v2-improving-conversational-ai-at-airbnb-d86c9386e0cb) *(Agent Orchestration)*
@@ -209,11 +225,6 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Qwen2-VL: enhancing vision-language perception at any resolution](https://arxiv.org/abs/2409.12191) *(Multimodal Serving)*
 - [Qwen2-Audio Technical Report](https://arxiv.org/abs/2407.10759) *(Multimodal Serving)*
 
-### Character.AI (2)
-
-- [Optimizing AI Inference at Character.AI](https://blog.character.ai/optimizing-ai-inference-at-character-ai-2/) *(Long Context And KV Cache)*
-- [Optimizing AI Inference at Character.AI](https://blog.character.ai/optimizing-ai-inference-at-character-ai/) *(Inference Serving At Scale)*
-
 ### Daily (2)
 
 - [Benchmarking LLMs for voice agent use cases](https://www.daily.co/blog/benchmarking-llms-for-voice-agent-use-cases/) *(Realtime Streaming Chat)*
@@ -223,6 +234,11 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 
 - [Detect hallucinations in your RAG LLM applications](https://www.datadoghq.com/blog/llm-observability-hallucination-detection/) *(Production Monitoring And Observability)*
 - [Detecting hallucinations with LLM-as-a-judge](https://www.datadoghq.com/blog/ai/llm-hallucination-detection/) *(Production Monitoring And Observability)*
+
+### DeepSeek (2)
+
+- [DeepSeek-V2: a strong, economical, efficient MoE language model](https://arxiv.org/abs/2405.04434) *(Long Context And KV Cache)*
+- [DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning](https://arxiv.org/abs/2501.12948) *(LLM Lifecycle)*
 
 ### Fireworks (2)
 
@@ -254,6 +270,11 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Fine-Tuning an LLM to Extract Dynamically Specified Attributes](https://engineering.mercari.com/en/blog/entry/20240913-fine-tuning-an-llm-to-extract-dynamically-specified-attributes/) *(Post Training Pipeline)*
 - [Domain-Aware Text Embeddings for C2C Marketplaces](https://arxiv.org/abs/2512.21021) *(Semantic Search And Embeddings)*
 
+### Mistral (2)
+
+- [Pixtral 12B](https://arxiv.org/abs/2410.07073) *(Multimodal Serving)*
+- [Mistral 7B](https://mistral.ai/news/announcing-mistral-7b/) *(LLM Lifecycle)*
+
 ### Replit (2)
 
 - [Enabling Agent 3 to self-test at scale with REPL verification](https://replit.com/blog/automated-self-testing) *(Agent Orchestration)*
@@ -279,14 +300,15 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Introducing Media Streams](https://www.twilio.com/en-us/blog/media-streams-public-beta) *(Realtime Streaming Chat)*
 - [Instrumenting User Insights for your AI Copilot](https://www.twilio.com/en-us/blog/insights/ai/instrumenting-user-insights-for-your-ai-copilot/) *(Production Monitoring And Observability)*
 
+### vLLM (2)
+
+- [Efficient Memory Management for LLM Serving with PagedAttention](https://arxiv.org/abs/2309.06180) *(Long Context And KV Cache)*
+- [Easy, Fast, and Cheap LLM Serving with PagedAttention](https://blog.vllm.ai/2023/06/20/vllm.html) *(LLM Lifecycle)*
+
 ### Yelp (2)
 
 - [An AI pipeline for inappropriate-language detection in reviews](https://engineeringblog.yelp.com/2024/03/ai-pipeline-inappropriate-language-detection.html) *(Post Training Pipeline)*
 - [Yelp Content As Embeddings](https://engineeringblog.yelp.com/2023/04/yelp-content-as-embeddings.html) *(Semantic Search And Embeddings)*
-
-### Ai2 (1)
-
-- [Molmo and PixMo: open weights and open data for VLMs](https://arxiv.org/abs/2409.17146) *(Multimodal Serving)*
 
 ### Amazon (1)
 
@@ -327,10 +349,6 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 ### Deepgram (1)
 
 - [Optimize voice agent latency with eager end of turn](https://developers.deepgram.com/docs/flux/voice-agent-eager-eot) *(Realtime Streaming Chat)*
-
-### DeepSeek (1)
-
-- [DeepSeek-V2: a strong, economical, efficient MoE language model](https://arxiv.org/abs/2405.04434) *(Long Context And KV Cache)*
 
 ### Elastic (1)
 
@@ -391,10 +409,6 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 ### Mercado Libre (1)
 
 - [Beyond the Hype: Real-World Lessons from Working with Large Language Models](https://medium.com/mercadolibre-tech/beyond-the-hype-real-world-lessons-and-insights-from-working-with-large-language-models-6d637e39f8f8) *(RAG Serving)*
-
-### Mistral (1)
-
-- [Pixtral 12B](https://arxiv.org/abs/2410.07073) *(Multimodal Serving)*
 
 ### MIT / Meta (1)
 
@@ -475,10 +489,6 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 ### Vimeo (1)
 
 - [Unlocking knowledge sharing for videos with RAG](https://medium.com/vimeo-engineering-blog/unlocking-knowledge-sharing-for-videos-with-rag-810ab496ae59) *(RAG Serving)*
-
-### vLLM (1)
-
-- [Efficient Memory Management for LLM Serving with PagedAttention](https://arxiv.org/abs/2309.06180) *(Long Context And KV Cache)*
 
 ### Walmart (1)
 

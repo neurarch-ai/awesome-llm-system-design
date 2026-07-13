@@ -85,11 +85,12 @@ repo groups the classic-ML half by use case, mirroring the same
 | 03 | [Agent orchestration](topics/03-agent-orchestration.md) | Tool-calling loops, planning, state, multi-agent, cost and latency control |
 | 09 | [Multimodal serving](topics/09-multimodal-serving.md) | Vision-language models, the projector, image token budget |
 
-### Adapting the model
-*Change the model's behavior when prompting and retrieval are not enough.*
+### Building and adapting the model
+*From data and pretraining to shaping the model's behavior when prompting and retrieval are not enough.*
 
 | # | Topic | What it teaches |
 |---|-------|-----------------|
+| 13 | [The LLM training lifecycle](topics/13-llm-lifecycle.md) | Data, pretraining, mid-training, post-training, and deployment as one build-side pipeline |
 | 05 | [Fine-tuning and post-training pipeline](topics/05-post-training-pipeline.md) | LoRA, SFT, DPO/RLHF, data curation, eval gates |
 
 ### Quality and safety
@@ -101,7 +102,7 @@ repo groups the classic-ML half by use case, mirroring the same
 | 07 | [Safety, moderation, and guardrails](topics/07-safety-and-guardrails.md) | Input/output filtering, jailbreak defense, PII, policy routing |
 | 12 | [Production monitoring and observability](topics/12-production-monitoring-and-observability.md) | Tracing, online eval without labels, LLM-as-judge, hallucination detection, drift, regression |
 
-All twelve topics are written and ready.
+All thirteen topics are written and ready.
 
 **Going deeper than the whiteboard?** [**deep-dives.md**](deep-dives.md) is a
 bank of ~206 rapid-fire, depth-probing questions: the follow-ups an interviewer

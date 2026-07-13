@@ -14,6 +14,7 @@ const csOrder = [
   ['03-agent-orchestration.md', 'Agent orchestration'],
   ['09-multimodal-serving.md', 'Multimodal serving'],
   ['05-post-training-pipeline.md', 'Post-training pipeline'],
+  ['13-llm-lifecycle.md', 'LLM lifecycle'],
   ['06-evaluation-system.md', 'Evaluation system'],
   ['07-safety-and-guardrails.md', 'Safety and guardrails'],
   ['12-production-monitoring-and-observability.md', 'Production monitoring and observability'],
@@ -52,7 +53,7 @@ function buildCaseStudies() {
   console.log(`CASE-STUDIES.md: ${total} systems, ${sections.length} categories`);
 }
 
-const tdOrder = ['01','08','02','04','10','11','03','09','05','06','07','12'];
+const tdOrder = ['01','08','02','04','10','11','03','09','05','13','06','07','12'];
 function buildTeardowns() {
   const blocks = tdOrder.map(nn => fs.readFileSync(`${TD}/${nn}.md`, 'utf8').trim());
   const header = [
@@ -85,7 +86,7 @@ put('Travel and hospitality','Airbnb','Booking','Booking.com','Expedia','GetYour
 put('Professional, legal, and education','Thomson Reuters','Duolingo','Yelp','Zillow');
 const isResearch = (c) => / et al\.?|University|Universit|Stanford|Berkeley|MIT|UIUC|UCSD|UC San|UT Austin|Peking|Cohere|RISELab|Kohavi|Hamilton|^"|Hidden Technical Debt|Chip Huyen|Evidently AI|Colfax|,/.test(c);
 const industryOf = (c) => IND[c] || (isResearch(c) ? 'Research and academia' : 'Other');
-const topicName = (f) => f.replace(/^\d\d-/, '').replace(/\.md$/, '').replace(/-/g, ' ').replace(/\b\w/g, m => m.toUpperCase()).replace(/\bRag\b/g,'RAG').replace(/\bKv\b/g,'KV').replace(/\bAb\b/g,'AB');
+const topicName = (f) => f.replace(/^\d\d-/, '').replace(/\.md$/, '').replace(/-/g, ' ').replace(/\b\w/g, m => m.toUpperCase()).replace(/\bLlm\b/g,'LLM').replace(/\bRag\b/g,'RAG').replace(/\bKv\b/g,'KV').replace(/\bAb\b/g,'AB');
 function collect() {
   const cases = [];
   for (const f of fs.readdirSync(TOPICS).filter(x => /^\d\d.*\.md$/.test(x)).sort())

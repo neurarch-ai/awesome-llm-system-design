@@ -12,7 +12,7 @@ writeups. Then the systems themselves. For the full per-case teardown of any one
 see [CASE-TEARDOWNS.md](CASE-TEARDOWNS.md); browse the same systems
 [by company](CASE-STUDIES-BY-COMPANY.md) or [by industry](CASE-STUDIES-BY-INDUSTRY.md).
 
-209 systems across the taxonomy, and growing.
+219 systems across the taxonomy, and growing.
 
 ---
 ### [RAG serving](topics/01-rag-serving.md) · 22 systems
@@ -1139,6 +1139,129 @@ quadrantChart
 - **Mercari** [Fine-Tuning an LLM to Extract Dynamically Specified Attributes](https://engineering.mercari.com/en/blog/entry/20240913-fine-tuning-an-llm-to-extract-dynamically-specified-attributes/): A QLoRA-tuned 2B model beats GPT-3.5 on attribute extraction at 14x lower cost. *(eval bar)*
 - **Yelp** [An AI pipeline for inappropriate-language detection in reviews](https://engineeringblog.yelp.com/2024/03/ai-pipeline-inappropriate-language-detection.html): A fine-tuned LLM classifier flags inappropriate reviews; blocked 23,600+ in 2023. *(product design)*
 - **Spotify** [Optimizing Query Expansions via LLM Preference Alignment](https://research.atspotify.com/2025/7/optimizing-query-expansions-via-llm-preference-alignment): Rejection-sampling SFT plus DPO aligns a query-expansion LLM, 70% faster. *(product design)*
+
+---
+
+### [LLM lifecycle](topics/13-llm-lifecycle.md) · 10 systems
+
+**What they share.** Every system is one stage of the same lifecycle: raw text is cleaned and tokenized once, a pretraining or mid-training run turns it into a base model, post-training aligns that base into an instruct model, and a serving stack quantizes and wraps it for production, with preference and production feedback looping back. None reinvents the objective (next-token prediction upstream, preference optimization downstream); they diverge on which stage they invest in and what the dominant cost is there.
+
+**The reference pipeline.** Read every design below as a specialization of this canonical flow. What changes is which stage a team actually owns: the data recipe that sets the capability ceiling, the pretrain or mid-train that spends the compute, the post-train that makes the model usable and safe, or the serving stack that decides unit economics. Data prep and pretraining are shared upstream infrastructure; most teams enter at the base model and iterate downstream.
+
+```mermaid
+flowchart LR
+  WEB["web + proprietary corpus"] --> PREP["data prep<br/>(dedup, filter,<br/>decontaminate, tokenize)"]
+  PREP --> PT["pretraining<br/>(next-token prediction)"]
+  PT --> BASE["base model"]
+  BASE --> MID["mid-training<br/>(domain / long-context)"]
+  MID --> BASE2["domain / extended base"]
+  BASE2 --> SFT["SFT<br/>(instruction tuning)"]
+  BASE --> SFT
+  SFT --> PREF["preference optimization<br/>(RLHF / RLAIF / DPO)"]
+  PREF --> CHAT["aligned model"]
+  CHAT --> SERVE["serving<br/>(quantize, KV-cache,<br/>continuous batching)"]
+  SERVE --> RAG["RAG + tools"]
+  RAG --> PROD["production"]
+  PROD -.preference + feedback labels.-> PREF
+```
+
+**Reading the diagram.** Follow it left to right as five stages, each with its own dominant cost and failure mode. Data prep is the unglamorous front door and the real moat: dedup, quality filtering, decontamination, and PII scrubbing turn the mostly-noise web plus a proprietary corpus into a clean token stream, and this is where FineWeb and Dolma spend their effort, because a benchmark number means nothing if eval leaked into training. Pretraining spends almost all the compute on next-token prediction, and the central decision is compute-optimal sizing (Chinchilla's roughly twenty tokens per parameter), which flips toward a smaller overtrained model once you count the inference you will serve forever, so most teams never run this stage and instead enter at an open base like Llama 3, OLMo, or Qwen3. Mid-training is the cheap high-leverage step few name: continue-pretrain an existing base on domain data or extend its context window, buying most of a domain base for a fraction of a full pretrain while guarding against catastrophic forgetting. Post-training is where a base that only completes text becomes usable and safe, first SFT for instruction following, then preference optimization (InstructGPT's reward-model-plus-PPO, Llama 3's DPO, Anthropic's constitution-driven RLAIF, DeepSeek-R1's rule-based RL), always on a KL leash to the reference model so it does not reward-hack. Serving is the operating cost that runs forever and where products live or die on economics, because decoding is memory-bandwidth bound and the KV cache dominates VRAM, so vLLM pages it and Character.AI shrinks it with MQA and quantization, while RAG bolts on fresh facts at inference rather than baking them into weights. The loop closes when production preferences and feedback flow back into post-training, which is why alignment is a continuous process, not a one-time train.
+
+**Where they diverge.** The first fork is which stage you own; the second is the dominant cost at that stage, which decides the method.
+
+```mermaid
+flowchart TD
+  IN["a team wants an LLM capability"] --> Q1{"which stage<br/>do you own?"}
+  Q1 -->|"the data"| DATA["data prep<br/>FineWeb, Dolma/OLMo"]
+  Q1 -->|"a new base"| PT{"compute<br/>budget?"}
+  Q1 -->|"make it usable/safe"| POST{"what teaches<br/>the preference?"}
+  Q1 -->|"run it cheaply"| SERVE["serving<br/>vLLM, Character.AI, Mistral"]
+  PT -->|"lab-scale, from scratch"| BIG["compute-optimal pretrain<br/>Chinchilla, Llama 3"]
+  PT -->|"limited, adapt a base"| MID["mid-training<br/>continued / long-context"]
+  POST -->|"human labels"| RLHF["RLHF: reward model + PPO<br/>OpenAI InstructGPT"]
+  POST -->|"direct preference"| DPO["DPO / rejection sampling<br/>Meta Llama 3"]
+  POST -->|"AI feedback"| RLAIF["RLAIF / constitution<br/>Anthropic"]
+  POST -->|"verifiable reward"| RLVR["rule-based RL / GRPO<br/>DeepSeek-R1"]
+  DATA --> BASECEIL["capability ceiling"]
+  BIG --> BASECEIL
+  MID --> BASECEIL
+  RLHF --> USABLE["usable + safe model"]
+  DPO --> USABLE
+  RLAIF --> USABLE
+  RLVR --> USABLE
+  BASECEIL --> USABLE
+  USABLE --> SERVE
+```
+
+**The choices, side by side.**
+
+| Decision | Options (who) | What decides it |
+| --- | --- | --- |
+| stage owned | `data prep` (FineWeb, Dolma) vs `pretraining` (Chinchilla, Llama 3, Mistral) vs `post-training` (InstructGPT, Anthropic, DeepSeek-R1) vs `serving` (vLLM, Character.AI) | What you own that the web does not, and where your cost actually lands; almost never a from-scratch pretrain |
+| pretrain vs adapt | `from-scratch compute-optimal` (Chinchilla, Llama 3) vs `continued / mid-training on an open base` (most teams, OLMo/Qwen3 as base) | Compute budget and whether a proprietary domain justifies new weights; adapting inherits the base's ceiling and flaws |
+| preference method | `RLHF reward model + PPO` (OpenAI) vs `DPO / rejection sampling` (Meta) vs `RLAIF / constitution` (Anthropic) vs `rule-based RL / GRPO` (DeepSeek) | Cost of labels, stability, and whether the reward is a human preference or a verifiable checker (math, code) |
+| serving lever | `paged KV cache + continuous batching` (vLLM) vs `GQA / sliding-window` (Mistral) vs `INT8 + MQA + prefix cache` (Character.AI) | Latency and cost budget at QPS; decoding is memory-bandwidth bound, so the KV cache, not FLOPs, is the target |
+
+**The math that separates them.**
+
+$$\textbf{pretraining objective (next-token cross-entropy): } \mathcal{L} = -\frac{1}{T}\sum_{t=1}^{T} \log p_{\theta}(x_t \mid x_{<t})$$
+
+$$\textbf{perplexity (report and compare bases): } \text{PPL} = \exp\!\left(-\frac{1}{T}\sum_{t=1}^{T} \log p_{\theta}(x_t \mid x_{<t})\right)$$
+
+$$\textbf{compute budget and Chinchilla-optimal split: } C \approx 6 N D, \quad D^{\ast} \approx 20\, N$$
+
+$$\textbf{scaling law (loss vs params and data): } L(N, D) = E + \frac{A}{N^{\alpha}} + \frac{B}{D^{\beta}}$$
+
+$$\textbf{reward model (Bradley-Terry preference): } P(y_w \succ y_l \mid x) = \sigma\!\left(r(x, y_w) - r(x, y_l)\right)$$
+
+$$\textbf{RLHF objective (KL-penalized reward): } \max_{\theta}\; \mathbb{E}\big[r(x, y)\big] - \beta\, \text{KL}\!\left(\pi_{\theta} \,\|\, \pi_{\text{ref}}\right)$$
+
+$$\textbf{DPO loss (preference without a reward model): } \mathcal{L}_{\text{DPO}} = -\mathbb{E}\left[\log \sigma\!\left(\beta \log \frac{\pi_{\theta}(y_w \mid x)}{\pi_{\text{ref}}(y_w \mid x)} - \beta \log \frac{\pi_{\theta}(y_l \mid x)}{\pi_{\text{ref}}(y_l \mid x)}\right)\right]$$
+
+$$\textbf{KV cache memory (serving bottleneck): } M_{\text{kv}} = 2 \, n_{\text{layers}} \, n_{\text{kv}} \, d_{\text{head}} \, L \, b \, s_{\text{bytes}}$$
+
+```mermaid
+quadrantChart
+  title "Capital cost (train) vs operating cost (serve)"
+  x-axis "Low train cost" --> "High train cost"
+  y-axis "Low serve focus" --> "High serve focus"
+  quadrant-1 "Costly train, serve-tuned"
+  quadrant-2 "Cheap train, serve-tuned"
+  quadrant-3 "Cheap train, upstream focus"
+  quadrant-4 "Costly train, upstream focus"
+  "FineWeb data prep": [0.30, 0.15]
+  "Dolma / OLMo": [0.42, 0.20]
+  "Chinchilla study": [0.78, 0.10]
+  "Llama 3 herd": [0.90, 0.45]
+  "Mistral 7B": [0.55, 0.75]
+  "OpenAI InstructGPT": [0.50, 0.35]
+  "Anthropic CAI": [0.48, 0.40]
+  "DeepSeek-R1": [0.60, 0.38]
+  "vLLM serving": [0.12, 0.90]
+  "Character.AI serving": [0.20, 0.92]
+```
+
+**Interview watch-outs.**
+
+- **Do not default to "pretrain a model" or "just fine-tune GPT."** Name the five stages and place the problem in one. It is almost never a from-scratch pretrain; it is usually post-training (make an open base follow our instructions) or mid-training (teach it our domain or a longer context). Owning weights is a serving-and-maintenance commitment, not a one-time train.
+- **Data quality and decontamination are the real budget early.** Model quality is bounded by data long before architecture. Aggressive dedup cuts memorization and eval leakage; decontaminating the training set against benchmarks is the first integrity check, and any headline score without it is suspect. The web is mostly noise, so the keep rate is a small fraction.
+- **Chinchilla-optimal is for training, not serving.** Model size and tokens scale together, about twenty tokens per parameter, for compute-optimal training; but if you serve billions of tokens, deliberately overtrain a smaller model past that point so inference stays cheap forever. State which cost you are optimizing.
+- **Keep the KL leash in post-training.** Every preference method (RLHF, DPO, RLAIF) constrains the policy to a reference model, explicitly or implicitly. Drop it and the model reward-hacks: verbose, sycophantic, confidently wrong. Choose the method by label cost and reward type, human preference (RLHF/DPO/RLAIF) versus a verifiable checker for math and code (rule-based RL).
+- **Inference, not training, is the recurring cost.** Decoding is memory-bandwidth bound and the KV cache dominates VRAM, so throughput not FLOPs is the limit. Paged KV cache, grouped/multi-query attention, continuous batching, prompt caching, and quantization are the levers; eval-gate every compression step so a cost win does not silently regress quality.
+- **RAG for facts, fine-tuning for behavior.** Ground fresh or private knowledge by retrieving at inference and citing sources, not by baking a changing database into weights. Fine-tune tone, format, and skills; retrieve facts. They compose, and confusing them is the common mistake that produces a stale, hallucinating, expensive model.
+
+**The systems**
+
+- **Hugging Face** [FineWeb: decanting the web for the finest text data at scale](https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1): a 15T-token open pretraining set from 96 Common Crawl dumps, with the filtering and deduplication recipe documented and ablated. *(data recipe)*
+- **Ai2** [Dolma: an Open Corpus of Three Trillion Tokens for Language Model Pretraining Research](https://arxiv.org/abs/2402.00159): a fully open 3T-token corpus and toolkit, the data behind the open OLMo base model. *(data recipe)*
+- **Google DeepMind** [Training Compute-Optimal Large Language Models (Chinchilla)](https://arxiv.org/abs/2203.15556): 400+ models show model size and tokens should scale together, about 20 tokens per parameter; a 70B Chinchilla beats a 280B Gopher at equal compute. *(training decision)*
+- **Meta** [The Llama 3 Herd of Models](https://ai.meta.com/research/publications/the-llama-3-herd-of-models/): an end-to-end open recipe, careful data curation, staged context extension, and a simple SFT plus rejection-sampling plus DPO post-train. *(full lifecycle)*
+- **Mistral** [Mistral 7B](https://mistral.ai/news/announcing-mistral-7b/): grouped-query plus sliding-window attention shrink the KV cache, so a 7B model serves long context cheaply and beats larger models. *(architecture + serving)*
+- **OpenAI** [Aligning language models to follow instructions (InstructGPT)](https://openai.com/index/instruction-following/): RLHF with a reward model and PPO under a KL penalty makes a 1.3B model preferred over 175B GPT-3 on instruction following. *(post-training)*
+- **Anthropic** [Constitutional AI: Harmlessness from AI Feedback](https://www.anthropic.com/research/constitutional-ai-harmlessness-from-ai-feedback): RLAIF against a short written constitution replaces most human harm labels and is both more helpful and more harmless than plain RLHF. *(post-training)*
+- **DeepSeek** [DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning](https://arxiv.org/abs/2501.12948): pure RL with rule-based rewards (GRPO) grows chain-of-thought and self-correction with little or no SFT. *(post-training, reasoning)*
+- **vLLM** [Easy, Fast, and Cheap LLM Serving with PagedAttention](https://blog.vllm.ai/2023/06/20/vllm.html): paging the KV cache like OS virtual memory plus continuous batching delivers up to 24x higher throughput than naive serving. *(serving)*
+- **Character.AI** [Optimizing AI Inference at Character.AI](https://blog.character.ai/optimizing-ai-inference-at-character-ai-2/): INT8, multi-query attention, and a tree-structured inter-turn KV cache serve 20k+ queries per second at a fraction of the cost. *(serving)*
 
 ---
 

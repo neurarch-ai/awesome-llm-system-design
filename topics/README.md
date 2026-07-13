@@ -15,7 +15,7 @@ shape, mirroring the [answer framework](../framework/answer-framework.md):
 
 ## Topics by pipeline stage
 
-All twelve topics are written. They are grouped by where they sit in a production LLM
+All thirteen topics are written. They are grouped by where they sit in a production LLM
 system. To navigate by use case instead, start from the
 [question bank](../questions.md).
 
@@ -33,7 +33,8 @@ system. To navigate by use case instead, start from the
 - [03 - Agent orchestration](03-agent-orchestration.md)
 - [09 - Multimodal serving](09-multimodal-serving.md)
 
-**Adapting the model**
+**Building and adapting the model**
+- [13 - The LLM training lifecycle](13-llm-lifecycle.md)
 - [05 - Fine-tuning and post-training pipeline](05-post-training-pipeline.md)
 
 **Quality and safety**

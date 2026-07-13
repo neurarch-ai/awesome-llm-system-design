@@ -1,10 +1,10 @@
 # Case studies, by industry
 
-The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by industry so you can see which the same LLM problem patterns recur in your domain. 209 case studies across 11 industries.
+The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by industry so you can see which the same LLM problem patterns recur in your domain. 219 case studies across 11 industries.
 
 ---
 
-## Big Tech and cloud (64)
+## Big Tech and cloud (67)
 
 | Company | Case study | Topic |
 | --- | --- | --- |
@@ -36,6 +36,8 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | Google | [PaLI-X: on scaling up a multilingual vision-language model](https://arxiv.org/abs/2305.18565) | Multimodal Serving |
 | Google | [RAGO: systematic performance optimization for RAG serving](https://arxiv.org/abs/2503.14649) | RAG Serving |
 | Google | [ShieldGemma: generative AI content moderation](https://arxiv.org/abs/2407.21772) | Safety And Guardrails |
+| Google | [Training Compute-Optimal Large Language Models (Chinchilla)](https://arxiv.org/abs/2203.15556) | LLM Lifecycle |
+| Hugging Face | [FineWeb: decanting the web for the finest text data at scale](https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1) | LLM Lifecycle |
 | Hugging Face | [Introducing Idefics2: a powerful 8B vision-language model](https://huggingface.co/blog/idefics2) | Multimodal Serving |
 | Hugging Face | [Introducing smolagents](https://huggingface.co/blog/smolagents) | Agent Orchestration |
 | Hugging Face | [Preference Tuning LLMs with Direct Preference Optimization Methods](https://huggingface.co/blog/pref-tuning) | Post Training Pipeline |
@@ -47,6 +49,7 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | Meta | [How to fine-tune: focus on effective datasets](https://ai.meta.com/blog/how-to-fine-tune-llms-peft-dataset-curation/) | Post Training Pipeline |
 | Meta | [Llama Guard: LLM-based input-output safeguard](https://arxiv.org/abs/2312.06674) | Safety And Guardrails |
 | Meta | [Llama Prompt Guard 2](https://developer.meta.com/ai/docs/model-cards-and-prompt-formats/prompt-guard/) | Safety And Guardrails |
+| Meta | [The Llama 3 Herd of Models](https://ai.meta.com/research/publications/the-llama-3-herd-of-models/) | LLM Lifecycle |
 | Microsoft | [DiskANN: vector search for all](https://www.microsoft.com/en-us/research/project/project-akupara-approximate-nearest-neighbor-search-for-large-scale-semantic-search/) | Semantic Search And Embeddings |
 | Microsoft | [Florence-2: a unified representation for vision tasks](https://arxiv.org/abs/2311.06242) | Multimodal Serving |
 | Microsoft | [GraphRAG: unlocking LLM discovery on narrative private data](https://www.microsoft.com/en-us/research/blog/graphrag-unlocking-llm-discovery-on-narrative-private-data/) | RAG Serving |
@@ -73,29 +76,35 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | Vespa | [Billion-scale vector search using hybrid HNSW-IF](https://blog.vespa.ai/vespa-hybrid-billion-scale-vector-search/) | Semantic Search And Embeddings |
 | Vespa | [Embedding Tradeoffs, Quantified](https://blog.vespa.ai/embedding-tradeoffs-quantified/) | RAG Serving |
 
-## AI labs and foundation models (17)
+## AI labs and foundation models (23)
 
 | Company | Case study | Topic |
 | --- | --- | --- |
+| Ai2 | [Dolma: an Open Corpus of Three Trillion Tokens for Language Model Pretraining Research](https://arxiv.org/abs/2402.00159) | LLM Lifecycle |
 | Ai2 | [Molmo and PixMo: open weights and open data for VLMs](https://arxiv.org/abs/2409.17146) | Multimodal Serving |
 | Anthropic | [Building effective agents](https://www.anthropic.com/research/building-effective-agents) | Agent Orchestration |
 | Anthropic | [Code execution with MCP: building more efficient agents](https://www.anthropic.com/engineering/code-execution-with-mcp) | Agent Orchestration |
+| Anthropic | [Constitutional AI: Harmlessness from AI Feedback](https://www.anthropic.com/research/constitutional-ai-harmlessness-from-ai-feedback) | LLM Lifecycle |
 | Anthropic | [Constitutional Classifiers: defending against universal jailbreaks](https://www.anthropic.com/research/constitutional-classifiers) | Safety And Guardrails |
 | Anthropic | [How we built our multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system) | Agent Orchestration |
 | Anthropic | [Prompt caching with Claude](https://claude.com/blog/prompt-caching) | Long Context And KV Cache |
 | Anthropic | [Writing effective tools for agents, with agents](https://www.anthropic.com/engineering/writing-tools-for-agents) | Agent Orchestration |
 | Character.AI | [Optimizing AI Inference at Character.AI](https://blog.character.ai/optimizing-ai-inference-at-character-ai-2/) | Long Context And KV Cache |
 | Character.AI | [Optimizing AI Inference at Character.AI](https://blog.character.ai/optimizing-ai-inference-at-character-ai/) | Inference Serving At Scale |
+| Character.AI | [Optimizing AI Inference at Character.AI](https://blog.character.ai/optimizing-ai-inference-at-character-ai-2/) | LLM Lifecycle |
 | Cognition | [Don't Build Multi-Agents](https://cognition.com/blog/dont-build-multi-agents) | Agent Orchestration |
+| DeepSeek | [DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning](https://arxiv.org/abs/2501.12948) | LLM Lifecycle |
 | DeepSeek | [DeepSeek-V2: a strong, economical, efficient MoE language model](https://arxiv.org/abs/2405.04434) | Long Context And KV Cache |
+| Mistral | [Mistral 7B](https://mistral.ai/news/announcing-mistral-7b/) | LLM Lifecycle |
 | Mistral | [Pixtral 12B](https://arxiv.org/abs/2410.07073) | Multimodal Serving |
 | Moonshot AI | [Mooncake: a KVCache-centric disaggregated architecture](https://arxiv.org/abs/2407.00079) | Inference Serving At Scale |
 | OpenAI | [A practical guide to building agents](https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf) | Agent Orchestration |
+| OpenAI | [Aligning language models to follow instructions (InstructGPT)](https://openai.com/index/instruction-following/) | LLM Lifecycle |
 | OpenAI | [How to implement LLM guardrails](https://developers.openai.com/cookbook/examples/how_to_use_guardrails) | Safety And Guardrails |
 | OpenAI | [Updates for developers building with voice](https://developers.openai.com/blog/updates-audio-models) | Realtime Streaming Chat |
 | OpenGVLab | [InternVL 2.5: model, data, and test-time scaling](https://arxiv.org/abs/2412.05271) | Multimodal Serving |
 
-## AI infra and developer tools (56)
+## AI infra and developer tools (57)
 
 | Company | Case study | Topic |
 | --- | --- | --- |
@@ -154,6 +163,7 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | Twilio | [Introducing Media Streams](https://www.twilio.com/en-us/blog/media-streams-public-beta) | Realtime Streaming Chat |
 | Vapi | [How we built Vapi's voice AI pipeline (part 2)](https://vapi.ai/blog/how-we-built-vapi-s-voice-ai-pipeline-part-2) | Realtime Streaming Chat |
 | Vercel | [Chat SDK brings agents to your users](https://vercel.com/blog/chat-sdk-brings-agents-to-your-users) | Realtime Streaming Chat |
+| vLLM | [Easy, Fast, and Cheap LLM Serving with PagedAttention](https://blog.vllm.ai/2023/06/20/vllm.html) | LLM Lifecycle |
 | vLLM | [Efficient Memory Management for LLM Serving with PagedAttention](https://arxiv.org/abs/2309.06180) | Long Context And KV Cache |
 
 ## E-commerce and retail (11)
