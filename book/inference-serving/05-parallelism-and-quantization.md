@@ -102,3 +102,24 @@ negligible quality impact in practice.*
 | INT8 weight quantization | FP8 not available; moderate quality tolerance | FP8 when available; INT8 matmul kernels have more variance across hardware |
 | 4-bit weight quantization | Fitting a large model; cold-start weight-load time matters | When quality eval fails; 4-bit has the highest per-step quality risk |
 | KV cache quantization | Concurrency (not weight bandwidth) is the binding memory limit | Weight quantization alone, when the KV cache is what fills HBM at target batch size |
+
+**Tools that ship these.** Tensor and pipeline parallelism are built into vLLM,
+TensorRT-LLM (NVIDIA), and DeepSpeed-Inference; expert parallelism into vLLM and
+SGLang for MoE. On the quantization side: GPTQ and AWQ are the common weight-only
+methods, bitsandbytes provides INT8/4-bit for training-time and light serving, GGUF
+via llama.cpp targets CPU and edge, and FP8 is exposed through TensorRT-LLM and vLLM
+on H100-class hardware. KV-cache quantization (FP8/INT8 KV) is a flag in vLLM and
+TensorRT-LLM.
+
+**Worked example.** Serving a 70B model for interactive chat on one 8xH100 node:
+the model does not fit on a single GPU, NVLink between the eight cards is fast, and
+single-request latency is the SLO, so use tensor parallelism within the node (TP=8)
+rather than pipeline parallelism, which would add pipeline-bubble latency for no
+throughput benefit at this size. Apply FP8 weight-and-activation quantization first
+(the H100 supports it and it carries the least quality risk), and only drop to 4-bit
+weights if HBM is still the binding constraint. If demand then needs 5x the
+throughput, replicate the whole TP=8 unit behind a load balancer rather than
+widening TP across nodes, where the all-reduce over slow inter-node links would
+dominate. If instead you were hitting the concurrency wall (many long-context
+sessions) rather than a weight-bandwidth wall, KV-cache quantization would free more
+headroom than shrinking the weights further.

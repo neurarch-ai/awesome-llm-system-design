@@ -124,3 +124,21 @@ fit in RAM, and (2) is the catalog stable or does it churn? Stable and fits in
 RAM: HNSW. Billion-scale RAM-constrained: IVF-PQ. Billion vectors on one box:
 DiskANN. MIPS objective: ScaNN or ScaNN-style anisotropic loss. Those four
 cover the space of production choices.
+
+**Tools that ship these indexes.** FAISS (Meta) implements Flat, IVF-PQ, and HNSW;
+hnswlib is the reference HNSW library; ScaNN is Google's MIPS-tuned index; DiskANN
+is Microsoft's SSD-resident index. As managed services, Qdrant, Weaviate, Milvus,
+and pgvector default to HNSW; Vespa (used by Spotify and Yahoo) runs HNSW at scale;
+Pinecone abstracts the index choice behind a hosted API.
+
+**Worked example.** A product-search team has 40M item embeddings (~60 GB, fits in
+RAM across a couple of replicas), ingests ~50k new items a day, and needs p99 under
+30 ms at recall@10 above 0.95. Both design questions point one way: the corpus fits
+in RAM and it churns daily, so HNSW is the choice, because it gives the highest
+recall at low latency and supports incremental inserts without a full rebuild
+(FAISS or hnswlib in-process, or Qdrant/Weaviate managed). If that catalog later
+grew to 2B vectors on a fixed RAM budget, the same team would move to IVF-PQ and
+accept the quantization recall loss; if it had to run on a single box, DiskANN on
+SSD. The MIPS detail matters if the embeddings are two-tower dot-product vectors:
+prefer ScaNN's anisotropic PQ over a Euclidean-tuned index that silently loses
+inner-product recall.
