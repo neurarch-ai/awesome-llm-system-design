@@ -41,6 +41,19 @@ flowchart LR
   end
 ```
 
+**How it works.** The two paths never touch the same critical path. On the offline
+side, new or changed documents land on a durable queue so ingestion spikes do not
+stall, GPU embedding workers pull batches off that queue to amortize model cost, and
+the resulting vectors are upserted into both the vector index and the lexical index
+so the two channels stay in sync. On the online side a query is embedded once,
+through a cache that absorbs repeated queries, and the single query vector fans out
+in parallel to the ANN dense channel and the BM25 lexical channel. Their two ranked
+lists are combined by RRF fusion, which needs no shared score scale, and only the
+fused shortlist (top-100) is handed to the optional cross-encoder reranker before the
+final top-k is returned. Decoupling this way lets the write path optimize for
+throughput and the read path optimize for latency, and it is why the reranker sees a
+small candidate set rather than the whole corpus.
+
 ## Sharding and replication
 
 **Shard for capacity.** If the full 100M-vector index does not fit in the RAM

@@ -65,6 +65,23 @@ CARD_0) before the content reaches the model and the log store.
 In a regulated domain this is a hard requirement. In a consumer product it is a
 strong operational preference: PII leakage incidents are expensive and erode trust.
 
+The pattern-matching half of that detection is a per-type regex pass that swaps
+each match for a typed placeholder before the text reaches the model or the log:
+
+```python
+import re
+PATTERNS = {"EMAIL": r"[\w.+-]+@[\w.-]+", "CARD": r"\b(?:\d[ -]?){13,16}\b"}
+def scrub(text):
+    counts = {}
+    for label, pat in PATTERNS.items():
+        def repl(_m, label=label):
+            i = counts.get(label, 0); counts[label] = i + 1   # running index per PII type
+            return f"{label}_{i}"                              # e.g. EMAIL_0, CARD_0
+        text = re.sub(pat, repl, text)                         # redact every match to its placeholder
+    return text
+# scrub("mail a@b.com and c@d.com") -> "mail EMAIL_0 and EMAIL_1"
+```
+
 ## When to use which defense
 
 | Reach for | When | Instead of |

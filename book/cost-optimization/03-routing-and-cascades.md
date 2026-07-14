@@ -53,6 +53,16 @@ where $c_1$ is the cheap model's call cost, $p_1$ is the probability its answer
 passes the scorer, and $c_2$ is the frontier model cost. A three-stage cascade
 adds a third term: $(1-p_1)(1-p_2) c_3$.
 
+```python
+def cascade_cost(costs, pass_probs):    # costs[i]: stage i call cost; pass_probs[i]: P(stage i answer accepted)
+    total, reach = 0.0, 1.0             # reach = probability we run this stage
+    for i, c in enumerate(costs):
+        total += reach * c              # pay for stage i only if we reached it
+        reach *= (1 - pass_probs[i])    # continue only if stage i's answer was rejected
+    return total
+# cascade_cost([1.0, 10.0], [0.7, 1.0]) -> 4.0  (= c1 + (1 - p1) * c2 = 1 + 0.3 * 10)
+```
+
 ![Cascade: sweeping the escalation threshold trades cost for accuracy](assets/fig-cascade-cost-accuracy.png)
 
 *Sweeping the escalation threshold tau. Low tau escalates freely (high quality,

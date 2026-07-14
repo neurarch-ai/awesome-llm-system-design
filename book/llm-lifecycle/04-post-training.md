@@ -47,6 +47,8 @@ flowchart LR
   PPO --> ALIGNED["aligned model"]
 ```
 
+**How it works.** The pipeline runs in three numbered stages off a single SFT checkpoint. First the base model is fine-tuned on demonstrations to produce an SFT policy that answers rather than completes. That policy then samples k outputs per prompt, humans rank the pairs, and those rankings train a reward model under the Bradley-Terry objective so a scalar reward can stand in for the human labels. In stage three PPO optimizes the policy to maximize the reward model's score, and the same SFT checkpoint is pinned as the frozen reference distribution pi_ref for the KL penalty, which is the dotted edge back into PPO. That KL leash is what keeps the policy from drifting into reward-hacked, off-distribution text while it chases reward, and the output is the aligned model.
+
 ## Step 2b: DPO (direct preference optimization)
 
 DPO removes the reward model and the RL loop. The RLHF-optimal policy has a

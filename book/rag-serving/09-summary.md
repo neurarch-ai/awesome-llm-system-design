@@ -54,6 +54,21 @@ flowchart LR
   VF --> A["grounded answer + citations<br/>or abstention"]
 ```
 
+**How it works.** The diagram folds the whole system onto one page by drawing the
+write path and the read path meeting at the index. Offline, documents are chunked
+with structure-aware capped-and-overlapped splits, embedded by the encoder, and
+written into an ACL-tagged ANN index; the dashed freshness loop re-runs just the
+changed document through the same chunk-and-embed steps so the index stays current
+without a full rebuild. Online, the query plus the user identity is embedded by the
+same encoder (embedding both sides with one model is what makes their vectors
+comparable), then an ACL-filtered ANN search returns a broad top-n, which a
+cross-encoder narrows to a precise top-m. Those chunks, the system prompt, the source
+IDs, and the query are assembled into one prompt for the LLM, and a final check
+verifies that every cited ID actually appears in the assembled prompt before the
+answer is returned. That last node is the cheap guard against fabricated citations,
+and the abstention branch is what the system emits when retrieval is too weak to
+ground a confident reply.
+
 ## Test yourself
 
 1. Why does retrieval recall upper-bound end-to-end answer quality, and what does

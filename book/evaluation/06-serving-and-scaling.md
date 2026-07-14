@@ -24,6 +24,17 @@ flowchart LR
   GATE -->|"fail"| BLOCK["block + alert"]
 ```
 
+**How it works.** Two things feed the harness: a candidate (prompt, model, and
+config) and the versioned golden dataset, both landing on a shared work queue.
+Parallel eval workers pull items off that queue, run the candidate model on each
+golden input, and score the output, passing open-ended rows on to a pool of
+optional judge workers that run in parallel. Results flow into a cache keyed by
+input plus candidate plus judge version, so an unchanged triple is served from
+cache instead of paying for the call again. The cached and fresh scores are then
+aggregated and sliced by segment, and a gate compares each slice against the
+baseline. A pass hands off to the deploy pipeline; a fail blocks the change and
+raises an alert, which is what makes the harness a gate rather than a report.
+
 ## Controlling cost
 
 Every judged example costs one model call plus one judge call (or two, if you run

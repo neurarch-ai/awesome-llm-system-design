@@ -85,6 +85,16 @@ $p_e$ is the agreement expected by chance given the label marginals. Values near
 is typically trusted for gating once kappa clears a bar (Pinterest reports 73.7%
 exact match as its analog for a fine-tuned relevance judge on a 5-level scale).
 
+```python
+def cohens_kappa(judge, human):       # paired categorical labels, equal length
+    n = len(judge)
+    po = sum(a == b for a, b in zip(judge, human)) / n     # observed agreement fraction
+    labels = set(judge) | set(human)
+    pe = sum((judge.count(l) / n) * (human.count(l) / n) for l in labels)  # chance agreement from marginals
+    return (po - pe) / (1 - pe)       # 0 = chance level, 1 = perfect agreement
+# cohens_kappa(['a','a','b','b'], ['a','b','b','b']) -> 0.5  (po=0.75, pe=0.5)
+```
+
 If kappa is below your threshold, fix the rubric first. Do not adjust the gate
 tolerance to compensate for a bad instrument; fix the instrument. A low kappa
 means the judge is measuring something other than what humans care about, and

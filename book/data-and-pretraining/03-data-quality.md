@@ -89,6 +89,12 @@ being a candidate is a tunable S-curve in $J$:
 
 $$\Pr[\text{candidate}] = 1 - \left(1 - J^{r}\right)^{b}$$
 
+```python
+def lsh_candidate_prob(J, b, r):     # J: Jaccard sim; b bands of r rows each (b*r = signature length k)
+    return 1 - (1 - J ** r) ** b     # P(match on >=1 full band); S-curve knee near J = (1/b)**(1/r)
+# lsh_candidate_prob(0.8, b=20, r=5) -> ~0.9996  (near-duplicates almost always become candidates)
+```
+
 Raising $r$ demands higher similarity before a pair is a candidate; raising $b$
 catches more pairs at a given similarity. You place the S-curve's knee at your
 target duplicate threshold.

@@ -40,6 +40,20 @@ flowchart LR
   PR -->|low-risk borderline| LA["log and allow"]
 ```
 
+**How it works.** Every input, including retrieved documents and tool output, first
+meets a cheap tier of regex, blocklists, and PII patterns that resolves the obvious
+cases without paying for a model. Inputs that survive the cheap tier go to a guard
+classifier; if it judges them unsafe they short-circuit to the policy router, and if
+they pass they move on to prompt assembly, where trusted instructions and untrusted
+data are kept in delimited, structured form before the LLM runs. The model's output
+is not trusted either: it passes through an output filter for moderation, grounding,
+and surfaced-PII checks, and both the unsafe and pass verdicts feed the same policy
+router. That router is the single decision point that converts a guard verdict into
+one of four actions, refuse, safe-complete, escalate to a human, or log and allow,
+which is why a guard firing is a signal to the router rather than an automatic block.
+Keeping the three stages separate is what lets each be tuned and cascaded
+independently instead of collapsing into one opaque safety call.
+
 ## Inputs and outputs of the system
 
 The system takes two kinds of inputs: text that came from the user (trusted only

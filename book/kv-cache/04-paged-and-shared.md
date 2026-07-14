@@ -81,6 +81,8 @@ flowchart LR
   HIT -- miss --> PF2[Prefill again]
 ```
 
+**How it works.** The first request prefills its system prompt, and instead of discarding those keys and values after decoding, it deposits them in a prefix KV cache keyed by the token sequence. When a second request arrives sharing the same system prompt, a lookup checks whether that exact prefix is already cached. On a hit, the expensive prefill of the shared tokens is skipped entirely and decode starts straight from the cached state, so only the unique query-B suffix has to be computed. On a miss, the request falls back to prefilling from scratch, which is the same cost it would have paid without the cache. The whole win rests on the shared prefix being byte-for-byte identical, which is why the branch is a hard hit-or-miss decision rather than a partial match.
+
 Gains are workload-dependent. Databricks measured 2.5x higher per-replica
 input-token throughput and 3x lower P50 latency at a 30% cache hit rate. Anthropic
 reports up to 90% cost reduction and 85% latency reduction when the cached context

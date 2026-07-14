@@ -7,6 +7,19 @@ of side $H$ pixels and patch size $p$ pixels, the patch grid is:
 
 $$\text{image tokens} = \left\lfloor \frac{H}{p} \right\rfloor \times \left\lfloor \frac{W}{p} \right\rfloor$$
 
+```python
+def image_tokens(H, W, p):
+    # H, W: image height/width in pixels; p: patch size in pixels
+    return (H // p) * (W // p)          # one decoder token per patch in the grid
+
+def prompt_tokens(n_text, images, p):
+    # images: list of (H, W); image tokens stack linearly across k images
+    n_img = sum(image_tokens(H, W, p) for (H, W) in images)
+    return n_text + n_img
+# image_tokens(336, 336, 14) -> 576   (CLIP ViT-L/14 in LLaVA)
+# prompt_tokens(100, [(336, 336), (336, 336)], 14) -> 1252   (100 text + two 576-token images)
+```
+
 Concrete numbers: a 336px image with patch size 14 (CLIP ViT-L/14, used in
 LLaVA) gives $24 \times 24 = 576$ tokens. A 1024px image with patch size 16
 (Pixtral-style) gives $64 \times 64 = 4096$ tokens. Neither of those is

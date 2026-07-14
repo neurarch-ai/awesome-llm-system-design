@@ -45,6 +45,18 @@ flowchart LR
   ROUTE -->|"hard"| BIG
 ```
 
+**How it works.** Four things flow in from the left: a static shared system
+prompt, retrieved context, conversation history, and the user query. They meet a
+stack of cost levers applied left to right, each one shrinking the token bill
+before the next runs. The cache is checked first, keyed on the stable prompt and
+the query; a hit short-circuits everything and returns a stored response, while a
+miss falls through to trimming the retrieved context down to a reranked top-3.
+The trimmed prompt is then compressed to drop low-information tokens, and only
+then does a router or cascade decide the destination tier. Easy traffic lands on
+the small cheap model and hard traffic on the frontier model, so by the time any
+token crosses the API boundary the volume has already been cut at every prior
+stage.
+
 The interesting decisions are all **upstream of the model call**: whether to
 serve a cached response, how many tokens reach the model, and which model they
 reach. By the time a token crosses the API boundary you have already paid for

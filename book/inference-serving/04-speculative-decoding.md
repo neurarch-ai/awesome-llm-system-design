@@ -39,6 +39,15 @@ The speedup over baseline decode (one target pass per token) is:
 
 $$\text{speedup} = \frac{1 - \alpha^{k+1}}{(1 - \alpha)(1 + ck)}$$
 
+```python
+def spec_speedup(alpha, k, c):
+    # alpha: per-token accept rate; k: draft tokens; c: verify overhead per draft token
+    tokens_per_pass = (1 - alpha ** (k + 1)) / (1 - alpha)  # expected tokens each target pass
+    return tokens_per_pass / (1 + c * k)                    # divide by relative pass cost
+# spec_speedup(0.8, 4, 0.1) -> ~2.40   (a high-acceptance draft, >1 means faster)
+# spec_speedup(0.2, 4, 0.1) -> ~0.89   (a low-acceptance draft, <1 means slower than baseline)
+```
+
 The numerator captures how many tokens each target pass produces on average. The
 denominator accounts for the overhead of the $k$ draft steps. When $\alpha$ is
 high and $c$ is small, speedup is large. When $\alpha$ is low or $c$ is large

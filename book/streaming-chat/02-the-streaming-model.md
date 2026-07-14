@@ -80,6 +80,20 @@ one-directional: server to client only. That is all that is needed for token
 delivery. SSE works through standard HTTP proxies and load balancers, needs no
 special handshake, and is simple to operate.
 
+Each token becomes one SSE event: `data:` field lines terminated by a blank line,
+with optional `event:` name and `:` comment lines (used for heartbeat pings):
+
+```python
+def sse_frame(data, event=None):        # SSE wire format: field lines, blank line ends the event
+    lines = []
+    if event is not None:
+        lines.append(f"event: {event}")          # optional event name
+    for line in data.split("\n"):                 # a multi-line payload becomes several data: fields
+        lines.append(f"data: {line}")
+    return "\n".join(lines) + "\n\n"              # trailing blank line dispatches the event
+# sse_frame("hi") -> "data: hi\n\n"; sse_frame("[DONE]", event="done") -> "event: done\ndata: [DONE]\n\n"
+```
+
 **WebSockets** establish a persistent, full-duplex connection after an HTTP
 upgrade handshake. Both sides can send at any time. The duplex channel is useful
 when the client needs to signal the server mid-stream: live interrupt ("stop
@@ -126,6 +140,18 @@ flowchart LR
   GW -->|"SSE chunks"| U
   GW --> SS2["session store<br/>(append reply)"]
 ```
+
+**How it works.** A turn is a single POST carrying only the new message and a
+session id, not the whole transcript. The gateway first reads the prior transcript
+from the session store, concatenates it with the new message, and hands that full
+prompt to the inference engine, which prefills the prompt into a KV cache and then
+decodes token by token. As each token is emitted it flows back through the gateway
+and is written to the client as an SSE chunk, so the user sees the reply build in
+real time rather than waiting for the whole generation. When decoding finishes (or
+is cancelled) the gateway appends the completed reply to the session store, which
+is what keeps the client stateless and lets the next turn resume from durable
+history. The gateway is the one component that touches every hop; the store holds
+state and the inference engine holds the transient KV cache.
 
 The gateway is the only stateful proxy here. It reads the transcript, fans out
 to the inference engine, and writes the completed reply back to the store once

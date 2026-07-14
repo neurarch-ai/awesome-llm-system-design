@@ -30,6 +30,8 @@ flowchart TD
   STORE --> ALL["all downstream consumers: metrics, judge, grounding, drift, human queue"]
 ```
 
+**How it works.** A single user request enters the serving chain, and each step in that chain emits its own span: retrieval, an optional query rewrite, prompt assembly, generation, and one span per tool call. Every span carries the same trace id, which is how they are stitched back into one ordered timeline for the request rather than floating as disconnected log lines. That stitched trace lands in the trace store, which acts as the single fan-out point: metrics, the LLM judge, grounding checks, drift monitors, and the human-review queue all read from it instead of instrumenting the serving path themselves. Because the spans are emitted cheaply and synchronously while every consumer reads asynchronously off the store, none of that downstream work sits on the user's latency path. This is why the trace is the one instrumentation point to get right: everything above it is derived, so an incomplete span makes a downstream check impossible to reconstruct after the fact.
+
 ## The minimum set of span fields
 
 Every span in the chain carries a core set of fields. Dropping any of them makes a

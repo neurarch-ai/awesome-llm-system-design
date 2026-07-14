@@ -33,6 +33,13 @@ problem is that dividing all frequencies by the same factor crowds the
 high-frequency dimensions that encode local ordering. Adjacent positions become
 harder to distinguish, and short-context quality drops.
 
+```python
+def rope_freqs_pi(d, s, base=10000.0):        # d: per-head dim, s = L_new / L_orig
+    theta = [base ** (-2 * i / d) for i in range(d // 2)]   # original per-dim RoPE freqs
+    return [t / s for t in theta]             # linear PI divides every freq by the same s
+# rope_freqs_pi(4, s=8)[0] -> 0.125  (theta_0 = 1.0, uniformly compressed by s=8)
+```
+
 ---
 
 **NTK-aware / Adjusted Base Frequency (ABF, Code Llama)** scales the RoPE base

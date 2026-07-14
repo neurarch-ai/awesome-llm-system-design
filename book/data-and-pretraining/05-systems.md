@@ -134,6 +134,19 @@ flowchart TD
   EP --> MFU
 ```
 
+**How it works.** The plan starts from the binding constraint: the model does not
+fit one GPU and the batch does not fit one node. That single problem forks into
+three parallelism axes applied together. Tensor parallelism splits weight
+matrices inside a node over fast NVLink, pipeline parallelism splits layers into
+stages fed by many micro-batches to keep the bubble small, and data parallelism
+splits the batch and all-reduces gradients. The data-parallel branch then hands
+off to memory sharding, layering ZeRO/FSDP from ZeRO-1 (optimizer states) to
+ZeRO-2 (plus gradients) to ZeRO-3 (plus parameters) as the memory wall demands.
+A separate flag adds expert parallelism with all-to-all token routing only when
+the architecture is MoE. Every branch converges on the same target, high MFU
+(30 to 50 percent is good at frontier scale), which is the metric the whole plan
+is tuned against.
+
 ## When to use which
 
 | Reach for | When | Instead of |

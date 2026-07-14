@@ -55,6 +55,8 @@ flowchart LR
   TP -.-> DEC
 ```
 
+**How it works.** A request first meets the SLO gate, which admits it or sheds it with a 429 and retry hint when the system is already saturated, protecting tail latency instead of letting the queue grow without bound. Admitted work flows into the continuous-batching scheduler, which retires sequences that hit EOS and admits waiting ones every step so the batch stays full without waiting for the slowest member. Prefill is compute-bound and runs in chunks, writing the prompt's keys and values into the paged KV cache; decode is bandwidth-bound and reads that cache once per step, appending the new token's KV back into it, which is why the arrows between decode and the cache point both ways. The optional draft model feeds decode for speculative decoding, while the dotted arrows show the control-plane and sharding concerns: the autoscaler watches queue depth to add replicas before latency blows up, and the tensor-parallel engine splits both prefill and decode across GPUs within a node. The output is a stream of tokens rather than a single blocking response, so the user sees the first token as soon as prefill completes.
+
 ## Test yourself
 
 1. Why does decode throughput grow with batch size but prefill throughput does not,

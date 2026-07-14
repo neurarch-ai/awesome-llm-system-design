@@ -16,6 +16,16 @@ window:
 
 $$d_t = 1 - \frac{\bar{e}_t \cdot \bar{e}_{\text{ref}}}{\lVert \bar{e}_t \rVert\, \lVert \bar{e}_{\text{ref}} \rVert}$$
 
+```python
+import numpy as np
+def input_drift(cur, ref):
+    # cur, ref: (n, d) arrays of query embeddings for the current and reference windows
+    ec, er = cur.mean(0), ref.mean(0)                       # mean embedding of each window
+    cos = ec @ er / (np.linalg.norm(ec) * np.linalg.norm(er))
+    return 1 - cos                                          # 0 = identical, larger = more drift
+# input_drift(np.array([[1.,0.],[1.,0.]]), np.array([[0.,1.],[0.,1.]])) -> 1.0 (orthogonal means)
+```
+
 $d_t$ near 0 means no drift; a rising $d_t$ means the input distribution is
 moving. Embed the user queries with a cheap encoder (all-MiniLM-L6 runs at a
 fraction of the cost of the generation model) and update the reference window

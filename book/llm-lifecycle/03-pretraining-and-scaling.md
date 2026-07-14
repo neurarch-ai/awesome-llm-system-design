@@ -46,6 +46,15 @@ roughly:
 
 $$D^{\ast} \approx 20 \, N^{\ast}$$
 
+```python
+def chinchilla_optimal(C):
+    # C: training compute budget in FLOPs; uses C = 6*N*D and D = 20*N
+    N = (C / 120) ** 0.5   # params: substituting D=20N into 6ND gives C = 120*N^2
+    D = 20 * N             # tokens: about 20 per parameter at the optimum
+    return N, D
+# chinchilla_optimal(5.9e21) -> (~7.0e9, ~1.4e11): a 7B model wants ~140B tokens
+```
+
 That is, scale tokens and parameters together, about 20 tokens per parameter.
 A 7B model needs roughly 140B tokens to be compute-optimal. The models of the
 pre-Chinchilla era (Gopher, GPT-3) were severely undertrained: a 280B model

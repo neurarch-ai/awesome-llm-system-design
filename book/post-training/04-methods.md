@@ -13,6 +13,19 @@ flowchart TD
   GATE -->|"fail"| DATA
 ```
 
+**How it works.** Training starts from curated (prompt, response) pairs and runs SFT,
+which is plain next-token prediction on those labeled examples and is usually the only
+step needed. The branch point is whether the target quality axis is something SFT can
+teach directly: format, tone, and skill are learnable from examples, so those cases go
+straight to the eval gate. Axes that depend on comparing two candidate responses,
+safety, helpfulness, and other comparative preferences, cannot be expressed as a single
+gold answer, so they route through a preference-tuning stage (DPO, RLHF, or GRPO) before
+reaching the gate. The eval gate (covered in section 5) is the single arbiter: a pass
+ships the trained adapter, and a fail loops back to data curation rather than to more
+training, because the usual fix for a failed gate is better or cleaner data, not another
+epoch on the same set. The loop makes explicit that post-training is iterative and that
+data quality, not method choice, is the dominant lever.
+
 ## Supervised fine-tuning (SFT)
 
 SFT is plain next-token prediction on `(prompt, ideal response)` pairs. Show the

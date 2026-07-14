@@ -45,6 +45,16 @@ $S$** if steps are not compressed. This is the cost driver interviewers probe.
 The fix is summarization (compressing the transcript to remove old raw payloads)
 and prefix caching (paying for the stable prefix once).
 
+```python
+def agent_task_cost(growth, out, T0, p, g):   # growth[i]=a_i+r_i tokens added per step; out[i]=output tokens
+    T, total = T0, 0.0
+    for i in range(len(out)):
+        total += p * T + g * out[i]           # prefill re-reads full transcript T, plus generation
+        T += growth[i]                        # transcript grows by action + result tokens each step
+    return total                              # grows ~quadratically in steps if T is never compressed
+# agent_task_cost([100, 100, 100], [50, 50, 50], T0=200, p=1e-6, g=3e-6) -> 0.00135
+```
+
 ![Per-step and cumulative cost grow as the transcript lengthens](assets/fig-cost-vs-steps.png)
 
 *Left: each step re-reads the full transcript at prefill; per-step cost rises

@@ -16,6 +16,17 @@ flowchart TD
   WORKER --> NOTIFY["notify customer when done"]
 ```
 
+**How it works.** An incoming ticket first meets a complexity router that reads
+the request and decides which of two paths it takes. Simple tickets (a lookup
+plus a reply) go down the synchronous path and resolve in seconds while the user
+waits, ending in a reply sent inline. Anything involving writes or a likely
+escalation goes down the asynchronous path: it is placed on a durable task queue
+rather than blocking the caller, so a slow ticket never holds the fast path
+hostage. A pool of agent workers pulls from that queue, runs the full loop, and
+hands off two side outputs: an entry to the audit log for every step and a
+notification to the customer once the work completes. The queue is the seam that
+lets the fast and slow paths scale independently.
+
 The complexity router is itself a cheap model call or a rule-based classifier.
 Its purpose is to keep the fast path fast: simple tickets never wait behind
 long-running ones.

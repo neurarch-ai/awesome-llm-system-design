@@ -47,6 +47,21 @@ dim = 384 and M = 32, that is around 178 GB. Spotify's Voyager (wrapping
 hnswlib) compresses vectors to 8-bit floats (E4M3) and reports a 4x memory
 reduction.
 
+The greedy traversal (the `ef = 1` base case, before beam widening) hops from the
+entry node to whichever neighbor is closer to the query, stopping when no neighbor
+improves on the current node:
+
+```python
+def greedy_search(graph, dist, entry, query):    # graph: node -> list of neighbor ids
+    cur = entry                                    # start at a fixed entry point
+    while True:
+        best = min(graph[cur], key=lambda n: dist(n, query), default=cur)  # closest neighbor
+        if best == cur or dist(best, query) >= dist(cur, query):           # no neighbor is closer
+            return cur                                                     # local minimum reached
+        cur = best                                 # descend toward the query
+# on chain 0-1-2-3 with dist(n,q)=abs(n-3): greedy_search({0:[1],1:[0,2],2:[1,3],3:[2]}, lambda n,q: abs(n-3), 0, None) -> 3
+```
+
 ### IVF-PQ (inverted file plus product quantization)
 
 IVF-PQ clusters vectors into `nlist` cells (Voronoi partition). At query time,

@@ -35,6 +35,8 @@ flowchart LR
   end
 ```
 
+**How it works.** The two subgraphs differ in where the image stops being continuous. In late fusion, the top path, a vision encoder produces continuous patch features, a projector maps them into the decoder's embedding space, and those image tokens are interleaved with the tokenizer's text tokens into one sequence that the LLM decoder consumes. Nothing about the image is ever discretized: the projector's output is a block of real-valued vectors spliced in beside the text embeddings. In early fusion, the bottom path, a VQ tokenizer instead quantizes the image into discrete visual tokens drawn from a fixed codebook, so both image and text become entries in a single unified vocabulary and flow into one transformer with no separate encoder or projector. That unified stream is what lets an early-fusion model both read and generate images, at the cost of squeezing continuous visual detail through a discrete codebook, which is the training difficulty the next paragraph describes.
+
 Early fusion is cleaner architecturally but harder to train: keeping continuous
 visual detail in a discrete vocabulary is difficult, and training over mixed
 modalities requires careful data balancing. Late fusion lets you reuse a

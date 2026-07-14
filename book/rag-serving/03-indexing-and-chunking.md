@@ -44,6 +44,18 @@ For 50 million documents averaging 300 tokens with $s = 400$ and $o = 50$, the
 index holds roughly 40 to 50 million chunks. Dimension times four bytes times
 chunk count sets your index memory budget directly.
 
+The fixed-size-with-overlap splitter that produces those chunks is a sliding
+window advanced by the net stride $s - o$:
+
+```python
+def chunk_with_overlap(tokens, size, overlap):   # tokens: list of token ids; size, overlap in tokens
+    step = size - overlap                          # net advance per chunk; must be > 0
+    # slide a window of `size` forward by `step`, so consecutive chunks share `overlap` tokens
+    chunks = [tokens[i:i + size] for i in range(0, len(tokens), step)]
+    return chunks
+# chunk count matches ceil(L / (s - o)); chunk_with_overlap(list(range(10)), 4, 1) -> 4 chunks (ceil(10/3))
+```
+
 **When to use which chunking strategy.**
 
 | Reach for | When | Instead of |
