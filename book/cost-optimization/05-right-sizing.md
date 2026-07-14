@@ -59,6 +59,19 @@ Distillation is worth it when: the task is stable (the teacher's behavior does
 not shift week to week), QPS is high enough to justify the training run, and you
 can measure quality precisely enough to know when the student regresses.
 
+## Right-sizing the provider, not just the model
+
+Once you have picked the smallest model that clears the quality bar, there is a
+second lever that costs nothing to pull: **which provider serves it.** For a model
+you do not self-host, the same weights vary several-fold in price per token and in
+output speed across hosting providers, because each runs a different engine,
+batching, quantization, and hardware. So right-sizing has two axes, the model and
+the host, and you pick the point on the price-and-speed frontier that meets your
+latency SLO. Bring the **median (p50) price and speed per provider** over a rolling
+window to the decision, not a single noisy sample; independent trackers such as
+[Artificial Analysis](https://artificialanalysis.ai/) publish exactly that per
+provider, and the frontier moves, so re-check it periodically.
+
 ## The operational cost of more models
 
 Every additional model in the system has a maintenance cost: it must be evaluated,

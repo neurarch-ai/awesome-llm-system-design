@@ -93,6 +93,20 @@ Doubling throughput per GPU halves cost. This is why continuous batching,
 quantization, and speculative decoding have disproportionate business impact: each
 raises the denominator of the above formula.
 
+## Serving is a provider choice, not just a model choice
+
+For a model you do not self-host, the same weights are served by many providers,
+and they are not interchangeable: output tokens per second and price per token vary
+several-fold across hosts for the identical open model, because each runs a
+different engine, batching policy, quantization, and hardware. Do not quote a
+single "the model costs X"; benchmark the **median (p50) speed and price per
+provider** over a rolling window, since a one-shot measurement is noisy. Independent
+trackers such as [Artificial Analysis](https://artificialanalysis.ai/) publish
+exactly this, per-provider p50 output speed and price for each model, and it is the
+right number to bring to a build-versus-buy or provider-selection decision. The
+practical rule: choose the provider on the speed-and-price frontier that meets your
+latency SLO, and re-check it periodically, because the frontier moves.
+
 ## Bottlenecks table
 
 | Bottleneck | First sign | Root cause | Fix |
