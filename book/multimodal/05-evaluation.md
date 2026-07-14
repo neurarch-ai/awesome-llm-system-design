@@ -24,6 +24,12 @@ $$\text{VQA-Acc}(\hat{a}) = \min\left(\frac{\lvert \lbrace \text{humans who gave
   (A common interview error is to describe VQA accuracy as exact match; it is the
   soft `min(n/3, 1)` voting metric.)
 
+![How VQA soft accuracy is computed](assets/fig-vqa-soft-voting.png)
+
+*How the score is computed: count how many of the 10 humans gave the model's
+answer, then map that count through min(n/3, 1). Three or more matches is full
+credit; a rare-but-valid answer earns partial credit. Illustrative.*
+
 **TextVQA.** Same input/output and same soft VQA-accuracy scoring as VQAv2, but the
 questions require **reading text inside the image** (a sign, a label). It stresses
 OCR, so a model strong on VQAv2 can score far lower here if its input resolution is
@@ -47,6 +53,12 @@ too coarse to read small text.
   that describes the right object but boxes the wrong one scores well on VQA and
   fails grounding, which is why the two are separate metrics.
 
+![How IoU is computed](assets/fig-iou-computation.png)
+
+*IoU is the area of the overlap between the predicted and ground-truth box divided
+by the area of their union; the prediction counts as correct when IoU is at least
+0.5. The same IoU is the matching rule behind detection mAP.*
+
 **Multi-discipline reasoning (MMMU).** College-level multiple-choice questions
 across many subjects, with images. Because it is multiple choice, it is scored as
 plain **choice accuracy** (fraction of questions whose selected option is correct),
@@ -67,6 +79,12 @@ so it is not comparable to the free-form VQA number despite both being "accuracy
   adversarial split, means less hallucination. This is why a model that scores
   higher on VQA can be worse in practice: VQA rewards a confident answer, POPE
   catches the confident-but-invented ones.
+
+![How POPE scores hallucination](assets/fig-pope-confusion.png)
+
+*POPE reads as a confusion matrix over yes/no answers. The cell that matters is the
+bottom-left: saying "yes" to an object that is absent is a hallucination (a false
+positive), which drags down precision and F1 even when recall looks high.*
 
 ![VQA accuracy vs image-token budget across connector types](assets/fig-accuracy-vs-tokens.png)
 
