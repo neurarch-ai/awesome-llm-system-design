@@ -41,21 +41,21 @@
 ```mermaid
 flowchart LR
   subgraph Write["write path"]
-    DOCS["corpus\n(insert / update / delete)"] --> Q["message queue"]
-    Q --> EW["embedding workers\n(batch, GPU)"]
-    EW --> VUP["upsert into\nvector index"]
-    Q --> LUP["update\nlexical index"]
+    DOCS["corpus<br/>(insert / update / delete)"] --> Q["message queue"]
+    Q --> EW["embedding workers<br/>(batch, GPU)"]
+    EW --> VUP["upsert into<br/>vector index"]
+    Q --> LUP["update<br/>lexical index"]
   end
   subgraph Read["read path"]
-    REQ["query + filters"] --> ECACHE{"embedding\ncached?"}
+    REQ["query + filters"] --> ECACHE{"embedding<br/>cached?"}
     ECACHE -->|"yes"| EVec["cached query vector"]
     ECACHE -->|"no"| EINF["encoder inference"]
     EINF --> EVec
-    EVec --> ANN["ANN search\n(HNSW / IVF-PQ / DiskANN)"]
-    REQ --> BM25["BM25 / SPLADE\nlexical search"]
+    EVec --> ANN["ANN search<br/>(HNSW / IVF-PQ / DiskANN)"]
+    REQ --> BM25["BM25 / SPLADE<br/>lexical search"]
     ANN --> RRF["RRF fuse"]
     BM25 --> RRF
-    RRF --> RR["cross-encoder rerank\n(optional, top-100)"]
+    RRF --> RR["cross-encoder rerank<br/>(optional, top-100)"]
     RR --> TOP["top-k results"]
   end
   VUP -.-> ANN

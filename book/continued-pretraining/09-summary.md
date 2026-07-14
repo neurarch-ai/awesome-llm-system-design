@@ -43,17 +43,17 @@
 
 ```mermaid
 flowchart TD
-  BASE["pretrained base (8K window)"] --> MIX["domain corpus\n+ general-data replay mix"]
-  MIX --> DAPT["domain-adaptive pretraining\n(re-warm LR to modest peak, re-decay)"]
-  DAPT --> GATE1{"general benchmark\nregression gate"}
+  BASE["pretrained base (8K window)"] --> MIX["domain corpus<br/>+ general-data replay mix"]
+  MIX --> DAPT["domain-adaptive pretraining<br/>(re-warm LR to modest peak, re-decay)"]
+  DAPT --> GATE1{"general benchmark<br/>regression gate"}
   GATE1 -->|"pass"| ADB["domain base"]
-  GATE1 -->|"fail: adjust replay\nor re-warm peak"| MIX
-  ADB --> RS["rescale RoPE\n(PI / NTK-ABF / YaRN / LongRoPE)"]
-  RS --> LCD["long-context corpus\n(upsampled long docs + synthetic)"]
-  LCD --> LCT["staged long-context training\n(length increases in steps)"]
-  LCT --> GATE2{"NIAH + RULER\nlong-context gate"}
+  GATE1 -->|"fail: adjust replay<br/>or re-warm peak"| MIX
+  ADB --> RS["rescale RoPE<br/>(PI / NTK-ABF / YaRN / LongRoPE)"]
+  RS --> LCD["long-context corpus<br/>(upsampled long docs + synthetic)"]
+  LCD --> LCT["staged long-context training<br/>(length increases in steps)"]
+  LCT --> GATE2{"NIAH + RULER<br/>long-context gate"}
   GATE2 -->|"pass"| EXB["domain and long-context base"]
-  GATE2 -->|"fail: fix data\nor rescaling"| RS
+  GATE2 -->|"fail: fix data<br/>or rescaling"| RS
   EXB --> POST["post-training (SFT + preference opt)"]
 ```
 

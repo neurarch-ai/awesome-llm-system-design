@@ -46,13 +46,13 @@ low-frequency ones that carry long-range position.
 ```mermaid
 flowchart LR
   subgraph Inputs["inputs"]
-    B["pretrained base\n(8K window, general web)"]
-    DC["domain corpus\n(40B clinical tokens)"]
-    GR["general-data replay\n(fraction of web tokens)"]
-    LD["long-document corpus\n(upsampled, 60K+ tokens)"]
+    B["pretrained base<br/>(8K window, general web)"]
+    DC["domain corpus<br/>(40B clinical tokens)"]
+    GR["general-data replay<br/>(fraction of web tokens)"]
+    LD["long-document corpus<br/>(upsampled, 60K+ tokens)"]
   end
   subgraph Outputs["outputs"]
-    AB["adapted base:\ndomain prior shifted,\ncontext extended,\ngeneral ability preserved"]
+    AB["adapted base:<br/>domain prior shifted,<br/>context extended,<br/>general ability preserved"]
   end
   B --> AB
   DC --> AB

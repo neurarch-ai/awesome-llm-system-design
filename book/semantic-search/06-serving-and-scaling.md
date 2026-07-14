@@ -27,16 +27,16 @@ two levers that open budget for reranking.
 flowchart LR
   subgraph Offline["offline (write path)"]
     D["new / changed docs"] --> Q["queue (Kafka / SQS)"]
-    Q --> EW["embedding workers\n(GPU batch)"]
-    EW --> UP["upsert into vector index\n+ lexical index"]
+    Q --> EW["embedding workers<br/>(GPU batch)"]
+    EW --> UP["upsert into vector index<br/>+ lexical index"]
   end
   subgraph Online["online (read path)"]
-    R["query request"] --> EQ["embed query\n(with cache)"]
-    EQ --> ANN["ANN search\n(dense channel)"]
-    EQ --> BM["BM25 search\n(lexical channel)"]
+    R["query request"] --> EQ["embed query<br/>(with cache)"]
+    EQ --> ANN["ANN search<br/>(dense channel)"]
+    EQ --> BM["BM25 search<br/>(lexical channel)"]
     ANN --> FU["RRF fuse"]
     BM --> FU
-    FU --> RR["cross-encoder rerank\n(optional, top-100)"]
+    FU --> RR["cross-encoder rerank<br/>(optional, top-100)"]
     RR --> TOP["top-k results"]
   end
 ```

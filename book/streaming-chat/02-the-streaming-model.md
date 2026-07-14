@@ -97,12 +97,12 @@ signaling.
 ```mermaid
 flowchart LR
   U["user browser"] -->|"POST /chat (new message)"| GW["gateway"]
-  GW --> SS["session store\n(read transcript)"]
+  GW --> SS["session store<br/>(read transcript)"]
   SS --> GW
-  GW -->|"full prompt"| INF["inference engine\n(prefill + decode)"]
+  GW -->|"full prompt"| INF["inference engine<br/>(prefill + decode)"]
   INF -->|"token stream"| GW
   GW -->|"SSE chunks"| U
-  GW --> SS2["session store\n(append reply)"]
+  GW --> SS2["session store<br/>(append reply)"]
 ```
 
 The gateway is the only stateful proxy here. It reads the transcript, fans out

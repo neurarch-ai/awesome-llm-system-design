@@ -36,15 +36,15 @@ The serving design splits traffic into two shapes:
 ```mermaid
 flowchart LR
   USER["user request"] --> GATE["auth + rate limit"]
-  GATE --> RT["real-time path\n(interactive chat)\np95 latency goal"]
-  GATE --> BATCH["batch path\n(summarization, analysis)\nthroughput goal"]
+  GATE --> RT["real-time path<br/>(interactive chat)<br/>p95 latency goal"]
+  GATE --> BATCH["batch path<br/>(summarization, analysis)<br/>throughput goal"]
 
-  RT --> KV["KV cache manager\n(PagedAttention)"]
-  KV --> SMALL["distilled + quantized model\nGPU cluster, auto-scaled"]
+  RT --> KV["KV cache manager<br/>(PagedAttention)"]
+  KV --> SMALL["distilled + quantized model<br/>GPU cluster, auto-scaled"]
 
-  BATCH --> BIG["full model\nspot or reserved capacity"]
+  BATCH --> BIG["full model<br/>spot or reserved capacity"]
 
-  RAG["retrieval index\n(vector store + BM25)"] --> RT
+  RAG["retrieval index<br/>(vector store + BM25)"] --> RT
   RAG --> BATCH
 
   SMALL --> OUT["response"]

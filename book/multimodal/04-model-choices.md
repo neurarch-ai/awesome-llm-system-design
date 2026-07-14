@@ -20,16 +20,16 @@ flowchart LR
     A1["image"] --> VE["vision encoder"]
     VE --> PROJ["projector"]
     B1["text"] --> TOK["tokenizer"]
-    PROJ --> SEQ1["interleaved\nsequence"]
+    PROJ --> SEQ1["interleaved<br/>sequence"]
     TOK --> SEQ1
     SEQ1 --> DEC1["LLM decoder"]
   end
 
   subgraph Early["early fusion (Chameleon)"]
     direction TB
-    A2["image"] --> VQ["VQ tokenizer\n(discrete visual tokens)"]
+    A2["image"] --> VQ["VQ tokenizer<br/>(discrete visual tokens)"]
     B2["text"] --> TOK2["text tokenizer"]
-    VQ --> SEQ2["unified token\nstream"]
+    VQ --> SEQ2["unified token<br/>stream"]
     TOK2 --> SEQ2
     SEQ2 --> DEC2["unified transformer"]
   end

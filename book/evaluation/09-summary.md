@@ -42,22 +42,22 @@
 
 ```mermaid
 flowchart TD
-  CAND["candidate\n(prompt + model + config)"] --> SUITE["offline golden suite\nversioned inputs + references"]
-  SUITE --> TM["task metric\nexact / F1 / pass-fail"]
-  SUITE --> JUDGE["LLM-as-judge\nopen-ended rubric"]
-  JUDGE --> VAL{"judge validated\nkappa above bar?"}
-  VAL -->|"kappa below bar"| FIX["fix rubric\ndo not gate yet"]
+  CAND["candidate<br/>(prompt + model + config)"] --> SUITE["offline golden suite<br/>versioned inputs + references"]
+  SUITE --> TM["task metric<br/>exact / F1 / pass-fail"]
+  SUITE --> JUDGE["LLM-as-judge<br/>open-ended rubric"]
+  JUDGE --> VAL{"judge validated<br/>kappa above bar?"}
+  VAL -->|"kappa below bar"| FIX["fix rubric<br/>do not gate yet"]
   VAL -->|"kappa above bar"| JS["trusted judge score"]
-  TM --> AGG["aggregate + slice\nby segment"]
+  TM --> AGG["aggregate + slice<br/>by segment"]
   JS --> AGG
-  AGG --> GATE{"per-slice gate\nmin segment >= baseline - eps?"}
+  AGG --> GATE{"per-slice gate<br/>min segment >= baseline - eps?"}
   GATE -->|"fail"| BLOCK["block deploy"]
   GATE -->|"pass"| CANARY["canary / A/B test"]
-  CANARY --> OUT["online outcome\n(completion, edits, cost, latency)"]
-  OUT --> GUARD{"outcome ok\nguardrails hold?"}
+  CANARY --> OUT["online outcome<br/>(completion, edits, cost, latency)"]
+  OUT --> GUARD{"outcome ok<br/>guardrails hold?"}
   GUARD -->|"no"| BLOCK
   GUARD -->|"yes"| SHIP["full rollout"]
-  OUT -.->|"recalibrate\non offline-online gap"| AGG
+  OUT -.->|"recalibrate<br/>on offline-online gap"| AGG
 ```
 
 ## Test yourself

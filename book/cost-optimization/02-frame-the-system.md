@@ -19,20 +19,20 @@ is driven by request volume, is free work that saves nothing.
 ```mermaid
 flowchart LR
   subgraph Inputs["what flows in"]
-    SYS["system prompt\n(static, shared)"]
-    CTX["retrieved context\n(20 chunks today)"]
+    SYS["system prompt<br/>(static, shared)"]
+    CTX["retrieved context<br/>(20 chunks today)"]
     HIST["conversation history"]
     Q["user query"]
   end
   subgraph Levers["cost levers (applied left to right)"]
-    CACHE{"cache?\nexact or semantic"}
-    TRIM["trim context\n+ rerank to top-3"]
-    COMP["compress\nlow-info tokens"]
-    ROUTE{"route\nor cascade"}
+    CACHE{"cache?<br/>exact or semantic"}
+    TRIM["trim context<br/>+ rerank to top-3"]
+    COMP["compress<br/>low-info tokens"]
+    ROUTE{"route<br/>or cascade"}
   end
   subgraph Models["model tier"]
-    SMALL["small cheap model\nclassify / lookup / short answer"]
-    BIG["frontier model\nreasoning / code / hard generation"]
+    SMALL["small cheap model<br/>classify / lookup / short answer"]
+    BIG["frontier model<br/>reasoning / code / hard generation"]
   end
   SYS --> CACHE
   CTX --> TRIM

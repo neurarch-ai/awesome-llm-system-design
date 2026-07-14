@@ -12,13 +12,13 @@ requirements.
 ```mermaid
 flowchart LR
   subgraph Harness["eval harness"]
-    IN["candidate\n(prompt + model + config)"] --> QUEUE["work queue"]
+    IN["candidate<br/>(prompt + model + config)"] --> QUEUE["work queue"]
     DATASET["versioned golden dataset"] --> QUEUE
-    QUEUE --> WORKERS["parallel eval workers\n(run model + score)"]
-    WORKERS --> JUDGE["judge workers\n(optional, parallel)"]
-    JUDGE --> CACHE["result cache\n(keyed by input + candidate + judge version)"]
-    CACHE --> AGG["aggregation +\nslice scoring"]
-    AGG --> GATE["gate decision\nper-slice vs baseline"]
+    QUEUE --> WORKERS["parallel eval workers<br/>(run model + score)"]
+    WORKERS --> JUDGE["judge workers<br/>(optional, parallel)"]
+    JUDGE --> CACHE["result cache<br/>(keyed by input + candidate + judge version)"]
+    CACHE --> AGG["aggregation +<br/>slice scoring"]
+    AGG --> GATE["gate decision<br/>per-slice vs baseline"]
   end
   GATE -->|"pass"| SHIP["deploy pipeline"]
   GATE -->|"fail"| BLOCK["block + alert"]

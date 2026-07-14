@@ -70,14 +70,14 @@ not affected, only one turn's latency cost is elevated.
 
 ```mermaid
 flowchart LR
-  LB["load balancer\n(HTTP / WebSocket)"] --> GW1["gateway 1"]
+  LB["load balancer<br/>(HTTP / WebSocket)"] --> GW1["gateway 1"]
   LB --> GW2["gateway 2"]
   LB --> GW3["gateway N"]
-  GW1 -->|"session hash"| INF1["inference replica 1\n(KV cache shard A)"]
-  GW1 -->|"session hash"| INF2["inference replica 2\n(KV cache shard B)"]
+  GW1 -->|"session hash"| INF1["inference replica 1<br/>(KV cache shard A)"]
+  GW1 -->|"session hash"| INF2["inference replica 2<br/>(KV cache shard B)"]
   GW2 --> INF1
   GW2 --> INF2
-  INF1 --> SS["session store\n(Redis + Postgres)"]
+  INF1 --> SS["session store<br/>(Redis + Postgres)"]
   INF2 --> SS
   GW1 --> SS
   GW2 --> SS

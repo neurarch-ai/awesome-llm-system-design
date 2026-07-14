@@ -8,13 +8,13 @@ Confusing them is the fastest way to waste budget and fail the interview.
 
 ```mermaid
 flowchart TD
-  WEB["web + proprietary corpus\n(raw text, possibly petabytes)"]
-  PREP["1. Data preparation\ndedup, filter, decontaminate, PII scrub, tokenize\nOutput: a clean token stream"]
-  PT["2. Pretraining\nself-supervised next-token prediction over trillions of tokens\nOutput: a raw base model"]
-  MID["3. Mid-training\ncontinued pretraining on domain data or long-context docs\nOutput: a domain or extended-context base"]
-  SFT["4a. SFT\nfine-tune on instruction-response pairs\nOutput: a model that answers instead of completing"]
-  PREF["4b. Preference optimization\nRLHF / DPO / GRPO\nOutput: an aligned chat / instruct model"]
-  SERVE["5. Deployment and inference\nquantize, KV cache, continuous batching, RAG and tools\nOutput: a production system"]
+  WEB["web + proprietary corpus<br/>(raw text, possibly petabytes)"]
+  PREP["1. Data preparation<br/>dedup, filter, decontaminate, PII scrub, tokenize<br/>Output: a clean token stream"]
+  PT["2. Pretraining<br/>self-supervised next-token prediction over trillions of tokens<br/>Output: a raw base model"]
+  MID["3. Mid-training<br/>continued pretraining on domain data or long-context docs<br/>Output: a domain or extended-context base"]
+  SFT["4a. SFT<br/>fine-tune on instruction-response pairs<br/>Output: a model that answers instead of completing"]
+  PREF["4b. Preference optimization<br/>RLHF / DPO / GRPO<br/>Output: an aligned chat / instruct model"]
+  SERVE["5. Deployment and inference<br/>quantize, KV cache, continuous batching, RAG and tools<br/>Output: a production system"]
 
   WEB --> PREP --> PT --> MID --> SFT --> PREF --> SERVE
   PT --> SFT
@@ -43,10 +43,10 @@ serving) are downstream and, by comparison, cheap.
 
 ```mermaid
 flowchart LR
-  BASE["open base\n(Llama 3, Qwen3, OLMo,\nDeepSeek-V3)"]
-  MID["mid-training\n(domain / long-context)\nweeks on a small cluster"]
-  POST["post-training\n(SFT + DPO)\ndays"]
-  SERVE["serving\n(quantize, batch, RAG)\nongoing cost"]
+  BASE["open base<br/>(Llama 3, Qwen3, OLMo,<br/>DeepSeek-V3)"]
+  MID["mid-training<br/>(domain / long-context)<br/>weeks on a small cluster"]
+  POST["post-training<br/>(SFT + DPO)<br/>days"]
+  SERVE["serving<br/>(quantize, batch, RAG)<br/>ongoing cost"]
 
   BASE --> MID --> POST --> SERVE
   BASE --> POST

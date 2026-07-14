@@ -31,17 +31,17 @@
 
 ```mermaid
 flowchart LR
-  IMG["image upload"] --> VAL["validate + resize\n(cap at resolution limit)"]
-  VAL --> CACHE_CHECK{"image hash\nin cache?"}
+  IMG["image upload"] --> VAL["validate + resize<br/>(cap at resolution limit)"]
+  VAL --> CACHE_CHECK{"image hash<br/>in cache?"}
   CACHE_CHECK -- yes --> ITOK["cached image token block"]
-  CACHE_CHECK -- no --> ENC["vision encoder (ViT)\nbatchable, once per image"]
-  ENC --> PROJ["projector / connector\n(sets image-token count)"]
+  CACHE_CHECK -- no --> ENC["vision encoder (ViT)<br/>batchable, once per image"]
+  ENC --> PROJ["projector / connector<br/>(sets image-token count)"]
   PROJ --> ITOK
   ITOK --> MERGE["interleave with text tokens"]
   TXT["text prompt"] --> TOK["tokenizer"]
   TOK --> MERGE
   TXT_ONLY["text-only requests"] -. "skip encoder + projector" .-> MERGE
-  MERGE --> DEC["LLM decoder\n(continuous batching, KV cache)"]
+  MERGE --> DEC["LLM decoder<br/>(continuous batching, KV cache)"]
   DEC --> ANS["streamed answer"]
 ```
 

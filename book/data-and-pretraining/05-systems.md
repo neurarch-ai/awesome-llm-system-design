@@ -119,18 +119,18 @@ The practical plan stacks multiple axes, chosen by which constraint binds:
 
 ```mermaid
 flowchart TD
-  PROB["model does not fit one GPU,\nbatch does not fit one node"] --> TP["tensor parallel\n(split matrices, in-node NVLink)"]
-  PROB --> PP["pipeline parallel\n(split layers, many micro-batches)"]
-  PROB --> DP["data parallel\n(split batch, all-reduce grads)"]
-  DP --> ZERO["ZeRO / FSDP sharding\n(partition optimizer, grads, params)"]
+  PROB["model does not fit one GPU,<br/>batch does not fit one node"] --> TP["tensor parallel<br/>(split matrices, in-node NVLink)"]
+  PROB --> PP["pipeline parallel<br/>(split layers, many micro-batches)"]
+  PROB --> DP["data parallel<br/>(split batch, all-reduce grads)"]
+  DP --> ZERO["ZeRO / FSDP sharding<br/>(partition optimizer, grads, params)"]
   ZERO --> Z1["ZeRO-1: shard optimizer states"]
   Z1 --> Z2["ZeRO-2: + gradients"]
   Z2 --> Z3["ZeRO-3 / FSDP: + parameters"]
-  TP --> MFU["target: high MFU\n(30-50% is good at frontier scale)"]
+  TP --> MFU["target: high MFU<br/>(30-50% is good at frontier scale)"]
   PP --> MFU
   Z3 --> MFU
   MOEFLAG{"MoE?"}
-  MOEFLAG -->|yes| EP["expert parallel\n(all-to-all token routing)"]
+  MOEFLAG -->|yes| EP["expert parallel<br/>(all-to-all token routing)"]
   EP --> MFU
 ```
 

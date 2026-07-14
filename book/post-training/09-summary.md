@@ -37,14 +37,14 @@
 
 ```mermaid
 flowchart TD
-  PROMPT["prompt engineering\n(free, instant)"]
-  RAG["retrieval (RAG)\nfor knowledge gaps"]
-  DATA["data curation\nclean (prompt, response) pairs\ndedup, decontam, version"]
-  SFT["SFT\nnext-token loss on labeled pairs\nLoRA or QLoRA adapter"]
-  PREF["preference tuning (optional)\nDPO: (chosen, rejected) + KL leash\nRLHF: reward model + PPO"]
-  GATE{"eval gate\ntask quality + safety + regression vs prod\n+ live slice"}
-  SERVE["serve\nbase + hot-swappable adapters\nmulti-LoRA"]
-  LOGS["production logs\n(flywheel)"]
+  PROMPT["prompt engineering<br/>(free, instant)"]
+  RAG["retrieval (RAG)<br/>for knowledge gaps"]
+  DATA["data curation<br/>clean (prompt, response) pairs<br/>dedup, decontam, version"]
+  SFT["SFT<br/>next-token loss on labeled pairs<br/>LoRA or QLoRA adapter"]
+  PREF["preference tuning (optional)<br/>DPO: (chosen, rejected) + KL leash<br/>RLHF: reward model + PPO"]
+  GATE{"eval gate<br/>task quality + safety + regression vs prod<br/>+ live slice"}
+  SERVE["serve<br/>base + hot-swappable adapters<br/>multi-LoRA"]
+  LOGS["production logs<br/>(flywheel)"]
 
   PROMPT -->|"gap remains"| RAG
   RAG -->|"behavior gap, not knowledge"| DATA

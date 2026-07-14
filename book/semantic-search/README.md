@@ -36,9 +36,9 @@ Etsy, Instacart, Meta, Google, and Microsoft actually ship it.
 ```mermaid
 flowchart LR
   subgraph Offline
-    D["corpus"] --> EMB["embedding service\n(batched)"]
-    EMB --> IDX["vector index\n(HNSW / IVF-PQ / DiskANN)"]
-    D --> LEX["lexical index\n(BM25 / SPLADE)"]
+    D["corpus"] --> EMB["embedding service<br/>(batched)"]
+    EMB --> IDX["vector index<br/>(HNSW / IVF-PQ / DiskANN)"]
+    D --> LEX["lexical index<br/>(BM25 / SPLADE)"]
   end
   subgraph Online
     Q["query"] --> EQ["embed query"]
@@ -48,7 +48,7 @@ flowchart LR
     LEX --> BM25
     ANN --> FUSE["fuse (RRF)"]
     BM25 --> FUSE
-    FUSE --> RR["cross-encoder rerank\n(optional)"]
+    FUSE --> RR["cross-encoder rerank<br/>(optional)"]
     RR --> TOP["top-k results"]
   end
 ```

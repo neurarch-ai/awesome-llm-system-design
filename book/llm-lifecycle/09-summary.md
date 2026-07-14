@@ -36,15 +36,15 @@
 ```mermaid
 flowchart TD
   WEB["web + proprietary corpus"]
-  PREP["1. data prep\ndedup, filter, decontaminate, tokenize\nFineWeb / Dolma recipe"]
-  PT["2. pretraining\nnext-token prediction, trillions of tokens\nChinchilla sizing or inference-aware overtraining"]
-  BASE["base model\nLlama 3, Qwen3, OLMo, DeepSeek-V3, Mistral"]
-  MID["3. mid-training\ncontinued pretrain on domain data\nor RoPE-scaled long-context extension"]
-  SFT["4a. SFT\ninstruction-response pairs\nteaches format and following"]
-  PREF["4b. preference optimization\nRLHF / DPO / GRPO\nKL leash to reference"]
+  PREP["1. data prep<br/>dedup, filter, decontaminate, tokenize<br/>FineWeb / Dolma recipe"]
+  PT["2. pretraining<br/>next-token prediction, trillions of tokens<br/>Chinchilla sizing or inference-aware overtraining"]
+  BASE["base model<br/>Llama 3, Qwen3, OLMo, DeepSeek-V3, Mistral"]
+  MID["3. mid-training<br/>continued pretrain on domain data<br/>or RoPE-scaled long-context extension"]
+  SFT["4a. SFT<br/>instruction-response pairs<br/>teaches format and following"]
+  PREF["4b. preference optimization<br/>RLHF / DPO / GRPO<br/>KL leash to reference"]
   CHAT["aligned chat / instruct model"]
-  SERVE["5. deployment\nquantize, paged KV cache, continuous batching\nvLLM / Character.AI stack"]
-  RAG["RAG + tools\nfresh facts, citations, function calls"]
+  SERVE["5. deployment<br/>quantize, paged KV cache, continuous batching<br/>vLLM / Character.AI stack"]
+  RAG["RAG + tools<br/>fresh facts, citations, function calls"]
   PROD["production traffic"]
 
   WEB --> PREP --> PT --> BASE

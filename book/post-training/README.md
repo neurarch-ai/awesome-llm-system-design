@@ -29,10 +29,10 @@ reach for a training run on the first sentence lose the plot.
 
 ```mermaid
 flowchart TD
-  DATA["DATA CURATION\nproduction logs + human labels + synthetic\ndedup, filter, decontaminate, version"] --> SFT["SFT\nbase + LoRA/QLoRA adapter on (prompt, response)"]
-  SFT --> PREF["PREFERENCE TUNING (optional)\nDPO on (chosen, rejected) pairs\nor RLHF: reward model + KL-penalized RL"]
-  PREF --> GATE{"EVAL GATE\noffline quality + safety + regression vs prod"}
-  GATE -->|"pass"| SERVE["SERVING\nbase + hot-swappable adapters, multi-LoRA"]
+  DATA["DATA CURATION<br/>production logs + human labels + synthetic<br/>dedup, filter, decontaminate, version"] --> SFT["SFT<br/>base + LoRA/QLoRA adapter on (prompt, response)"]
+  SFT --> PREF["PREFERENCE TUNING (optional)<br/>DPO on (chosen, rejected) pairs<br/>or RLHF: reward model + KL-penalized RL"]
+  PREF --> GATE{"EVAL GATE<br/>offline quality + safety + regression vs prod"}
+  GATE -->|"pass"| SERVE["SERVING<br/>base + hot-swappable adapters, multi-LoRA"]
   GATE -->|"fail"| DATA
   SERVE -->|"production logs"| DATA
 ```

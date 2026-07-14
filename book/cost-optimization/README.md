@@ -28,11 +28,11 @@ Databricks, Baseten, Cloudflare, and Uber actually ship it.
 
 ```mermaid
 flowchart TD
-  REQ["request"] --> GW["gateway / proxy\nbudget, auth, logging"]
+  REQ["request"] --> GW["gateway / proxy<br/>budget, auth, logging"]
   GW --> CACHE{"semantic cache hit?"}
   CACHE -->|"hit"| OUT["response"]
-  CACHE -->|"miss"| COMP["prompt compression\n+ context trim"]
-  COMP --> ROUTE{"router\npredict difficulty"}
+  CACHE -->|"miss"| COMP["prompt compression<br/>+ context trim"]
+  COMP --> ROUTE{"router<br/>predict difficulty"}
   ROUTE -->|"easy"| SMALL["small / cheap model"]
   ROUTE -->|"hard"| BIG["frontier model"]
   SMALL --> CONF{"confidence ok?"}

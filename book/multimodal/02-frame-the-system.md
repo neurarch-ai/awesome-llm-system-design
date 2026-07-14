@@ -13,7 +13,7 @@ flowchart LR
   TXT["text prompt"] --> TOK["tokenizer"]
   TOK --> TT["text tokens"]
   P --> ITOK["image tokens"]
-  ITOK --> SEQ["interleaved sequence\n[image tokens ... text tokens]"]
+  ITOK --> SEQ["interleaved sequence<br/>[image tokens ... text tokens]"]
   TT --> SEQ
   SEQ --> DEC["LLM decoder"]
   DEC --> OUT["answer"]

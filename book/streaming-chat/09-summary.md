@@ -36,13 +36,13 @@
 
 ```mermaid
 flowchart LR
-  C["client"] -->|"new message\n+ session id"| GW["gateway"]
-  GW --> SS["session store\n(transcript + summary)"]
+  C["client"] -->|"new message<br/>+ session id"| GW["gateway"]
+  GW --> SS["session store<br/>(transcript + summary)"]
   SS -->|"history"| GW
-  GW -->|"full prompt\n(history + new msg)"| INF["inference pool\n(continuous batching)"]
+  GW -->|"full prompt<br/>(history + new msg)"| INF["inference pool<br/>(continuous batching)"]
   INF -->|"token stream"| GW
-  GW -->|"SSE chunks\n(Last-Event-ID)"| C
-  INF --> SS2["session store\n(write reply on completion)"]
+  GW -->|"SSE chunks<br/>(Last-Event-ID)"| C
+  INF --> SS2["session store<br/>(write reply on completion)"]
   C -->|"cancel signal"| GW
   GW -->|"abort"| INF
   INF -->|"free slot"| POOL["slot pool"]

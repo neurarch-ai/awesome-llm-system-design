@@ -32,20 +32,20 @@
 
 ```mermaid
 flowchart LR
-  U["user input\n(+ docs, tool output)"] --> CH["cheap tier\n(regex, blocklist, PII)"]
+  U["user input<br/>(+ docs, tool output)"] --> CH["cheap tier<br/>(regex, blocklist, PII)"]
   CH -->|obvious| PR{"policy router"}
-  CH -->|survivor| IG["input guard\n(distilled or guard-LLM)"]
+  CH -->|survivor| IG["input guard<br/>(distilled or guard-LLM)"]
   IG -->|injection / jailbreak| PR
-  IG -->|pass| PA["prompt assembly\n(spotlit, delimited)"]
+  IG -->|pass| PA["prompt assembly<br/>(spotlit, delimited)"]
   PA --> L["LLM"]
-  L --> OG["output guard\n(toxicity, grounding, PII)"]
+  L --> OG["output guard<br/>(toxicity, grounding, PII)"]
   OG -->|unsafe| PR
   OG -->|pass| PR
   PR -->|clearly disallowed| RF["refuse"]
   PR -->|mixed| SC["safe-complete"]
   PR -->|high-stakes| HR["escalate to human"]
   PR -->|borderline| LA["log and allow"]
-  LOG["audit log\n(every verdict)"] -.-> PR
+  LOG["audit log<br/>(every verdict)"] -.-> PR
 ```
 
 ## Test yourself

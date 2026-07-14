@@ -48,15 +48,15 @@
 
 ```mermaid
 flowchart TD
-  SRC["web archives (WARC)\n+ curated corpora"] --> PREP["extract, language ID,\nquality filter, dedup,\nPII scrub, decontaminate"]
-  PREP --> MIX["data mixing + curriculum\n(domain weights, annealing)"]
-  MIX --> TOK["tokenize once\n(BPE / SentencePiece)"]
-  TOK --> SIZE["scaling-law sizing\n(C ~ 6ND; 20 tok/param training-opt;\novertrain smaller if serving-heavy)"]
-  SIZE --> PT["distributed pretraining\n(TP in-node, PP + DP cross-node,\nZeRO / FSDP sharding, FP8 if frontier)"]
-  PT --> CKPT["frequent sharded checkpoints\n(elastic restart, loss-spike rollback)"]
+  SRC["web archives (WARC)<br/>+ curated corpora"] --> PREP["extract, language ID,<br/>quality filter, dedup,<br/>PII scrub, decontaminate"]
+  PREP --> MIX["data mixing + curriculum<br/>(domain weights, annealing)"]
+  MIX --> TOK["tokenize once<br/>(BPE / SentencePiece)"]
+  TOK --> SIZE["scaling-law sizing<br/>(C ~ 6ND; 20 tok/param training-opt;<br/>overtrain smaller if serving-heavy)"]
+  SIZE --> PT["distributed pretraining<br/>(TP in-node, PP + DP cross-node,<br/>ZeRO / FSDP sharding, FP8 if frontier)"]
+  PT --> CKPT["frequent sharded checkpoints<br/>(elastic restart, loss-spike rollback)"]
   PT --> BASE["base model"]
   CKPT -.resume on failure or spike.-> PT
-  BASE --> EVAL["eval: BPB + benchmarks\n(decontaminated, time-split)"]
+  BASE --> EVAL["eval: BPB + benchmarks<br/>(decontaminated, time-split)"]
 ```
 
 ## Test yourself

@@ -42,16 +42,16 @@
 
 ```mermaid
 flowchart LR
-  REQ["request (high QPS)"] --> GATE["SLO gate\n(429 + retry if saturated)"]
-  GATE --> SCHED["continuous-batching scheduler\n(retire EOS, admit waiting)"]
-  SCHED --> PRE["prefill\n(compute-bound, chunked)"]
-  PRE -->|"writes paged KV"| KV["paged KV cache\n(quantized to INT8 / FP8)"]
-  KV -->|"read per step"| DEC["decode\n(bandwidth-bound)"]
+  REQ["request (high QPS)"] --> GATE["SLO gate<br/>(429 + retry if saturated)"]
+  GATE --> SCHED["continuous-batching scheduler<br/>(retire EOS, admit waiting)"]
+  SCHED --> PRE["prefill<br/>(compute-bound, chunked)"]
+  PRE -->|"writes paged KV"| KV["paged KV cache<br/>(quantized to INT8 / FP8)"]
+  KV -->|"read per step"| DEC["decode<br/>(bandwidth-bound)"]
   DEC -->|"appends KV"| KV
-  DRAFT["draft model\n(n-gram / small LM)"] --> DEC
+  DRAFT["draft model<br/>(n-gram / small LM)"] --> DEC
   DEC --> OUT["streamed tokens"]
-  AUTO["autoscaler\n(queue-depth signal, warm buffer)"] -.-> SCHED
-  TP["tensor parallel engine\n(TP within node, PP across)"] -.-> PRE
+  AUTO["autoscaler<br/>(queue-depth signal, warm buffer)"] -.-> SCHED
+  TP["tensor parallel engine<br/>(TP within node, PP across)"] -.-> PRE
   TP -.-> DEC
 ```
 

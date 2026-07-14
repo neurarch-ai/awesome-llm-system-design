@@ -31,12 +31,12 @@ reasons about the dominant cost there.
 
 ```mermaid
 flowchart LR
-  DATA["web + proprietary corpus"] --> PREP["data prep\n(FineWeb, Dolma)"]
-  PREP --> PT["pretraining / mid-training\n(Chinchilla sizing, Llama 3 recipe)"]
-  PT --> BASE["base model\n(Llama 3, Mistral, OLMo, Qwen3)"]
-  BASE --> POST["post-training\n(InstructGPT, CAI, DPO, R1)"]
+  DATA["web + proprietary corpus"] --> PREP["data prep<br/>(FineWeb, Dolma)"]
+  PREP --> PT["pretraining / mid-training<br/>(Chinchilla sizing, Llama 3 recipe)"]
+  PT --> BASE["base model<br/>(Llama 3, Mistral, OLMo, Qwen3)"]
+  BASE --> POST["post-training<br/>(InstructGPT, CAI, DPO, R1)"]
   POST --> ALIGN["aligned model"]
-  ALIGN --> SERVE["serving\n(vLLM, Character.AI)"]
+  ALIGN --> SERVE["serving<br/>(vLLM, Character.AI)"]
   SERVE --> PROD["production"]
   PROD -.preference + feedback.-> POST
 ```

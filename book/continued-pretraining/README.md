@@ -35,11 +35,11 @@ Alibaba, and the Mila group actually do it.
 ```mermaid
 flowchart TD
   BASE["pretrained base (4K to 8K window)"] --> MIX["domain corpus + general-data replay"]
-  MIX --> DAPT["domain-adaptive pretraining\n(re-warm LR, modest peak, re-decay)"]
+  MIX --> DAPT["domain-adaptive pretraining<br/>(re-warm LR, modest peak, re-decay)"]
   DAPT --> ADB["domain base"]
-  ADB --> RS["rescale RoPE frequencies\n(PI / NTK-ABF / YaRN / LongRoPE)"]
-  RS --> LONG["long-context corpus\n(upsampled long docs + synthetic)"]
-  LONG --> LCT["long-context continued training\n(staged length increase)"]
+  ADB --> RS["rescale RoPE frequencies<br/>(PI / NTK-ABF / YaRN / LongRoPE)"]
+  RS --> LONG["long-context corpus<br/>(upsampled long docs + synthetic)"]
+  LONG --> LCT["long-context continued training<br/>(staged length increase)"]
   LCT --> EXB["domain and long-context base"]
   EXB --> POST["post-training (SFT + preference opt)"]
   DAPT -. "general-benchmark regression gate" .-> ADB

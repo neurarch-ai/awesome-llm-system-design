@@ -27,15 +27,15 @@ Reuters, Uber, GitLab, Ramp, Booking.com, and others actually run it.
 
 ```mermaid
 flowchart TD
-  A["candidate\n(model + prompt + config)"] --> B["offline suite\ngolden set + scoring"]
-  B --> C1["task metric\n(exact / F1 / pass-fail)"]
-  B --> C2["LLM-as-judge\n(open-ended)"]
+  A["candidate<br/>(model + prompt + config)"] --> B["offline suite<br/>golden set + scoring"]
+  B --> C1["task metric<br/>(exact / F1 / pass-fail)"]
+  B --> C2["LLM-as-judge<br/>(open-ended)"]
   C1 --> D["aggregate + slice"]
   C2 --> D
-  D --> G{"regression gate\nper-slice >= baseline - eps?"}
+  D --> G{"regression gate<br/>per-slice >= baseline - eps?"}
   G -->|"fail"| R["block deploy"]
   G -->|"pass"| H["canary / A/B"]
-  H --> K["online outcome metrics\n(completion, edits, cost)"]
+  H --> K["online outcome metrics<br/>(completion, edits, cost)"]
   K --> L{"outcome ok?"}
   L -->|"no"| R
   L -->|"yes"| S["full rollout"]

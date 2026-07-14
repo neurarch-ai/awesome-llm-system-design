@@ -27,8 +27,8 @@ flowchart LR
   D["documents"] --> P["parse / clean"]
   P --> C["chunk"]
   C --> E["embed chunks"]
-  E --> V["vector index\n(with ACL metadata)"]
-  C --> M["metadata store\n(source, timestamp, ACL)"]
+  E --> V["vector index<br/>(with ACL metadata)"]
+  C --> M["metadata store<br/>(source, timestamp, ACL)"]
   M --> V
 ```
 
@@ -46,10 +46,10 @@ generation. The answer streams back with inline citations.
 ```mermaid
 flowchart TD
   Q["query + user identity"] --> QE["embed query"]
-  QE --> VS["ANN search\n(ACL-filtered inside search)"]
+  QE --> VS["ANN search<br/>(ACL-filtered inside search)"]
   VS --> TK["top-k chunks"]
-  TK --> RR["cross-encoder rerank\n(optional, top-m output)"]
-  RR --> PA["assemble prompt\n(system prompt + chunks + query)"]
+  TK --> RR["cross-encoder rerank<br/>(optional, top-m output)"]
+  RR --> PA["assemble prompt<br/>(system prompt + chunks + query)"]
   PA --> G["LLM generate"]
   G --> A["answer + cited source IDs"]
   A --> S["stream to user"]

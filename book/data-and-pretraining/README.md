@@ -37,15 +37,15 @@ cross-entropy) is one line; the engineering is everything around it.
 
 ```mermaid
 flowchart TD
-  CC["raw web archives (WARC)\n+ curated corpora"] --> EXT["text extraction\n(boilerplate removal)"]
+  CC["raw web archives (WARC)<br/>+ curated corpora"] --> EXT["text extraction<br/>(boilerplate removal)"]
   EXT --> LID["language ID + routing"]
-  LID --> QUAL["quality filter\n(heuristics + learned classifier)"]
-  QUAL --> DEDUP["deduplication\n(exact hash + MinHash / LSH)"]
+  LID --> QUAL["quality filter<br/>(heuristics + learned classifier)"]
+  QUAL --> DEDUP["deduplication<br/>(exact hash + MinHash / LSH)"]
   DEDUP --> PII["PII scrub + safety filter"]
   PII --> DECON["decontamination vs eval sets"]
-  DECON --> MIX["data mixing + curriculum\n(domain weights, annealing)"]
+  DECON --> MIX["data mixing + curriculum<br/>(domain weights, annealing)"]
   MIX --> TOK["tokenize (BPE / SentencePiece)"]
-  TOK --> PT["distributed pretraining\n(next-token prediction,\nDP / TP / PP / ZeRO)"]
+  TOK --> PT["distributed pretraining<br/>(next-token prediction,<br/>DP / TP / PP / ZeRO)"]
   PT --> CKPT["periodic checkpoints"]
   PT --> BASE["base model"]
   CKPT -.resume on failure or spike.-> PT

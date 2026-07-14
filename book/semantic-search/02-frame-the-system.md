@@ -9,14 +9,14 @@ boundaries right is the whole design.
 ```mermaid
 flowchart LR
   subgraph Write["write path (offline)"]
-    D["document corpus"] --> EMB["1. embed\n(encoder model, batched)"]
-    EMB --> IDX["2. index\n(ANN index + lexical index)"]
+    D["document corpus"] --> EMB["1. embed<br/>(encoder model, batched)"]
+    EMB --> IDX["2. index<br/>(ANN index + lexical index)"]
   end
   subgraph Read["read path (online)"]
-    Q["query"] --> EQ["1. embed query\n(same encoder)"]
-    EQ --> RET["2. retrieve\n(ANN + BM25, fused)"]
+    Q["query"] --> EQ["1. embed query<br/>(same encoder)"]
+    EQ --> RET["2. retrieve<br/>(ANN + BM25, fused)"]
     IDX --> RET
-    RET --> RR["3. rerank\n(cross-encoder, optional)"]
+    RET --> RR["3. rerank<br/>(cross-encoder, optional)"]
     RR --> TOP["top-k"]
   end
 ```

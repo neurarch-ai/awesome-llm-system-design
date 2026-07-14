@@ -28,14 +28,14 @@ purposes and must both be wired up.
 ```mermaid
 flowchart LR
   subgraph Offline["offline loop (gates the change)"]
-    G["golden dataset\n(versioned inputs + refs)"] --> R["run candidate\n(prompt + model + config)"]
+    G["golden dataset<br/>(versioned inputs + refs)"] --> R["run candidate<br/>(prompt + model + config)"]
     R --> S["score each output"]
     S --> AGG["aggregate + slice by segment"]
-    AGG --> GATE{"regression gate\nscore >= baseline - eps?"}
+    AGG --> GATE{"regression gate<br/>score >= baseline - eps?"}
   end
   subgraph Online["online loop (checks the gate was honest)"]
-    AB["A/B test or canary"] --> BEH["behavioral signals\n(completion, edits, thumbs)"]
-    BEH --> CORR["compare online outcome\nto offline score"]
+    AB["A/B test or canary"] --> BEH["behavioral signals<br/>(completion, edits, thumbs)"]
+    BEH --> CORR["compare online outcome<br/>to offline score"]
     CORR -.->|"recalibrate"| AGG
   end
   GATE -->|"pass"| AB

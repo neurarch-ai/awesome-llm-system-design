@@ -37,11 +37,11 @@ $$r_t = r_{\phi}(x, y) - \beta \left(\log \pi_{\theta}(y_t \mid \cdot) - \log \p
 
 ```mermaid
 flowchart LR
-  BASE["base model"] --> SFT["1. SFT\n(demonstrations)"]
+  BASE["base model"] --> SFT["1. SFT<br/>(demonstrations)"]
   SFT --> GEN["sample k outputs per prompt"]
   GEN --> HUM["humans rank pairs"]
-  HUM --> RM["2. reward model\n(Bradley-Terry)"]
-  SFT --> PPO["3. PPO\n(maximize reward)"]
+  HUM --> RM["2. reward model<br/>(Bradley-Terry)"]
+  SFT --> PPO["3. PPO<br/>(maximize reward)"]
   RM --> PPO
   SFT -."KL reference pi_ref".-> PPO
   PPO --> ALIGNED["aligned model"]

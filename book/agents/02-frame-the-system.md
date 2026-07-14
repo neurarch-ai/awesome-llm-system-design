@@ -20,8 +20,8 @@ Every iteration follows the same three beats:
 
 ```mermaid
 flowchart LR
-  PLAN["plan\nchoose next action"] --> ACT["act\nexecute tool (or finish)"]
-  ACT --> OBS["observe\nappend result to state"]
+  PLAN["plan<br/>choose next action"] --> ACT["act<br/>execute tool (or finish)"]
+  ACT --> OBS["observe<br/>append result to state"]
   OBS --> PLAN
 ```
 
@@ -54,7 +54,7 @@ check that the model cannot override:
 
 ```mermaid
 flowchart LR
-  PROP["model: propose tool call\nwith arguments"] --> GATE{"code gate"}
+  PROP["model: propose tool call<br/>with arguments"] --> GATE{"code gate"}
   GATE -->|schema invalid| REJECT["return error to model"]
   GATE -->|policy violation| REJECT
   GATE -->|ok| EXEC["execute tool"]

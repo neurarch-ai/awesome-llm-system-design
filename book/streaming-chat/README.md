@@ -32,10 +32,10 @@ up where those leave off.
 ```mermaid
 flowchart LR
   C["client"] -->|"user message"| G["gateway / streaming layer"]
-  G --> P["inference pool\n(continuous batching)"]
+  G --> P["inference pool<br/>(continuous batching)"]
   P -->|"token stream"| G
   G -->|"SSE / WebSocket"| C
-  G --> S["session store\n(transcript, summary,\nsticky-routing key)"]
+  G --> S["session store<br/>(transcript, summary,<br/>sticky-routing key)"]
   S --> G
 ```
 

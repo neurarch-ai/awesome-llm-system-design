@@ -26,15 +26,15 @@ LinkedIn, NVIDIA, Together AI, Fireworks, Moonshot, and others actually ship it.
 
 ```mermaid
 flowchart LR
-  REQ["incoming request"] --> GATE["SLO gate\n(admit or queue)"]
-  GATE --> SCHED["continuous-batching\nscheduler"]
-  SCHED --> PRE["prefill\n(compute-bound)"]
+  REQ["incoming request"] --> GATE["SLO gate<br/>(admit or queue)"]
+  GATE --> SCHED["continuous-batching<br/>scheduler"]
+  SCHED --> PRE["prefill<br/>(compute-bound)"]
   PRE -->|"writes KV"| KV["paged KV cache"]
-  KV -->|"read per step"| DEC["decode\n(bandwidth-bound)"]
+  KV -->|"read per step"| DEC["decode<br/>(bandwidth-bound)"]
   DEC -->|"appends KV"| KV
-  DRAFT["draft model\n(optional)"] --> DEC
+  DRAFT["draft model<br/>(optional)"] --> DEC
   DEC --> OUT["streamed tokens"]
-  AUTO["autoscaler\n(SLO-driven)"] -.-> SCHED
+  AUTO["autoscaler<br/>(SLO-driven)"] -.-> SCHED
 ```
 
 Read the sections in order the first time; they build on each other. Each opens

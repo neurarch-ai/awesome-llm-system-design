@@ -43,7 +43,7 @@ flowchart TD
 
   subgraph LOOP["agent loop (sync or async)"]
     PLAN["plan: decompose goal"] --> CALL["propose tool call"]
-    CALL --> GATE{"code gate\nschema + policy"}
+    CALL --> GATE{"code gate<br/>schema + policy"}
     GATE -->|reject| PLAN
     GATE -->|allow| EXEC["execute tool"]
     EXEC --> OBS["observe: append result to transcript"]

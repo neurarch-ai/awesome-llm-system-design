@@ -61,10 +61,10 @@ directly here:
 
 ```mermaid
 flowchart TD
-  STATE["working context"] --> W["write\nsave to scratchpad or external memory"]
-  STATE --> S["select\nretrieve relevant chunks per step"]
-  STATE --> C["compress\nsummarize + trim old history"]
-  STATE --> I["isolate\nseparate context for heavy sub-tasks"]
+  STATE["working context"] --> W["write<br/>save to scratchpad or external memory"]
+  STATE --> S["select<br/>retrieve relevant chunks per step"]
+  STATE --> C["compress<br/>summarize + trim old history"]
+  STATE --> I["isolate<br/>separate context for heavy sub-tasks"]
   W --> NEXT["leaner context for next step"]
   S --> NEXT
   C --> NEXT

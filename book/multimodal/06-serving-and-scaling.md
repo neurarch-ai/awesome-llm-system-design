@@ -10,14 +10,14 @@ flowchart LR
   subgraph VisionTier["vision tier (batchable, cacheable)"]
     IMG["image upload"] --> VAL["validate + resize"]
     VAL --> ENC["vision encoder"]
-    ENC --> CACHE["embedding cache\n(keyed by image hash)"]
+    ENC --> CACHE["embedding cache<br/>(keyed by image hash)"]
     CACHE --> PROJ["projector"]
     PROJ --> ITOK["image token block"]
   end
   subgraph DecoderTier["decoder tier (autoregressive, memory-bound)"]
     TXT["text tokens"] --> MERGE["merge with image tokens"]
     ITOK --> MERGE
-    MERGE --> DEC["LLM decoder\n(continuous batching)"]
+    MERGE --> DEC["LLM decoder<br/>(continuous batching)"]
     DEC --> OUT["streamed answer"]
   end
   BYPASS["text-only requests"] -. "skip vision tier" .-> MERGE

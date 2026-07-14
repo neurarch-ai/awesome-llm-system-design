@@ -37,15 +37,15 @@
 
 ```mermaid
 flowchart TD
-  REQ["request"] --> GW["gateway / proxy\nbudget, fallback, logging"]
-  GW --> CACHE{"semantic cache hit?\nthreshold tau tuned on labeled pairs"}
+  REQ["request"] --> GW["gateway / proxy<br/>budget, fallback, logging"]
+  GW --> CACHE{"semantic cache hit?<br/>threshold tau tuned on labeled pairs"}
   CACHE -->|"hit"| OUT["response"]
-  CACHE -->|"miss"| TRIM["trim context\nreranker top-k"]
-  TRIM --> COMP["compress if input heavy\nLLMLingua or skip"]
-  COMP --> ROUTE{"router\nclassifier or preference model"}
-  ROUTE -->|"easy"| SMALL["fine-tuned small model\nor quantized self-hosted"]
+  CACHE -->|"miss"| TRIM["trim context<br/>reranker top-k"]
+  TRIM --> COMP["compress if input heavy<br/>LLMLingua or skip"]
+  COMP --> ROUTE{"router<br/>classifier or preference model"}
+  ROUTE -->|"easy"| SMALL["fine-tuned small model<br/>or quantized self-hosted"]
   ROUTE -->|"hard"| BIG["frontier model"]
-  SMALL --> CONF{"cascade scorer\nif latency slack and task verifiable"}
+  SMALL --> CONF{"cascade scorer<br/>if latency slack and task verifiable"}
   CONF -->|"ok"| OUT
   CONF -->|"escalate"| BIG
   BIG --> OUT

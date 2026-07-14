@@ -9,15 +9,15 @@ so every quality deficit in the data becomes a quality ceiling on the model.
 
 ```mermaid
 flowchart TD
-  IN["Input: raw web archives (WARC / WET)\n+ curated corpora\n(books, code, papers, math, licensed data)"]
-  IN --> EXT["1. Text extraction\nInput: HTML / WARC bytes\nOutput: plain text per document\nTool: trafilatura-style WARC re-extractor\nDrop: navigation, ads, boilerplate, cookie notices"]
-  EXT --> LID["2. Language ID + routing\nInput: plain text documents\nOutput: per-language document streams\nTool: fastText lid.176 or equivalent\nDrop: below-threshold confidence, off-target languages"]
-  LID --> QUAL["3. Quality filtering\nInput: on-target documents\nOutput: high-quality subset\nTool: heuristic rules + learned classifier\nDrop: SEO spam, truncated pages, keyword salad, machine filler"]
-  QUAL --> DEDUP["4. Deduplication\nInput: quality-filtered documents\nOutput: deduplicated documents\nTool: exact hash + MinHash / LSH fuzzy\nDrop: byte-identical and near-duplicate documents"]
-  DEDUP --> PII["5. PII scrub + safety\nInput: deduplicated documents\nOutput: scrubbed documents\nDrop: personal names, emails, phone numbers, flagged content"]
-  PII --> DECON["6. Decontamination\nInput: scrubbed documents\nOutput: eval-safe token stream\nTool: n-gram overlap + optional embedding overlap\nDrop: documents that overlap benchmark eval sets"]
-  DECON --> MIX["7. Data mixing + curriculum\nInput: per-domain clean streams\nOutput: weighted interleaved token stream\nTool: domain weight schedule + annealing recipe"]
-  MIX --> TOK["8. Tokenization\nInput: mixed plain text\nOutput: integer token sequences packed into fixed-length chunks\nTool: BPE (byte-level) or SentencePiece\nFit tokenizer once on a representative sample of the mixture"]
+  IN["Input: raw web archives (WARC / WET)<br/>+ curated corpora<br/>(books, code, papers, math, licensed data)"]
+  IN --> EXT["1. Text extraction<br/>Input: HTML / WARC bytes<br/>Output: plain text per document<br/>Tool: trafilatura-style WARC re-extractor<br/>Drop: navigation, ads, boilerplate, cookie notices"]
+  EXT --> LID["2. Language ID + routing<br/>Input: plain text documents<br/>Output: per-language document streams<br/>Tool: fastText lid.176 or equivalent<br/>Drop: below-threshold confidence, off-target languages"]
+  LID --> QUAL["3. Quality filtering<br/>Input: on-target documents<br/>Output: high-quality subset<br/>Tool: heuristic rules + learned classifier<br/>Drop: SEO spam, truncated pages, keyword salad, machine filler"]
+  QUAL --> DEDUP["4. Deduplication<br/>Input: quality-filtered documents<br/>Output: deduplicated documents<br/>Tool: exact hash + MinHash / LSH fuzzy<br/>Drop: byte-identical and near-duplicate documents"]
+  DEDUP --> PII["5. PII scrub + safety<br/>Input: deduplicated documents<br/>Output: scrubbed documents<br/>Drop: personal names, emails, phone numbers, flagged content"]
+  PII --> DECON["6. Decontamination<br/>Input: scrubbed documents<br/>Output: eval-safe token stream<br/>Tool: n-gram overlap + optional embedding overlap<br/>Drop: documents that overlap benchmark eval sets"]
+  DECON --> MIX["7. Data mixing + curriculum<br/>Input: per-domain clean streams<br/>Output: weighted interleaved token stream<br/>Tool: domain weight schedule + annealing recipe"]
+  MIX --> TOK["8. Tokenization<br/>Input: mixed plain text<br/>Output: integer token sequences packed into fixed-length chunks<br/>Tool: BPE (byte-level) or SentencePiece<br/>Fit tokenizer once on a representative sample of the mixture"]
   TOK --> OUT["Output: clean token stream ready for pretraining"]
 ```
 

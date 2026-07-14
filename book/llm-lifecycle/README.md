@@ -27,16 +27,16 @@ front** and **inference at scale** on the back end.
 
 ```mermaid
 flowchart LR
-  WEB["web + proprietary corpus"] --> PREP["data prep\n(dedup, filter, tokenize)"]
-  PREP --> PT["pretraining\n(next-token prediction)"]
+  WEB["web + proprietary corpus"] --> PREP["data prep<br/>(dedup, filter, tokenize)"]
+  PREP --> PT["pretraining<br/>(next-token prediction)"]
   PT --> BASE["base model"]
-  BASE --> MID["mid-training\n(domain / long-context)"]
+  BASE --> MID["mid-training<br/>(domain / long-context)"]
   MID --> BASE2["domain base"]
   BASE2 --> SFT["SFT"]
   BASE --> SFT
-  SFT --> PREF["preference optimization\n(RLHF / DPO / GRPO)"]
+  SFT --> PREF["preference optimization<br/>(RLHF / DPO / GRPO)"]
   PREF --> CHAT["aligned chat model"]
-  CHAT --> SERVE["serving\n(quantize, KV cache,\ncontinuous batching)"]
+  CHAT --> SERVE["serving<br/>(quantize, KV cache,<br/>continuous batching)"]
   SERVE --> PROD["production + RAG"]
   PROD -.preference feedback.-> PREF
 ```

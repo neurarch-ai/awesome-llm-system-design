@@ -4,10 +4,10 @@
 
 ```mermaid
 flowchart TD
-  DATA["data curation\nclean (prompt, response) pairs"] --> SFT["SFT\nnext-token prediction on labeled examples"]
+  DATA["data curation<br/>clean (prompt, response) pairs"] --> SFT["SFT<br/>next-token prediction on labeled examples"]
   SFT --> DECIDE{"quality axis SFT cannot capture?"}
   DECIDE -->|"no: format, tone, skill"| GATE["eval gate (section 5)"]
-  DECIDE -->|"yes: safety, helpfulness, comparative preference"| PREF["preference tuning\nDPO or RLHF or GRPO"]
+  DECIDE -->|"yes: safety, helpfulness, comparative preference"| PREF["preference tuning<br/>DPO or RLHF or GRPO"]
   PREF --> GATE
   GATE -->|"pass"| SERVE["serve adapter"]
   GATE -->|"fail"| DATA

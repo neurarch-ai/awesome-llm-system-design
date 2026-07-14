@@ -38,20 +38,20 @@
 
 ```mermaid
 flowchart LR
-  D["docs"] --> CH["chunk\n(structural, capped, overlap)"]
-  CH --> EM["embed chunks\n(encoder model)"]
-  EM --> IX["ANN index\n(HNSW / IVF-PQ + ACL)"]
+  D["docs"] --> CH["chunk<br/>(structural, capped, overlap)"]
+  CH --> EM["embed chunks<br/>(encoder model)"]
+  EM --> IX["ANN index<br/>(HNSW / IVF-PQ + ACL)"]
   subgraph freshness["freshness loop"]
     D -.->|"doc changes"| CH
   end
-  Q["query + user identity"] --> QE["embed query\n(same encoder)"]
-  QE --> VS["ACL-filtered ANN search\n(top-n = 50 to 100)"]
+  Q["query + user identity"] --> QE["embed query<br/>(same encoder)"]
+  QE --> VS["ACL-filtered ANN search<br/>(top-n = 50 to 100)"]
   IX --> VS
-  VS --> RR["cross-encoder rerank\n(top-m = 5 to 10)"]
-  RR --> PA["assemble prompt\n(system + chunks + source IDs + query)"]
+  VS --> RR["cross-encoder rerank<br/>(top-m = 5 to 10)"]
+  RR --> PA["assemble prompt<br/>(system + chunks + source IDs + query)"]
   PA --> G["LLM generate"]
-  G --> VF["verify cited IDs\nexist in prompt"]
-  VF --> A["grounded answer + citations\nor abstention"]
+  G --> VF["verify cited IDs<br/>exist in prompt"]
+  VF --> A["grounded answer + citations<br/>or abstention"]
 ```
 
 ## Test yourself

@@ -27,11 +27,11 @@ instead of bolting on five model calls.
 
 ```mermaid
 flowchart LR
-  U["user input"] --> CH["cheap tier\n(regex, blocklist, PII)"]
-  CH --> IG["input guard\n(classifier or guard-LLM)"]
+  U["user input"] --> CH["cheap tier<br/>(regex, blocklist, PII)"]
+  CH --> IG["input guard<br/>(classifier or guard-LLM)"]
   IG -->|block| PR{"policy router"}
   IG -->|pass| L["LLM"]
-  L --> OG["output guard\n(moderation, grounding, PII)"]
+  L --> OG["output guard<br/>(moderation, grounding, PII)"]
   OG -->|block| PR
   OG -->|pass| PR
   PR -->|clearly disallowed| RF["refuse"]

@@ -18,12 +18,12 @@ affordable and not.
 
 ```mermaid
 flowchart LR
-  REQ1["request: task A"] --> ROUTE["router\n(adapter id)"]
+  REQ1["request: task A"] --> ROUTE["router<br/>(adapter id)"]
   REQ2["request: task B"] --> ROUTE
   REQ3["request: task C"] --> ROUTE
-  BASE["shared base\n(loaded once, always warm)"] --> BATCH["batch across adapters\n(SGMV kernel)"]
+  BASE["shared base<br/>(loaded once, always warm)"] --> BATCH["batch across adapters<br/>(SGMV kernel)"]
   ROUTE --> BATCH
-  ADA["adapter A / B / C\n(loaded on demand, hot-cached)"] --> BATCH
+  ADA["adapter A / B / C<br/>(loaded on demand, hot-cached)"] --> BATCH
   BATCH --> OUT["responses"]
 ```
 

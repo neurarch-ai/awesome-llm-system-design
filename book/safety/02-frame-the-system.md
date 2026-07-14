@@ -25,13 +25,13 @@ human, or log and allow with monitoring.
 
 ```mermaid
 flowchart LR
-  U["user input\n(+ retrieved docs\n+ tool output)"] --> CH["cheap tier\n(regex, blocklist, PII patterns)"]
+  U["user input<br/>(+ retrieved docs<br/>+ tool output)"] --> CH["cheap tier<br/>(regex, blocklist, PII patterns)"]
   CH -->|obvious case| PR{"policy router"}
-  CH -->|survivor| IG["input filter\n(guard classifier)"]
+  CH -->|survivor| IG["input filter<br/>(guard classifier)"]
   IG -->|unsafe| PR
-  IG -->|pass| PA["prompt assembly\n(delimited, structured)"]
+  IG -->|pass| PA["prompt assembly<br/>(delimited, structured)"]
   PA --> L["LLM"]
-  L --> OG["output filter\n(moderation, grounding, PII)"]
+  L --> OG["output filter<br/>(moderation, grounding, PII)"]
   OG -->|unsafe| PR
   OG -->|pass| PR
   PR -->|clearly disallowed| RF["refuse"]

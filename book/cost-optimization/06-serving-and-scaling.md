@@ -13,10 +13,10 @@ provider goes down.
 
 ```mermaid
 flowchart TD
-  TEAMS["teams / services\n(multiple callers)"] --> GW["LLM gateway / proxy\nbudget enforcement\nauth and rate limiting\nlogging and observability\ncaching layer\nrouting rules\nfallback config"]
-  GW --> P1["provider A\nAnthropic / OpenAI"]
-  GW --> P2["provider B\nGoogle / Groq"]
-  GW --> P3["self-hosted model\nMistral FP8"]
+  TEAMS["teams / services<br/>(multiple callers)"] --> GW["LLM gateway / proxy<br/>budget enforcement<br/>auth and rate limiting<br/>logging and observability<br/>caching layer<br/>routing rules<br/>fallback config"]
+  GW --> P1["provider A<br/>Anthropic / OpenAI"]
+  GW --> P2["provider B<br/>Google / Groq"]
+  GW --> P3["self-hosted model<br/>Mistral FP8"]
   GW -.->|"fallback on 5xx / quota"| P2
 ```
 

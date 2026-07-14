@@ -36,7 +36,7 @@ NVIDIA, Glean, Microsoft, and a dozen more teams actually ship it.
 ```mermaid
 flowchart LR
   Q["query"] --> QE["embed query"]
-  QE --> R["retrieve top-n\n(vector + often lexical)"]
+  QE --> R["retrieve top-n<br/>(vector + often lexical)"]
   R --> RR["rerank to top-m"]
   RR --> C["assemble grounded context"]
   C --> G["LLM generate + cite"]

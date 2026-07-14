@@ -7,8 +7,8 @@ The support agent has two natural execution paths depending on ticket complexity
 ```mermaid
 flowchart TD
   TICKET["incoming ticket"] --> ROUTE{"complexity router"}
-  ROUTE -->|simple: lookup + reply| SYNC["sync path\nresolve in < 10 s"]
-  ROUTE -->|complex: writes or escalation| ASYNC["async path\nqueue for background resolution"]
+  ROUTE -->|simple: lookup + reply| SYNC["sync path<br/>resolve in < 10 s"]
+  ROUTE -->|complex: writes or escalation| ASYNC["async path<br/>queue for background resolution"]
   SYNC --> REPLY["send reply"]
   ASYNC --> QUEUE["durable task queue"]
   QUEUE --> WORKER["agent worker pool"]
