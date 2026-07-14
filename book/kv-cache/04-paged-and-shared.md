@@ -40,6 +40,20 @@ flowchart LR
   P1 & P2 & P3 & P4 --> POOL[(Shared GPU block pool)]
 ```
 
+**How the diagram works.** The pipeline borrows the operating system's virtual-memory
+trick. Each sequence's tokens are grouped into fixed-size logical blocks (say 16
+tokens each). Instead of a contiguous buffer, every sequence gets a **block table**,
+an array that maps its logical block index to a **physical block** somewhere in one
+shared GPU pool, exactly like an OS page table maps virtual pages to physical frames.
+When a sequence needs another block it grabs any free physical block from the pool
+(not a neighbor of its previous block), so the pool never fragments: allocation is
+per-block and on demand, and freeing a sequence just returns its blocks to the pool.
+The attention kernel is the part that has to change: it reads the block table to
+gather the scattered K and V blocks during the attention computation rather than
+assuming one contiguous run. Two sequences can even point their block tables at the
+**same** physical block, which is how a shared prompt prefix (next section) is stored
+once and reused.
+
 The result: 2x to 4x higher throughput at matched latency compared to
 FasterTransformer-style contiguous allocation, because the same GPU memory fits
 more concurrent sequences. PagedAttention does **not** speed up a single

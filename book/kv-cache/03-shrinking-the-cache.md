@@ -33,6 +33,26 @@ quality-versus-memory dial, and GQA converts cheaply from an MHA checkpoint via
 a short uptraining run (see Ainslie et al., GQA paper). If you do nothing else,
 do this.
 
+Implemented, GQA is just MHA where the cache holds only $h_{kv}$ heads and each is
+repeated to match the $h_q$ query heads at attention time (so nothing extra is
+stored):
+
+```python
+def gqa_attention(q, k, v):
+    # q: (B, Hq, S, d);  k, v: (B, Hkv, S, d)  <- only Hkv heads live in the KV cache
+    B, Hq, S, d = q.shape
+    g = Hq // k.shape[1]                       # query heads sharing one KV head
+    k = k.repeat_interleave(g, dim=1)          # expand Hkv -> Hq (a view, cache unchanged)
+    v = v.repeat_interleave(g, dim=1)
+    scores = (q @ k.transpose(-2, -1)) / d ** 0.5
+    return scores.softmax(-1) @ v              # (B, Hq, S, d)
+```
+
+The cache stores `k, v` with `Hkv` heads, which is the whole saving: at `Hq=32`,
+`Hkv=8` the stored tensor is one quarter the MHA size, and the `repeat_interleave`
+happens on the fly during compute, costing memory only for the transient expanded
+view, never in the cache.
+
 ### Multi-query attention (MQA): the aggressive cut
 
 MQA is GQA taken to the extreme: $h_{\text{kv}} = 1$, one shared KV head across
