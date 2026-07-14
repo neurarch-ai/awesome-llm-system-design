@@ -45,6 +45,40 @@ model grades what it generated. The fix: filter synthetic data through the same
 quality and dedup gates as human data, keep a human-labeled core, and calibrate
 any automated judge to human preference scores periodically.
 
+## The curation funnel: the order the gates run in
+
+The five rules become a pipeline when you fix their **order**. The *LLM Engineer's
+Handbook* frames curation as a funnel: cheap deterministic filters first, expensive
+model-based judgments last, so you never pay a reward model to score examples a
+one-line regex would have dropped.
+
+```mermaid
+flowchart TB
+  RAW["raw collected examples"] --> RULE["rule-based filtering<br/>(length, language, format, PII)"]
+  RULE --> DEDUP["deduplication<br/>(exact + near-dup / MinHash)"]
+  DEDUP --> DECON["decontamination<br/>(remove eval-set overlap)"]
+  DECON --> QUAL["quality evaluation<br/>(reward model / LLM judge / heuristics)"]
+  QUAL --> EXPLORE["exploration<br/>(inspect, balance skills)"]
+  EXPLORE --> CURATED["curated dataset"]
+  GEN["synthetic generation<br/>+ augmentation"] -.->|"passes the same gates"| RULE
+```
+
+Two properties make this ordering non-negotiable. **Cost climbs left to right:** a
+length or language filter is microseconds, MinHash dedup is cheap, but a
+reward-model or LLM-judge quality pass is a forward pass per example. Run the cheap
+gates first and the expensive gate sees a fraction of the data. **Decontamination
+must precede the quality gate,** because a leaked eval example is often *high*
+quality; scoring it first would keep exactly the examples that poison your
+benchmark. Synthetic generation is not a separate track: it feeds back into the top
+of the funnel and passes the identical gates, which is what stops generator bias
+and judge circularity from leaking in.
+
+![The instruction-data curation funnel](assets/fig-curation-funnel.png)
+
+*Illustrative counts. Each gate removes examples; the steepest drop is usually the
+quality gate, which is why it runs last on the smallest surviving set. The exact
+retention at each stage is task- and source-specific; earn your own numbers.*
+
 ## Preference data: building comparison pairs
 
 Preference data is the fuel for DPO and RLHF. Where SFT data is (prompt, ideal

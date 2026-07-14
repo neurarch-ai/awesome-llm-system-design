@@ -57,6 +57,36 @@ continuous batching, and prompt caching. Batch traffic needs high throughput:
 use the full-precision model on spot capacity with large static batches.
 Separating them avoids a batch job blocking an interactive user.
 
+## The FTI decomposition: five stages, three pipelines you operate
+
+The five stages describe *what gets built*. What you actually run in production is
+three long-lived pipelines, the **FTI decomposition** (feature / training /
+inference) from the *LLM Engineer's Handbook*. Naming them is the move that turns a
+lifecycle diagram into an operable architecture:
+
+```mermaid
+flowchart LR
+  subgraph F["feature pipeline (offline, scheduled)"]
+    RAW["corpus + logs"] --> IDX["clean, chunk, embed<br/>build vector index"]
+  end
+  subgraph T["training pipeline (offline, on trigger)"]
+    DATA["curated data"] --> FIT["pretrain / SFT / DPO<br/>register model"]
+  end
+  subgraph I["inference pipeline (online, always on)"]
+    REQ["user request"] --> SERVE["retrieve + generate<br/>KV cache, batching"]
+  end
+  IDX -.->|"index artifact"| SERVE
+  FIT -.->|"model artifact"| SERVE
+```
+
+The three pipelines communicate only through artifacts (the **vector index** and
+the **model registry**), so they scale and deploy independently: the feature
+pipeline re-embeds when the corpus changes, the training pipeline fires on a
+retrain trigger, and the inference pipeline serves continuously. This is why "add
+RAG" and "retrain the model" are different pipelines, not edits to the serving
+path, and why the serving path stays a stable interface while data and weights
+churn behind it.
+
 ## Bottlenecks and fixes
 
 | Bottleneck | First sign | Fix | Tradeoff |
