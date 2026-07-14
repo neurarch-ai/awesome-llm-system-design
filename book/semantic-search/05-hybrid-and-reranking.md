@@ -59,6 +59,19 @@ fusion is **reciprocal rank fusion (RRF)**:
 
 $$\text{RRF-score}(d) = \sum_{r \in \text{channels}} \frac{1}{k_0 + \text{rank}_r(d)}$$
 
+In code it is a dozen lines: sum a rank-based reciprocal across channels, no score
+normalization anywhere.
+
+```python
+def rrf(rank_lists, k0=60):        # rank_lists: one ranked list of doc ids per channel
+    scores = {}
+    for lst in rank_lists:
+        for rank, doc in enumerate(lst, start=1):     # rank is 1-based
+            scores[doc] = scores.get(doc, 0.0) + 1.0 / (k0 + rank)
+    return sorted(scores, key=scores.get, reverse=True)
+# a doc ranked 1st in both channels scores 2/(60+1); channels never compare raw scores
+```
+
 where $k_0$ is a small constant (typically 60). A document that ranks 1st in
 both channels gets a score of $2 / (60 + 1)$; one that ranks 10th in one and
 50th in the other gets a lower combined score. RRF is robust to score scale
