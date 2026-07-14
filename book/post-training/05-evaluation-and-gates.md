@@ -20,6 +20,36 @@ during training. The set must be:
   accuracy gain is the shipping threshold, you need enough examples to detect
   it with statistical confidence.
 
+The primary metrics used in this gate each measure something different.
+
+**Exact match** treats each prediction as correct if and only if its normalized form
+equals the normalized ground truth (lowercase, strip punctuation and whitespace), and
+wrong otherwise. Input: a prompt. Output: a predicted string. Score: fraction of
+exactly correct predictions over the set. Use exact match for structured outputs such
+as extraction labels, classification codes, or arithmetic answers where partial credit
+is meaningless.
+
+**BLEU** measures n-gram precision overlap between a generated sequence and one or
+more reference sequences, multiplied by a brevity penalty that discourages very short
+outputs:
+
+$$\text{BLEU} = \text{BP} \cdot \exp\!\left(\sum_{n=1}^{4} \tfrac{1}{4}\log p_n\right), \qquad
+\text{BP} = \min\!\left(1,\, \exp\!\left(1 - \frac{|r|}{|c|}\right)\right)$$
+
+where $p_n$ is the clipped n-gram precision for order $n$ (the fraction of candidate
+n-grams that appear in the reference, capped so no reference n-gram is matched more
+than once), $|c|$ is the candidate length in tokens, and $|r|$ is the reference
+length. BLEU rewards n-gram copying and under-rewards semantic correctness; it is
+appropriate for translation but should always be paired with a semantic judge for
+summarization or instruction following.
+
+**LLM-as-judge score** uses a capable model (e.g., GPT-4 or a similarly calibrated
+evaluator) as an automated scorer. The judge receives the original prompt, the
+candidate response, and optionally a reference, and outputs a scalar rating (commonly
+1 to 10) or a binary preference. The reported metric is the mean rating over the eval
+set. Calibrate the judge periodically against human labels on a random sample; LLM
+judges systematically over-rate longer and more formatting-heavy responses.
+
 **Regression check vs current production.** The new model must beat the model
 currently serving users on the *same* eval set. A new model that improves the
 target metric by two points while degrading a secondary skill by five points
@@ -40,7 +70,13 @@ should be automated and mandatory, not a manual spot-check.
 For tasks where quality is easier to assess by comparison than by absolute
 scoring (writing, summarization, tone alignment), use **pairwise win rate**: show
 human or LLM judges two responses (new model vs current model, in randomized
-order) and report the fraction of cases where the new model is preferred.
+order) and report the fraction of cases where the new model is preferred:
+
+$$\text{win rate} = \frac{\text{prompts where model A is preferred}}{\text{total evaluated prompts}}$$
+
+Report with a 95 percent confidence interval (Wilson or Clopper-Pearson). A win rate
+of 0.55 on 100 prompts has confidence bounds that overlap 0.50; the same rate on
+1000 prompts is statistically meaningful.
 
 Win rate above 50 percent means the new model is preferred on average. The bar
 to set depends on the application, but 55 percent is a reasonable minimum for

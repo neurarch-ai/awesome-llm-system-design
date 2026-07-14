@@ -77,6 +77,29 @@ prompt slot for retrieved content from the slot for system instructions, and
 never let retrieved text appear in the instructions slot. This prompt-injection
 attack surface is real and underrated in interview answers.
 
+## Measuring groundedness
+
+**Groundedness (faithfulness)** is the primary offline quality metric for the
+generation stage: the fraction of factual claims in the answer that are supported by
+the retrieved context rather than hallucinated from parametric knowledge.
+
+- **What it measures.** Whether the model stayed within the provided sources when
+  generating each claim in its response.
+- **Input and output.** The evaluator receives the generated answer and the assembled
+  context (the same chunks the model saw). Output: a score in [0, 1].
+- **How it is computed.** Decompose the answer into atomic claims (one verifiable
+  assertion per claim). For each claim, apply an LLM judge or an NLI classifier to
+  the (context, claim) pair and label it entailed or not-entailed.
+
+$$\text{groundedness} = \frac{\text{entailed claims}}{\text{total claims}}$$
+
+A score near 1 means the model stayed within the sources. A grounded-but-wrong answer
+means the retrieved context itself was incorrect (a retrieval quality problem). A
+low-groundedness answer with a high reranker score is a generation failure. The
+citation ID verification check described above is a weaker necessary precondition:
+an answer can cite real IDs while paraphrasing them incorrectly, so citation
+verification and groundedness are complementary checks, not substitutes.
+
 ## When to use which grounding strategy
 
 | Reach for | When | Instead of |

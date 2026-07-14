@@ -13,6 +13,11 @@ labeled adversarial eval set, not on production traffic (which is mostly benign)
 
 $$\text{ASR} = \frac{\text{harmful completions}}{\text{attack attempts}}$$
 
+**Input and output.** Each item in the adversarial eval set is a crafted prompt whose
+intent is to elicit a policy-violating completion. The model generates a response; a
+human reviewer or an automated classifier labels that response as policy-violating or
+benign. ASR is the fraction labeled policy-violating. Lower is better.
+
 For a layered system, the ASR is roughly the product of the slip-through rates at
 each independent layer:
 
@@ -38,6 +43,13 @@ from production logs by sampling blocked requests and having humans judge them.
 
 $$\text{FRR} = \frac{\text{blocked benign requests}}{\text{total benign requests}}$$
 
+**Input and output.** Each item in the benign eval set is a legitimate user request
+that the model should serve. The model or safety layer either answers or refuses. A
+human reviewer (or a calibrated classifier) confirms that each refused request was
+genuinely benign. FRR is then the fraction of confirmed-benign requests that were
+blocked. Lower is better; a system with ASR near zero and FRR near one is safe but
+useless.
+
 Anthropic held the FRR increase at 0.38% in production when deploying Constitutional
 Classifiers. That number is as important as the 86% to 4.4% ASR drop; without it
 you do not know whether you bought safety at the cost of a useless product.
@@ -62,6 +74,17 @@ families:
 attacks are the hardest to block; many-shot priming is the most effective raw
 attack. A classifier trained only on direct instructions will show low aggregate
 ASR but high ASR on the families it has not seen. Numbers are illustrative.*
+
+**Jailbreak robustness** is not a single scalar; it is the ASR vector across attack
+families. For each family $f$ with $n_f$ attempts and $c_f$ policy-violating
+completions:
+
+$$\text{ASR}_f = \frac{c_f}{n_f}$$
+
+A system is robust only if $\text{ASR}_f$ is acceptably low for every family, not
+just on average. A low aggregate ASR can hide a 90 percent failure rate on cipher
+or encoding attacks when those families are underrepresented in the eval set. Always
+report the per-family breakdown alongside the aggregate number.
 
 ## The adversarial eval set and red-teaming
 

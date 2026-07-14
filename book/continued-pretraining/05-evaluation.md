@@ -13,6 +13,27 @@ at least a general reasoning benchmark (MMLU), a math benchmark (GSM8K), and an
 instruction-following task (MT-Bench or similar). The requirement set in section 1
 fixed a two-point regression budget; this gate enforces it.
 
+Each benchmark in the suite has a specific scoring protocol.
+
+**MMLU (Massive Multitask Language Understanding)** measures multiple-choice accuracy
+across 57 academic subjects including mathematics, law, medicine, and history. Input:
+a question with four labeled options (A-D). Output: the selected option letter. Score:
+fraction of correct selections; report at 5-shot unless comparing against a baseline
+that used 0-shot (keep the shot count consistent across comparisons).
+
+**GSM8K** measures accuracy on grade-school math word problems requiring multi-step
+arithmetic reasoning. Input: a word problem in natural language. Output: the final
+numeric answer, extracted by regex from a chain-of-thought response (the model is
+prompted to reason step by step and end with a final answer line). Score: exact match
+on the numeric value over the 1319-problem test set.
+
+**MT-Bench** measures multi-turn instruction-following quality as rated by an LLM
+judge (GPT-4). Input: an 80-question, two-turn benchmark spanning writing, reasoning,
+coding, and math. The judge model sees each question and response and outputs a score
+of 1-10 using a structured rubric. Score: mean across all 80 questions (8 categories,
+10 each). Do not substitute a cheaper judge model without recalibrating against the
+original GPT-4 scores.
+
 **What it measures.** Whether the optimizer overwrote the broad knowledge and
 reasoning the base already had.
 
@@ -39,6 +60,18 @@ depths, though the mid-context gap never fully disappears. Illustrative.*
 
 **What it measures.** Single-hop retrieval of one verbatim fact, and where in the
 window recall breaks.
+
+**How it is scored.** Recall is computed cell-by-cell on a (context-length,
+insertion-depth) grid. For each cell, $N$ independent trials are run; the needle is
+placed at that depth fraction (e.g., 10%, 50%, 90%) inside a context of that total
+length. A trial is counted correct if the model's response contains the planted string
+(exact or normalized match).
+
+$$\text{NIAH recall}(L,\, d) = \frac{\text{correct retrievals at length } L \text{ and depth } d}{N}$$
+
+Report as a two-dimensional heatmap. A single averaged number hides the mid-context
+dip that is the primary failure mode, and any long-context claim that omits the
+recall-by-depth plot is concealing the distribution.
 
 **What it misses.** Multi-hop reasoning, aggregation across the span, and
 multi-needle retrieval. A model can pass NIAH and still miss facts at arbitrary
@@ -72,6 +105,14 @@ eval mistake in long-context work.
 **What it measures.** Whether the model can actually reason across the window, not
 just find one thing.
 
+**How it is scored.** Each category (retrieve, trace, aggregate, QA) is scored by
+exact or normalized match on the expected output. The aggregate RULER score is
+accuracy averaged across all categories and context lengths. The **effective context
+length** is the longest window at which aggregate accuracy stays above a fixed
+threshold, commonly 85 percent of the accuracy at a short reference length (e.g.,
+4k tokens). A model that claims 128k but crosses that threshold at 32k has an
+effective context of 32k regardless of its configured maximum.
+
 **What it misses.** Open-domain generalization beyond the synthetic tasks. RULER
 uses controlled synthetic data, so a model that fits the RULER distribution might
 still fail on real long-document tasks. Gate on RULER first; follow up with real
@@ -80,8 +121,19 @@ task evals before production launch.
 ## Perplexity on long documents: a continuous training signal only
 
 Long-context perplexity on held-out long documents is cheap to compute during
-training and gives a useful continuous signal for detecting obvious failures. But
-it saturates: a model can have fine long-context perplexity and still fail RULER,
+training and gives a useful continuous signal for detecting obvious failures.
+Perplexity is the exponentiated mean negative log-likelihood per token:
+
+$$\text{PPL} = \exp\!\left(-\frac{1}{N}\sum_{i=1}^{N}\log p(x_i \mid x_{\lt i})\right)$$
+
+Input: a held-out token sequence at the target length. Output: per-token
+log-probabilities. Lower is better. For cross-tokenizer comparison use
+**bits-per-byte (BPB)**, which divides total NLL in bits by the number of UTF-8
+bytes and is tokenizer-invariant:
+
+$$\text{BPB} = \frac{1}{B}\sum_{i=1}^{N}\bigl(-\log_2 p(x_i \mid x_{\lt i})\bigr)$$
+
+where $B$ is the total UTF-8 byte count of the sequence. But it saturates: a model can have fine long-context perplexity and still fail RULER,
 because next-token loss is dominated by local prediction (predicting the next word
 given the previous sentence is easy and cheap). Perplexity measures fluency at
 length; it does not measure use of the context.

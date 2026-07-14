@@ -82,6 +82,33 @@ favors chunking to bound peak memory) and low first-token latency (which favors
 one big pass) tune the chunk size for their traffic mix. SGLang and vLLM both
 expose this knob.
 
+## Evaluating position extension
+
+Two metrics confirm whether an extension technique delivers real recall, not just
+recovered perplexity.
+
+**Perplexity** (PPL) is the exponentiated mean negative log-likelihood per token:
+
+$$\text{PPL} = \exp\!\left(-\frac{1}{N}\sum_{i=1}^{N}\log p(x_i \mid x_{\lt i})\right)$$
+
+Input: a held-out token sequence at the target context length. A PPL spike beyond
+the original training length is the first sign that position extension failed. PPL
+is a fast continuous signal during training but saturates: a model can recover normal
+PPL while still failing to retrieve facts from the middle of a long context. Gate
+training stability on PPL; gate production-readiness on retrieval recall.
+
+**NIAH recall** (needle-in-a-haystack) is the fraction of planted facts retrieved
+correctly at each (context-length, insertion-depth) cell of a test grid. Input: a
+long filler document with one known fact inserted at a fixed position; the model is
+asked to reproduce that fact. A model that passes PPL but fails NIAH is the standard
+failure mode after shallow position extension: local next-token prediction is fine,
+but attention to distant positions is broken. Report recall as a two-dimensional
+heatmap over length and depth; the mid-context dip (worst recall near 50 percent
+depth) is the most informative signal and the one that averaged scores hide. For
+multi-needle, variable-tracing, and aggregation tasks use RULER, which separates
+the effective context length from the configured one (covered in the continued-
+pretraining chapter).
+
 **When to use which long-context technique.**
 
 | Reach for | When | Skip it when |
