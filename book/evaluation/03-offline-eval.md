@@ -34,10 +34,29 @@ freshness as a system health signal.
 
 ## Public benchmarks: capability signal, not a quality gate
 
-Public benchmarks (MMLU, HumanEval, TruthfulQA, and their peers) are useful for
-a single purpose: filtering candidate models by baseline capability before you
-invest in task-specific evaluation. They are not a quality gate for your own
-feature.
+Public benchmarks are useful for a single purpose: filtering candidate models by
+baseline capability before you invest in task-specific evaluation. They are not a
+quality gate for your own feature.
+
+**Name the current landscape, not the saturated one.** The classic multiple-choice
+suites (MMLU, HumanEval, TruthfulQA) are largely saturated, so as of 2025 to 2026
+the meaningful public benchmarks are harder and more agentic. Know the families:
+reasoning and knowledge (GPQA Diamond, MMLU-Pro, SciCode); real software
+engineering (SWE-bench, Terminal-Bench); tool-using agents (tau-bench, or
+$\tau$-bench, for airline and retail workflows); and economically-valuable
+knowledge work (GDPval). Because no single benchmark captures "intelligence,"
+independent aggregators now publish a **composite index** built from many of these
+at once, notably the [Artificial Analysis Intelligence Index](https://artificialanalysis.ai/),
+which also charts the two tradeoffs a system designer actually cares about: quality
+versus price per token, and quality versus output speed. Three things worth
+borrowing from how they report:
+
+- **A composite index over many evals** is more robust than any single benchmark, since gaming one eval barely moves the aggregate.
+- **Serving is a provider choice, not just a model choice.** The same open-weight model varies several-fold in output tokens per second and in price across hosting providers; independent trackers report the median (for example P50 over a rolling window) per provider, which is the number to quote when you compare serving options (see the [inference-serving](../inference-serving/) and [cost-optimization](../cost-optimization/) chapters).
+- **Report an interval, not a point.** Benchmark scores carry sampling noise; a 1-point difference inside overlapping 95 percent confidence intervals is not a real difference. State the interval.
+
+Use these as the coarse capability filter and the live-numbers reference; then run
+your own task-specific eval, because a public number never gates your feature.
 
 The reason is contamination. If eval cases or near-duplicates leaked into a
 model's training data, its scores look inflated on public benchmarks while the
