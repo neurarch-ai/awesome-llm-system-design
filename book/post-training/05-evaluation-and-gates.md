@@ -88,6 +88,14 @@ randomly sampled subset. LLM judges over-rate formatting and length; humans
 often prefer conciseness. A judge that favors longer responses will inflate
 win rate for a model that learned to pad.
 
+![Win rate with 95% confidence intervals](assets/fig-winrate-bar-ci.png)
+
+*How win rate is read: the bar height is the fraction of comparisons where the
+new model was preferred; error bars are the 95% CI (normal approximation).
+A bar whose lower CI bound clears 0.50 (dashed) is a statistically significant
+win; an overlapping bar is not, regardless of the point estimate. Increasing n
+shrinks the interval. Illustrative.*
+
 ## Tiered eval: speed vs coverage
 
 Running a full eval suite on every training checkpoint is slow and expensive.

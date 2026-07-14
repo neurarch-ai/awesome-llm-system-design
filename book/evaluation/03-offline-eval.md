@@ -113,6 +113,25 @@ GitHub Copilot's broken-repo suite exploits this: they intentionally break rough
 can fix them. The metric is unit-test pass rate, not a judge's subjective rating.
 An unfoolable task metric beats an LLM-as-judge that you then have to calibrate.
 
+**How pass@k is computed.** Drawing a single sample underestimates a model's
+coding ability because stochastic generation sometimes fails even when the model
+"knows" the answer. The standard fix is to draw $k$ independent samples per
+problem and count the problem as solved if at least one passes:
+
+$$\text{pass@}k = 1 - (1-p)^k$$
+
+where $p$ is the per-sample pass probability (estimated from a batch of $n \ge k$
+samples without replacement in practice; the i.i.d. form above is the closed-form
+approximation). As $k$ grows, even a weak per-sample rate eventually yields a
+correct solution.
+
+![pass@k vs k for two per-sample pass rates](assets/fig-passk-curve.png)
+
+*How pass@k scales with sample budget: for a per-sample pass rate of p = 0.2, drawing
+10 samples gives pass@10 = 1 - 0.8^10 = 0.89; for p = 0.4 the same 10 samples give
+0.99. The metric rewards models that are occasionally right; exact-match at k = 1
+would miss both. Illustrative.*
+
 ## When to use which offline approach
 
 | Reach for | When | Instead of |

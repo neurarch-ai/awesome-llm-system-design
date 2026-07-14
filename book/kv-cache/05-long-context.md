@@ -109,6 +109,15 @@ multi-needle, variable-tracing, and aggregation tasks use RULER, which separates
 the effective context length from the configured one (covered in the continued-
 pretraining chapter).
 
+![NIAH retrieval accuracy heatmap over context length and depth](assets/fig-niah-heatmap.png)
+
+*How NIAH is read: each cell is retrieval accuracy for a needle planted at that
+depth fraction of the filler document and retrieved at that context length. Green
+is near-perfect recall; red is near-zero. Two failure patterns are visible: recall
+degrades at the right (long context) and dips at mid-depth, because attention
+weight on the distant middle positions is lowest. A single averaged score would
+hide both effects. Illustrative.*
+
 **When to use which long-context technique.**
 
 | Reach for | When | Skip it when |
