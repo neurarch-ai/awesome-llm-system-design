@@ -17,7 +17,7 @@ what determine how you score it.
   (lowercase, strip punctuation and articles, canonicalize number words), the score
   for a predicted answer is
 
-$$\text{VQA-Acc}(\hat{a}) = \min\!\left(\frac{\#\lbrace \text{humans who gave } \hat{a} \rbrace}{3},\ 1\right)$$
+$$\text{VQA-Acc}(\hat{a}) = \min\left(\frac{\lvert \lbrace \text{humans who gave } \hat{a} \rbrace \rvert}{3}, 1\right)$$
 
   so an answer that matches at least 3 of the 10 humans scores 1.0, and fewer
   scores proportionally. The reported number is this averaged over all questions.
