@@ -125,6 +125,18 @@ samples without replacement in practice; the i.i.d. form above is the closed-for
 approximation). As $k$ grows, even a weak per-sample rate eventually yields a
 correct solution.
 
+The HumanEval harness does not plug in $\hat p = c/n$ (that is biased); it uses the
+unbiased combinatorial estimator over $n$ drawn samples of which $c$ pass:
+
+```python
+from math import comb
+def pass_at_k(n, c, k):    # n samples drawn, c correct, budget k
+    if n - c < k:          # fewer than k failures -> any k-subset contains a pass
+        return 1.0
+    return 1.0 - comb(n - c, k) / comb(n, k)   # 1 - P(all k sampled solutions fail)
+# unbiased estimate of 1 - (1-p)^k; e.g. pass_at_k(n=200, c=40, k=10)
+```
+
 ![pass@k vs k for two per-sample pass rates](assets/fig-passk-curve.png)
 
 *How pass@k scales with sample budget: for a per-sample pass rate of p = 0.2, drawing

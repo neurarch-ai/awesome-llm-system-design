@@ -97,6 +97,19 @@ The reference model is the load-bearing piece. Without it, the policy could
 trivially score $y_w$ higher than $y_l$ by collapsing to degenerate text that
 gets arbitrarily high log-probability. The $\pi_{\text{ref}}$ anchor prevents that.
 
+The loss itself is a few lines: take the sequence log-probs of the chosen and
+rejected responses under the policy and the frozen reference, then push a
+log-sigmoid on their difference.
+
+```python
+import torch.nn.functional as F
+# each arg: summed log-prob of that response under that model, shape (batch,)
+def dpo_loss(pol_chosen, pol_rejected, ref_chosen, ref_rejected, beta=0.1):
+    pol_logratio = pol_chosen - pol_rejected   # how much the policy prefers chosen
+    ref_logratio = ref_chosen - ref_rejected   # the reference's built-in preference
+    return -F.logsigmoid(beta * (pol_logratio - ref_logratio)).mean()
+```
+
 ### RLHF (reinforcement learning from human feedback)
 
 RLHF trains a separate reward model $r_\phi$ on human preference comparisons, then
