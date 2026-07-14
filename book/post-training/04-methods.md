@@ -200,6 +200,27 @@ preference tuning is needed.*
 | GRPO | verifiable reward exists (math, code, retrieval rank); no value function available | RLHF when the reward is not cheaply verifiable per sample |
 | Small beta (0.03 to 0.1) | first run; stability matters; Anyscale and Spotify both used this range | large beta, which over-steers the policy back to the SFT reference |
 
+**Tools for each method.** Hugging Face TRL implements SFT, DPO, and GRPO through its
+SFTTrainer, DPOTrainer, and GRPOTrainer, and PEFT supplies the LoRA and QLoRA
+adapters (QLoRA pairs PEFT with bitsandbytes 4-bit quantization). Axolotl and Unsloth
+wrap the same TRL and PEFT stack behind declarative configs, with Unsloth focused on
+single-GPU speed and memory. Full fine-tuning and RLHF at scale lean on DeepSpeed
+(Microsoft) ZeRO for optimizer and gradient sharding across GPUs. GRPO with a
+verifiable reward is served by the same TRL GRPOTrainer plus a scoring function you
+write for the code or math check.
+
+**Worked example.** A domain-LLM team adapting a 7B base to their document style has
+a few thousand clean pairs and no spare GPU cluster, so they reach for QLoRA rather
+than full fine-tuning, because the frozen 4-bit base plus a rank-16 adapter fits a
+single consumer GPU and the behavior shift is moderate. Since the gap is format and
+tone with stable examples, they stop at SFT and skip preference tuning, which would
+add cost for a problem SFT already solves. Later they find the model sometimes picks
+a confidently wrong phrasing over a safer one, a comparative preference SFT cannot
+express, so they add DPO with a small beta around 0.05 rather than standing up the
+full RLHF pipeline, because a classification-style loss over chosen and rejected
+pairs is enough and needs no separate reward model. They would only escalate to GRPO
+if the reward were cheaply verifiable per sample, which for open-ended tone it is not.
+
 > **Open the graph.** LoRA adapts a small fraction of these stacks, and "a small
 > fraction" is abstract until you see the real dimensions. The attention query,
 > key, value, and output projections plus the FFN up and down matrices are where

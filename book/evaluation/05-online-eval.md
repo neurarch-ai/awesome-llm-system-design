@@ -104,3 +104,25 @@ evals are opinions, not evidence."
 | Internal canary (dogfood) | Blast radius is large or you need a safe cohort with real usage patterns before broad rollout (GitHub Hubbers) | Jumping straight from offline pass to full production |
 | Human expert A/B | Output is regulated, irreversible, or stakes are high enough to require human arbitration (Thomson Reuters) | Automated gate alone on non-reversible or legally sensitive output |
 | Guardrail tracking (latency, cost, refusals) | Every online eval, alongside the target metric | Target metric only, which misses the cases where you won quality and lost cost |
+
+**Tools for each approach.** Traffic splitting for A/B tests and canaries runs on
+feature-flag and experimentation platforms such as GrowthBook, Statsig, Unleash, and
+LaunchDarkly, which also route the internal-only cohort for dogfooding. Shadow-mode
+runs reuse the same flag layer to fork traffic to a candidate whose output is logged
+but not shown. Behavioral and guardrail signals (edit rate, latency, cost, refusals)
+are captured by LLM observability tools like LangSmith and Arize Phoenix and by
+general metrics stacks such as Prometheus and Grafana over OpenTelemetry traces.
+Human expert A/B sign-off uses an annotation tool such as Label Studio, and the
+win-rate confidence math is a few lines over statsmodels or scipy.
+
+**Worked example.** A chat product with steady live traffic validates a new model by
+splitting a slice into an online A/B rather than trusting the offline win, because
+task completion and edit rate only exist online. Since the change is a drop-in model
+swap with a large blast radius, they first ship it to an internal canary cohort to
+confirm behavior on real usage before widening, rather than jumping straight from an
+offline pass to full production. A new autonomous action that could act on a user's
+behalf runs in shadow mode first, logging its output silently until the quality holds,
+because a live A/B would expose an unproven action. Throughout, they track latency,
+cost, and refusal guardrails next to the target metric so a candidate that wins
+quality but doubles cost still blocks. Human expert A/B they reserve for the regulated
+slices where an automated gate alone is not enough.

@@ -74,3 +74,21 @@ and naming it explicitly is one of the clearest signals in this question.
 | SFT | behavior or skill gap; you have thousands of clean labeled examples | RAG for a problem that is about style, not knowledge |
 | Preference tuning (DPO or RLHF) | a quality axis SFT cannot capture: safety, helpfulness, picking the better answer | SFT, when better examples already close the gap |
 | None of the above yet | the problem description is too vague to diagnose | committing to a training run before the baseline is measured |
+
+**Tools for each rung.** Prompt engineering needs nothing beyond the model API and
+an eval harness to check the baseline. RAG is served by retrieval and orchestration
+stacks such as LlamaIndex, LangChain, and Haystack over a vector store. SFT and
+preference tuning both run on Hugging Face TRL (its SFTTrainer and DPOTrainer),
+usually with PEFT for LoRA or QLoRA adapters, and higher-level wrappers like Axolotl
+and Unsloth make the training config declarative. DeepSpeed (Microsoft) backs the
+distributed training when a run outgrows a single GPU.
+
+**Worked example.** A support-automation team finds the assistant answers in the
+wrong tone and does not know the current return policy. They start at rung 1 and
+rewrite the system prompt, which fixes the tone but not the policy gap, because the
+policy changes every quarter and must cite the source document. That knowledge gap
+is exactly what RAG is for, so they index the policy pages rather than baking dates
+into weights that would go stale by the next revision. When the tone still drifts
+across millions of calls, they add a small SFT pass on curated transcripts to make
+the voice consistent, composing tuned behavior with retrieved knowledge on the same
+base, and they hold off on preference tuning because SFT already closed the gap.

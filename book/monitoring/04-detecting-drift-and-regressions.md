@@ -87,3 +87,26 @@ how much a new model changes outputs before you decide whether to canary it.
 | Canary (live traffic slice) | after frozen eval passes and you want real-user evidence before full rollout | a full rollout followed by post-hoc monitoring, which exposes all users to a regression |
 | Shadow (zero-risk diff) | when you want output-level evidence before any canary risk | skipping the pre-canary diff and going straight to a canary |
 | Input-embedding drift monitor | as a leading indicator that input distribution is moving under you | waiting for output drift metrics to confirm trouble after the fact |
+
+**Tools for each gate.** Input-embedding and output drift monitors are provided by
+Evidently, NannyML, and whylogs, embedding queries with a cheap encoder from the
+sentence-transformers library and trending cosine distance against a reference window.
+Frozen eval replay reuses the same offline runner that gated the last deploy (OpenAI
+Evals, Promptfoo, or a custom suite) scheduled through CI or an orchestrator, with
+results tracked in MLflow. Canary and shadow routing run on the feature-flag and
+experimentation layer (GrowthBook, Statsig, Unleash, or LaunchDarkly), and the
+candidate-versus-control proxy scores, latency, and cost surface in an observability
+platform such as Arize Phoenix, LangSmith, or Langfuse.
+
+**Worked example.** A chat product shipping a drop-in model swap runs frozen eval replay
+first, since it is the lowest-cost check and catches a regression before any user sees
+it, and refreshes that set by promoting flagged production traces so it does not go
+stale. Because the eval set could miss an input-distribution-specific failure, they then
+route five to ten percent of live traffic to a canary and compare proxy scores,
+feedback, latency, and cost against control in real time rather than doing a full
+rollout followed by post-hoc monitoring that would expose everyone to a regression. When
+they only want to know how much the new model changes outputs before taking any canary
+risk, they run it in shadow mode and diff candidate against control with zero user
+exposure. Alongside all of this they keep an input-embedding drift monitor as the
+leading indicator, so a moving query distribution warns them before output drift
+confirms the damage.

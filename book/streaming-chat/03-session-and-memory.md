@@ -95,6 +95,10 @@ bounded for the rest of the session. Illustrative, 200 tokens per turn average.*
 | Summarization at a threshold | Sessions that must stay alive past hundreds of turns | Truncation, when you can tolerate losing early context entirely |
 | Sliding window | Short-memory bots, bounded-cost products | Summarization, when earlier context is genuinely irrelevant |
 
+**Tools.** Server-side transcript stores are usually Redis for the hot, low-latency path and PostgreSQL for durable history, both easily keyed by session id. Prefix caching is built into modern inference engines: vLLM and SGLang both offer automatic prefix caching that reuses the KV state of a shared conversation head, which pairs with a session-affinity layer in the gateway or load balancer for sticky routing. Summarization and sliding-window buffers are prebuilt as memory abstractions in LangChain and LlamaIndex, so a threshold-triggered summary or a last-k-turns window is a configuration choice rather than custom code.
+
+**Worked example.** A chat product with long, multi-device sessions chooses server-side state in Redis over a client-side transcript, because it needs server-controlled summarization and cannot trust a client to send an unbounded history. It turns on prefix caching in its inference engine and adds session-id sticky routing so each follow-up turn lands on the replica that already holds the warm KV cache, instead of stateless routing where every turn is a full-prefill miss. As sessions run into the hundreds of turns, it summarizes the oldest turns at a threshold rather than truncating them, so an early reference is not lost silently. A lightweight companion bot in the same product, where only recent context matters, instead uses a plain sliding window for bounded, predictable cost.
+
 ## Session resumability
 
 Our requirements included session resumability across browser closes and device

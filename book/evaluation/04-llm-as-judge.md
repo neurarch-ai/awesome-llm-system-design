@@ -101,6 +101,27 @@ gating on it gives false confidence.
 | Different model family as judge | Evaluating a specific model family's outputs | The same family as judge, which self-prefers |
 | Task metric instead of judge | The answer is checkable (code passes tests, field matches label) | A judge you then have to calibrate and maintain indefinitely |
 
+**Tools for each approach.** Pairwise and pointwise judging, position-bias order
+swapping, and per-dimension rubrics are packaged by Ragas, DeepEval, Arize Phoenix,
+and Promptfoo, each of which lets you pin the judge model and version the judge
+prompt. LangSmith and Arize Phoenix store judge verdicts alongside traces so a
+calibration set can be re-scored on a schedule to catch judge drift. Cohen's kappa and
+the agreement statistics against human labels come from scikit-learn or a few lines of
+your own code over the paired labels. Caching of judge results for unchanged output
+pairs is a feature of most of these harnesses and keeps the per-call budget in check.
+
+**Worked example.** An enterprise-RAG team gating summary quality uses pairwise A
+versus B between the candidate and the production baseline rather than an absolute
+one-to-ten scale, because relative judgment is more reliable and does not bunch in the
+middle. They run both orderings and average to cancel position bias, and they pick a
+judge from a different model family than the summarizer to avoid self-preference bias.
+Before trusting the verdict as a gate they measure Cohen's kappa against a human-labeled
+sample and fix the rubric until it clears the bar rather than loosening the gate
+tolerance. When they also need a per-dimension breakdown of accuracy versus tone they
+add a pointwise rubric on those axes, and for any slice where the answer is checkable,
+such as a cited figure matching the source, they drop the judge entirely in favor of a
+task metric they never have to calibrate.
+
 ## The judge is not free infrastructure
 
 Every judged example is a model call. A thousand-row suite with pairwise judgment

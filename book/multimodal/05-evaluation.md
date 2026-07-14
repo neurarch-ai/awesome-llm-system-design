@@ -132,6 +132,10 @@ it shows up in offline POPE scores.
 | TTFT at target resolution | Interactive serving with a latency contract | Offline accuracy only, which ignores serving cost |
 | Cost per request alongside accuracy | Any deployment decision | Accuracy alone, since image-token blowup makes it easy to ship something correct but unaffordable |
 
+**Tools.** VLM evaluation harnesses such as lmms-eval and VLMEvalKit bundle the VQAv2, TextVQA, DocVQA, ChartQA, RefCOCO, MMMU, and POPE benchmarks with their exact scoring rules (soft voting, ANLS, relaxed accuracy, IoU, F1) so you do not reimplement them, and the underlying datasets are distributed through Hugging Face Datasets. The serving-side metrics (TTFT, throughput at p50 and p99, cost per request) come from load-testing a real deployment on vLLM or SGLang rather than from the accuracy harness. Online engagement and production hallucination signals are captured through your own logging and analytics.
+
+**Worked example.** A document-AI team evaluating a VLM for reading invoices and charts starts from DocVQA scored with ANLS and ChartQA with relaxed accuracy, because exact match would punish trivial OCR slips and small numeric rounding that do not change the answer. It adds TextVQA to force the OCR path that plain VQAv2 never stresses, and runs POPE on the adversarial split to quantify how often the model invents objects, since a high VQA score rewards confident answers and hides exactly those hallucinations. Because a candidate model scores a few points higher only by doubling the image-token budget, the team measures TTFT at its target resolution and cost per request alongside the accuracy number rather than shipping on offline accuracy alone. Only the option that passes both the accuracy and the serving-cost checks moves to production.
+
 The guardrail to state out loud: an offline VQA gain that doubles the image-token
 budget should survive a cost analysis and an online TTFT check before it ships.
 Accuracy and cost must both pass; optimizing one while ignoring the other is the

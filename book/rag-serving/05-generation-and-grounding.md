@@ -110,3 +110,27 @@ verification and groundedness are complementary checks, not substitutes.
 | Structured output schema for citations | Downstream system needs machine-readable references (link URLs, document IDs) | Free-text citations, which are hard to parse and verify automatically |
 | Larger context window (64K+ tokens) | The relevant content spans many long documents that chunking cannot isolate | Shorter context as a substitute for retrieval quality; fix retrieval first |
 | Prompt-injection defense (retrieved-text-as-data separation) | Any system where the corpus includes user-editable content (wikis, tickets) | Ignoring it, which makes the system exploitable by a malicious document author |
+
+**Tools for each strategy.** Prompt assembly, source-ID injection, and hard reranking
+of the top-m chunks are orchestrated by RAG frameworks such as LlamaIndex, LangChain,
+and Haystack, with cross-encoder rerankers from the sentence-transformers library
+tightening the context. Groundedness and citation-support scoring are provided by
+Ragas (its faithfulness metric), DeepEval, and Arize Phoenix, using an LLM judge or an
+NLI classifier over the (context, claim) pairs. Structured citation output is enforced
+with a schema-constrained decoding layer such as Outlines, Guidance, or the provider's
+JSON-mode. Prompt-injection defenses draw on scanners like Rebuff and the guardrail
+layers in NeMo Guardrails (NVIDIA) and Guardrails AI, though the core fix is keeping
+retrieved text out of the instruction slot.
+
+**Worked example.** An enterprise-RAG team serving answers over an internal wiki injects
+explicit source IDs into every chunk and runs the sub-millisecond post-generation
+citation check, since it costs nothing and catches a model that cites a document it was
+never shown. Because the domain is regulated, they abstain below a rerank-score
+threshold rather than always answering, treating an honest "no reliable source" as
+safer than a confident fabrication. They keep a tight top-m of five to ten chunks
+tightened by a cross-encoder reranker instead of stuffing fifty chunks and hoping the
+model finds the right one, which also cuts prefill cost and the lost-in-the-middle
+effect. Since the wiki is user-editable, they keep retrieved text strictly in the data
+slot so a malicious page cannot override the system instructions, and they add
+groundedness scoring on top of the citation check because an answer can cite a real ID
+while paraphrasing it wrong.

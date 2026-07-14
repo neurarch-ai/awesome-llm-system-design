@@ -85,6 +85,27 @@ expensive to serve would not pay off.*
 | Mid-training on an open base (most product teams) | limited compute budget and an open base covers the capability need | from-scratch pretrain that requires lab-scale resources |
 | From-scratch pretrain | genuinely new capability not in any open base (a new language, a new modality, a frontier advance) | adapting, which would have sufficed |
 
+**Tools for each approach.** From-scratch and compute-optimal pretraining at cluster
+scale run on Megatron-LM (NVIDIA), GPT-NeoX (EleutherAI), and DeepSpeed (Microsoft)
+ZeRO for the distributed sharding, with nanotron and litGPT as lighter-weight
+trainers. Inference-aware overtraining uses the same trainers, just carried far past
+the Chinchilla token ratio. Mid-training on an open base (continued pretraining or
+context extension) is the common product path and runs on Hugging Face Transformers
+and Accelerate over a downloaded checkpoint, which needs a fraction of the
+infrastructure. Data curation and decontamination for any of these leans on the
+datasets and tokenizers libraries plus dedup tooling.
+
+**Worked example.** A domain-LLM team needs a model fluent in a specialized corpus but
+lacks lab-scale compute. Because an open base already covers general language ability
+and only the domain vocabulary is missing, they choose mid-training on that base over
+a from-scratch pretrain, which would demand resources they do not have and would
+mostly relearn what the base already knows. If they were instead standing up a model
+they would serve billions of times, they would push inference-aware overtraining well
+past the twenty-tokens-per-parameter ratio, trading extra training FLOPs for a
+permanently cheaper serving cost rather than stopping at compute-optimal. A
+from-scratch pretrain earns its cost only when the capability, such as a new language
+or modality, is genuinely absent from every open base.
+
 ## Architecture choices that matter at scale
 
 The decoder-only transformer is the default; the deltas that matter are:

@@ -102,3 +102,25 @@ hard quality check.
 | INT8 quantization | cost reduction with near-zero quality regression | FP16 serving when inference cost is the business constraint |
 | INT4 quantization | the model is too large for the GPU in INT8 and an eval gate is in place | INT8, which is cheaper to recover from if quality regresses |
 | Distillation to a smaller model | the model itself is too large for the cost or latency target, not just precision | quantizing a too-large model, which only partially solves the problem |
+
+**Tools for each technique.** GQA is a modeling choice baked into Hugging Face
+Transformers architectures rather than a serving flag. PagedAttention, continuous
+batching, prefix caching, and speculative decoding all ship in vLLM, with TensorRT-LLM
+(NVIDIA) and SGLang offering the same serving levers (SGLang's RadixAttention is a
+prefix-cache variant). Weight and KV-cache quantization come from GPTQ, AWQ, and
+bitsandbytes, exposed as flags in vLLM and TensorRT-LLM, with GGUF via llama.cpp for
+CPU and edge. Distillation to a smaller student is a training-time step run on
+Hugging Face Transformers and TRL, not a serving library.
+
+**Worked example.** A chat product serving a 70B model behind a shared system prompt
+starts by picking a base that already ships GQA, cutting the KV cache at the source
+rather than paying the MHA VRAM tax. For serving they run vLLM to get PagedAttention
+and continuous batching, since request lengths vary and static allocation would
+fragment VRAM and leave GPUs idle, and they turn on prefix caching so the common
+system prompt is not recomputed every call. When inference cost becomes the binding
+constraint they apply INT8 quantization first for its near-zero quality regression,
+and only drop to INT4 behind an eval gate if the model still will not fit. If the
+model is simply too large for the latency target regardless of precision, they
+distill to a smaller student rather than quantize further, because quantization only
+partially solves a size problem. For a low-latency single-user path they add
+speculative decoding with a cheap draft model.

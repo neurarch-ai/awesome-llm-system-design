@@ -98,6 +98,28 @@ time.
 | RLAIF / CAI | AI labeler | no | moderate, scalable | cutting human-labeling cost while improving harmlessness; requires a well-designed constitution |
 | GRPO | no (rule verifier) | yes | moderate, critic-free | math, code, or any domain where a checker produces binary correct/wrong rewards |
 
+**Tools for each method.** SFT, DPO, and GRPO all run on Hugging Face TRL through its
+SFTTrainer, DPOTrainer, and GRPOTrainer, usually combined with PEFT for LoRA or QLoRA
+adapters. Full RLHF with PPO is served by TRL's PPOTrainer and by dedicated RLHF
+stacks such as OpenRLHF and NeMo-Aligner (NVIDIA), all of which lean on DeepSpeed
+(Microsoft) for sharding the multiple models a PPO loop keeps resident. RLAIF and
+Constitutional-style pipelines reuse the same preference trainers but swap the human
+labeler for an AI judge feeding the preference dataset. GRPO with verifiable rewards
+pairs the GRPOTrainer with a rule-based checker you write, such as a unit-test runner
+or a math grader.
+
+**Worked example.** A domain-LLM team first runs SFT to teach instruction following
+and refusal, the cheapest and most stable step, and confirms it before touching
+preference tuning. They then need the model to prefer the safer of two plausible
+answers, so they reach for DPO over full RLHF PPO, because they already have paired
+preference data and want to avoid an online RL loop and a separate reward model.
+Human labeling turns out to be the cost bottleneck, so for the harmlessness axis they
+shift to an RLAIF-style pass where an AI judge scores comparisons against a written
+constitution, cutting labels while keeping the same offline trainer. Only for the
+code-generation slice, where a checker produces binary correct-or-wrong rewards, do
+they escalate to GRPO, since a rule verifier removes the need for any preference
+model at all.
+
 ## The KL leash: why it is non-negotiable
 
 Every preference method keeps the policy close to the reference model, either

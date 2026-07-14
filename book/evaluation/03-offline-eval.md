@@ -154,3 +154,26 @@ would miss both. Illustrative.*
 | Private golden dataset, LLM-as-judge | Regression gate for open-ended output (summaries, chat, explanations) | No measurement at all, or a single-number average that hides slice regressions |
 | Held-out slice, no tuning | Honest final evaluation before a model upgrade | The same set used for prompt iteration, which you may have overfitted |
 | Safety dataset, binary gate | Any change that could affect policy compliance | A single capability metric that ignores the safety dimension |
+
+**Tools for each approach.** Public benchmarks and pass@k task metrics run on
+lm-evaluation-harness (EleutherAI) and the SWE-bench and HumanEval harnesses; code
+tasks execute candidate solutions in a sandboxed container against the repo's tests.
+Private golden datasets are versioned in source control and scored with a runner such
+as OpenAI Evals, Promptfoo, or a custom Vitest-style suite, with the dataset checked
+in alongside the code. LLM-as-judge gates on open-ended output are served by Ragas,
+DeepEval, and Arize Phoenix, which also store per-slice results so a single average
+does not hide a segment regression. Experiment tracking across dataset versions lives
+in MLflow or Weights and Biases.
+
+**Worked example.** A coding-assistant maker gates every model change on a private
+golden set rather than a public leaderboard, because public benchmarks can be
+contaminated and an adversarially trained model games them. Since the output is
+checkable, they frame each case as a unit-test pass and report pass@k rather than
+stand up an LLM judge they would have to calibrate and maintain. For the
+natural-language explanation slice, where the answer is open-ended, they add an
+LLM-as-judge gate and score it per segment so a lift on the average cannot hide a
+regression in one language or document-length bucket. They keep a held-out slice they
+never tune against for the honest final check before an upgrade, and they run a
+separate binary safety gate so a more capable but less safe candidate still blocks.
+Public benchmarks stay in the process only as the coarse first filter when picking a
+base model.

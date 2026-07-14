@@ -110,3 +110,25 @@ human-review queue and for refreshing the frozen eval set.
 | Cohen kappa or F1 against human labels | calibrating whether a judge score is trustworthy before you alert on it | a raw judge score, which is a confident guess until calibrated |
 | Implicit user behavior (accept / edit / retry rate) | you want a dense, free signal that is more honest than sparse thumbs | treating thumbs alone as an accuracy measure |
 | Human-review queue | nuanced failures that automated scoring misses, and calibrating the judge | reviewing everything, which does not scale |
+
+**Tools for each signal.** Sampled LLM-as-judge and grounding checks on live traces run
+on Ragas, DeepEval, and Arize Phoenix, whose faithfulness and answer-relevance scorers
+decompose answers into claims against the logged context. Trace capture that carries
+the trace_id joining judge score, grounding score, and behavioral feedback comes from
+LLM observability platforms such as LangSmith, Arize Phoenix, Langfuse, and Helicone,
+often over OpenTelemetry. Cohen's kappa or F1 against human labels is computed with
+scikit-learn on a few hundred annotated traces pulled into a labeling tool like Label
+Studio, which also backs the human-review queue. Explicit and implicit feedback capture
+is instrumented in the app and forwarded to the same observability layer.
+
+**Worked example.** An enterprise-RAG team with no online labels leans first on implicit
+user behavior, accept, edit, and retry rates, because it is dense and free and more
+honest than the sparse thumbs widget that only the very angry or very pleased ever
+click. Since answers are supposed to be grounded in retrieved documents and they log the
+context on each trace, they add a targeted grounding check rather than a general judge
+for the specific failure they fear, ungrounded claims, and trend the contradiction and
+unsupported rates separately. For a broader quality proxy they sample a slice of traffic
+through an LLM-as-judge, but they refuse to alert on its score until they have measured
+Cohen's kappa against a few hundred human labels, because an uncalibrated judge is a
+confident guess. The highest-yield downvoted and heavily-edited traces feed a
+human-review queue rather than reviewing everything, which would not scale.

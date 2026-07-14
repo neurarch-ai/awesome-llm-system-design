@@ -123,3 +123,25 @@ traffic.
 | Live 1% traffic slice | the final promotion gate before scaling | offline numbers alone, which cannot capture production distribution |
 | Safety eval re-run | after any preference tuning step | assuming a pre-DPO safety pass carries over |
 | Time-based or randomly held-out split | any offline eval | a random split drawn from the same sampling as training, which can leak |
+
+**Tools for each approach.** Structured exact-match and task-accuracy batteries run on
+lm-evaluation-harness (EleutherAI), which packages many benchmarks behind one runner.
+LLM-as-judge win rate and rubric scoring are provided by Ragas, DeepEval, and OpenAI
+Evals, with the judge model called through its API. Experiment tracking and gate
+comparisons against the current production checkpoint live in MLflow or Weights and
+Biases, and live traffic slices are decided by a feature-flag and experimentation
+layer rather than a single library. BLEU and similar n-gram metrics come from
+sacrebleu or the Hugging Face evaluate package.
+
+**Worked example.** A coding-assistant maker promotes a new checkpoint only after it
+clears a battery. Because completions are structured code with pass-or-fail tests,
+they gate on exact-match and unit-test accuracy rather than BLEU or a judge, which
+are imprecise on structured output. For the accompanying natural-language
+explanations, quality is comparative, so they add an LLM-as-judge pairwise win rate
+against the current production model and report it with a confidence interval rather
+than an absolute BLEU score. Every promotion runs the regression check against
+current prod so a two-point gain that hides a secondary regression fails the gate,
+and only after the offline battery passes do they open a one percent live traffic
+slice, since offline numbers alone cannot capture the production distribution. If the
+change touched an alignment step they would re-run the safety eval rather than assume
+the earlier pass carried over.
