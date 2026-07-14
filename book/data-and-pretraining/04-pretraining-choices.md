@@ -18,6 +18,30 @@ so attention does not bleed across unrelated documents. Training is a single pas
 (or a small number of passes) over the token budget. Everything hard is the data
 feeding this objective and the systems running it.
 
+## Learning-rate schedule: warmup, cosine decay, gradient clipping
+
+The single objective above hides a training-stability recipe that every base
+model uses, and that interviewers probe because it separates "read a paper" from
+"ran a training job." The learning rate is not constant: it **warms up linearly**
+from zero over the first fraction of steps, then **decays on a cosine** to a small
+floor.
+
+$$\eta(t) = \begin{cases} \eta_{\max}\dfrac{t}{t_{\text{warm}}} & t < t_{\text{warm}} \\[2mm] \eta_{\min} + \tfrac{1}{2}(\eta_{\max}-\eta_{\min})\left(1 + \cos\dfrac{\pi\,(t - t_{\text{warm}})}{t_{\text{total}} - t_{\text{warm}}}\right) & t \ge t_{\text{warm}} \end{cases}$$
+
+Warmup exists because the first steps have huge, noisy gradients against
+randomly-initialized weights; a full learning rate there diverges. Cosine decay
+exists because late training wants small steps to settle into a minimum. On top of
+the schedule, **gradient clipping** rescales any update whose global L2 norm
+exceeds a threshold (typically 1.0), which is the cheap insurance against the loss
+spikes that a bad batch would otherwise turn into a divergence.
+
+![Learning-rate schedule and gradient clipping](assets/fig-lr-schedule.png)
+
+*Left: linear warmup to the peak learning rate, then cosine decay to a small
+floor. Right: gradient clipping leaves normal steps untouched and caps only the
+occasional spike at the threshold, so one pathological batch cannot blow up the
+run. Illustrative values.*
+
 ## Tokenizer: BPE, SentencePiece, and vocabulary size
 
 The tokenizer is fit before pretraining, on a representative sample of the final
@@ -27,6 +51,23 @@ mixture. Changing it later means retraining from scratch.
 most frequent adjacent pair until reaching the target vocabulary size. Because it
 starts from bytes, it can represent any string with no out-of-vocabulary token
 ever, which is why it is the default for English-primary models.
+
+The "greedily merges the most frequent pair" step is worth seeing concretely.
+Starting from characters, BPE repeatedly finds the most frequent adjacent pair in
+the corpus and adds it as a new token, learning an ordered list of merge rules:
+
+```text
+corpus:  l o w   l o w   l o w e r   n e w e s t   w i d e s t
+merge 1: (e, s) -> es        ...  n e w es t   w i d es t
+merge 2: (es, t) -> est      ...  n e w est    w i d est
+merge 3: (l, o) -> lo        lo w   lo w   lo w e r  ...
+merge 4: (lo, w) -> low      low   low   low e r  ...
+```
+
+At encoding time the learned merges are replayed in order, so "lowest" tokenizes
+into `low` + `est` rather than six characters. More merges means a larger
+vocabulary and fewer tokens per word (lower fertility), which is the tradeoff the
+next paragraphs quantify.
 
 **SentencePiece** (BPE or unigram language model) treats input as a raw stream
 including whitespace, encoding spaces as a meta-symbol. This makes it reversible

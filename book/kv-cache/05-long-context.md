@@ -5,6 +5,27 @@ must be able to correctly attend across that range. Most base models are trained
 sequences far shorter than the contexts they are asked to serve. This section
 covers how teams extend that range without retraining from scratch.
 
+## How position information enters attention
+
+Self-attention is permutation-invariant on its own: shuffle the tokens and the
+$QK^{\top}$ scores are the same. Position has to be injected, and three schemes
+dominate, which is worth knowing because long-context extension is entirely about
+manipulating the third:
+
+| Scheme | Mechanism | Extends past training length? |
+|---|---|---|
+| Learned absolute (GPT-2) | a trainable vector per position index, added to the token embedding | No, there is no vector for an index never seen in training |
+| Sinusoidal (original transformer) | fixed sine/cosine of position at geometric frequencies, added to the embedding | Poorly, values are defined but extrapolation is unreliable |
+| RoPE (rotary, most modern bases) | rotate $Q$ and $K$ by an angle proportional to position, so the dot product depends only on relative offset | Yes, via frequency scaling, which is what PI and YaRN do below |
+
+RoPE is the important one. It rotates each 2D slice of the query and key vectors by
+an angle $m\theta_i$ at position $m$, where the per-dimension frequencies are
+$\theta_i = 10000^{-2i/d}$. Because a query at position $m$ and a key at position
+$n$ end up rotated by $m\theta_i$ and $n\theta_i$, their dot product depends only
+on the relative offset $m - n$. That relative property is exactly why you can
+rescale the position indices (next sections) to fit a longer context into angles
+the model already understands.
+
 ## Why position embeddings break at long context
 
 Transformer attention is position-aware because keys and queries are rotated by a

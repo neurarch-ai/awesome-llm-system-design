@@ -47,6 +47,28 @@ each request. The gateway reads the transcript from the store, prepends it to
 the new message, submits the full prompt to the inference engine, and pipes the
 token stream back to the client.
 
+## Controlling the output: temperature, top-k, top-p
+
+Each streamed token is sampled from the model's next-token distribution, and three
+knobs on the request shape that distribution. They are the parameters a product
+tunes for "creative" versus "deterministic" behavior, so it is worth knowing
+exactly what each does to the probabilities.
+
+- **Temperature** $T$ divides the logits before the softmax: $p_i = \text{softmax}(z_i / T)$. $T < 1$ sharpens the distribution toward the top token (more deterministic); $T > 1$ flattens it (more diverse); $T \to 0$ is greedy argmax.
+- **Top-k** keeps only the $k$ highest-probability tokens and renormalizes, cutting the long tail of low-probability (often incoherent) tokens.
+- **Top-p (nucleus)** keeps the smallest set of tokens whose cumulative probability reaches $p$, then renormalizes. Unlike top-k it adapts: a confident step keeps few tokens, an uncertain step keeps many.
+
+![How temperature, top-k, and top-p reshape the next-token distribution](assets/fig-decoding-strategies.png)
+
+*Left: temperature reshapes the softmax, with T=0.7 concentrating mass on the top
+token and T=1.6 spreading it toward the tail. Right: on the same T=1 distribution,
+top-k (k=3) hard-truncates to three tokens while top-p (p=0.9) keeps the nucleus
+of five that together reach 0.9 probability, both renormalized. Illustrative
+logits.*
+
+In production, top-p around 0.9 to 0.95 with a moderate temperature is the common
+default; top-k and top-p are often combined (apply both filters, then sample).
+
 ## SSE versus WebSockets
 
 Two transports dominate text streaming:

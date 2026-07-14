@@ -40,6 +40,33 @@ it is always memory-bandwidth-bound. Prefill (blue) rises with S and crosses int
 the compute-bound region above the dashed roofline. The chart assumes a 7B model in
 FP16 with GQA (8 KV heads). Illustrative.*
 
+## The attention computation the cache serves
+
+The cache exists because of one operation. Each layer projects its input into
+queries, keys, and values, scores every query against every key, and takes a
+softmax-weighted sum of the values. Causal masking sets the scores for future
+positions to $-\infty$ so a token can only attend to itself and the past:
+
+$$\text{Attention}(Q,K,V) = \text{softmax}\!\left(\frac{QK^{\top}}{\sqrt{d_{\text{head}}}} + M\right)V, \qquad M_{ij} = \begin{cases} 0 & j \le i \\ -\infty & j > i \end{cases}$$
+
+```python
+# x: (batch, seq, d_model);  n_head heads of size d_head = d_model / n_head
+def causal_self_attention(x, Wq, Wk, Wv, Wo, n_head):
+    B, S, _ = x.shape
+    q, k, v = x @ Wq, x @ Wk, x @ Wv                 # each (B, S, d_model)
+    q, k, v = [t.view(B, S, n_head, -1).transpose(1, 2) for t in (q, k, v)]  # (B, n_head, S, d_head)
+    scores = (q @ k.transpose(-2, -1)) / k.shape[-1] ** 0.5   # (B, n_head, S, S)
+    mask = torch.triu(torch.ones(S, S, dtype=bool), diagonal=1)
+    scores = scores.masked_fill(mask, float("-inf"))          # block future positions
+    out = scores.softmax(-1) @ v                              # (B, n_head, S, d_head)
+    return out.transpose(1, 2).reshape(B, S, -1) @ Wo         # (B, S, d_model)
+```
+
+The `k` and `v` for past tokens are identical on every future step, so recomputing
+them is pure waste. Caching them is what turns per-step attention from $O(S^2)$
+recompute into $O(S)$ lookup, and the tensor you cache is exactly the `k, v` above,
+which motivates the size formula next.
+
 ## What the KV cache is and why it dominates
 
 When the transformer generates tokens one at a time, it must attend over every

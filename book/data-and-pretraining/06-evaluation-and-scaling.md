@@ -14,6 +14,25 @@ $$\text{PPL} = \exp\!\left(\mathcal{L}\right)$$
 where $\mathcal{L}$ is the mean negative log-likelihood per token on the
 held-out set. Lower is better.
 
+Mechanically, $\mathcal{L}$ is just the cross-entropy between the model's
+next-token distribution and the actual next token, averaged over positions. The
+one detail that trips people up is the **shift by one**: the logits at position
+$t$ are scored against the token at position $t{+}1$.
+
+```python
+import torch.nn.functional as F
+# logits: (batch, seq, vocab); targets: (batch, seq) of token ids
+def loss_and_perplexity(logits, targets):
+    logits = logits[:, :-1, :]          # drop the last position (no next token)
+    targets = targets[:, 1:]            # the next token is the label (shift by one)
+    ce = F.cross_entropy(logits.reshape(-1, logits.size(-1)), targets.reshape(-1))
+    return ce, ce.exp()                 # perplexity = exp(mean cross-entropy)
+```
+
+Perplexity is the exponential of that mean cross-entropy, so a perplexity of 10
+means the model is on average as uncertain as if it were choosing uniformly among
+10 tokens.
+
 **Perplexity is only comparable across models that share a tokenizer.** A model
 with a larger vocabulary emits fewer tokens per sentence (each token covers more
 text), which mechanically lowers perplexity while the model may be no better on

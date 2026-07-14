@@ -52,6 +52,28 @@ $r(d + k)$. At $r = 16$ on the attention and FFN projections of a 7B model, this
 is roughly 0.08 percent of the total, and the task quality is nearly
 indistinguishable from full fine-tuning on most behavior-and-format tasks.
 
+As a layer it is a frozen `nn.Linear` with a trainable low-rank detour added to
+its output, and $B$ is zero-initialized so training starts exactly at the base
+model:
+
+```python
+class LoRALinear(nn.Module):
+    def __init__(self, base: nn.Linear, r=16, alpha=16):
+        super().__init__()
+        self.base = base.requires_grad_(False)          # W0 frozen
+        d, k = base.out_features, base.in_features
+        self.A = nn.Parameter(torch.randn(r, k) * 0.01) # down-project k -> r
+        self.B = nn.Parameter(torch.zeros(d, r))        # up-project r -> d, starts at 0
+        self.scale = alpha / r
+    def forward(self, x):
+        return self.base(x) + self.scale * (x @ self.A.T @ self.B.T)
+```
+
+Because $B$ starts at zero the detour contributes nothing on step one, so the
+adapter can only improve on the frozen base, never corrupt it at initialization.
+At serving time $\frac{\alpha}{r}BA$ can be folded back into $W_0$ so there is zero
+inference overhead (covered in section 6).
+
 **QLoRA** quantizes the frozen base to 4-bit to slash its memory footprint, then
 trains the LoRA adapter on top in BFloat16. The approximate memory budget is:
 
