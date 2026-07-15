@@ -85,6 +85,20 @@ image-token count.
 
 **Provenance.** The frozen-encoder-plus-projector late-fusion recipe was popularized by LLaVA (2023) over a CLIP (OpenAI, 2021) backbone; SigLIP (Google, 2023) is the sigmoid-loss encoder that replaces CLIP in newer stacks for better large-batch stability. The multimodal cross-attention lineage traces to Flamingo (DeepMind, 2022) and the query-token bridge to BLIP-2 (Salesforce, 2023). The light-adapter training path uses LoRA (Microsoft, 2021).
 
+**Recent directions (2024-2025).** Three shifts have moved the frontier past the
+fixed-resolution frozen-CLIP recipe. **Dynamic resolution**: Qwen2-VL processes images
+at their native resolution and aspect ratio, producing a variable number of visual
+tokens, and adds M-RoPE to share positions across text, image, and video (Qwen team,
+Alibaba, [arXiv:2409.12191](https://arxiv.org/abs/2409.12191)). **Native multimodal
+pretraining**: instead of gluing a vision encoder onto a finished LLM, models train on
+interleaved text and image data from scratch (the InternVL line,
+[arXiv:2312.14238](https://arxiv.org/abs/2312.14238)). **Any-to-any early fusion**:
+Chameleon tokenizes images and text into one stream and can both read and generate
+images (Meta, [arXiv:2405.09818](https://arxiv.org/abs/2405.09818)). The late-fusion
+recipe in this chapter remains the cheap, sample-efficient default; these are the
+directions to name when the task needs native resolution, image generation, or a
+single model trained jointly rather than assembled.
+
 **Worked example.** A document-AI team building an image-reading assistant has a small training budget and only needs to read images, not generate them. That points to late fusion so it can reuse a pre-trained LLM and a pre-trained vision encoder rather than paying to train a unified early-fusion transformer it does not need. Between encoders it starts from a frozen CLIP backbone because the task is largely natural-image understanding and training from scratch is unjustified, but if benchmark image features prove weak it would swap to a SigLIP backbone for better large-batch stability before ever considering a custom ViT. It would only train a ViT from scratch, as Pixtral does, if native-resolution and aspect-ratio fidelity became critical enough to give up the pre-trained head start. If the product later added voice input, it would attach an audio encoder plus projector rather than trying to feed raw waveforms into the LLM.
 
 **Model Zoo.** For CLIP and LLaVA-1.5, traced at real dimensions:

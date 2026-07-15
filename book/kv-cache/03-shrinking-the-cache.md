@@ -178,3 +178,30 @@ still halving memory versus an FP8 cache.
 rather than architectural changes. NVFP4 ships in TensorRT-LLM (NVIDIA); the FP8 KV,
 INT4 per-token, and INT2 (KIVI) approaches are attributed inline to Character.AI,
 Hugging Face, and the KIVI scheme respectively.
+
+## KV-cache eviction and sparsity: keep (or attend to) fewer tokens
+
+Architecture (GQA/MLA) and quantization shrink the cost *per token*. A third lever
+shrinks the *number* of tokens that matter, exploiting the fact that attention is
+sparse: most past tokens get almost no attention weight on most steps.
+
+- **StreamingLLM (attention sinks)** keeps only the first few tokens (the "attention
+  sink" that the softmax dumps mass onto) plus a recent local window, and discards the
+  middle. It lets a model stream indefinitely at bounded cache, but it genuinely
+  forgets the dropped middle (Xiao et al., MIT, 2023, [arXiv:2309.17453](https://arxiv.org/abs/2309.17453)).
+- **H2O (heavy hitters)** evicts by accumulated attention: keep the tokens that have
+  received the most attention so far ("heavy hitters") plus recent tokens, under a
+  fixed budget (Zhang et al., 2023, [arXiv:2306.14048](https://arxiv.org/abs/2306.14048)).
+- **SnapKV** looks at attention in an observation window at the end of the prompt to
+  pick which prompt tokens to keep before generation starts, compressing the prompt's
+  KV once (Li et al., 2024, [arXiv:2404.14469](https://arxiv.org/abs/2404.14469)).
+- **Quest (query-aware sparsity)** does not evict at all: it keeps the full cache but,
+  each step, loads only the top-k relevant pages by a query-to-page-summary score, so
+  nothing is lost and compute drops (Tang et al., 2024, [arXiv:2406.10774](https://arxiv.org/abs/2406.10774)).
+
+The key distinction for an interview: **eviction is lossy** (StreamingLLM, H2O,
+SnapKV drop tokens, so a later question about a dropped token cannot be answered),
+while **query-aware sparsity** (Quest) keeps everything and only skips reading it,
+trading memory for exactness. Reach for eviction when the cache truly will not fit
+and the workload tolerates forgetting old context; reach for sparse loading when you
+must stay exact but decode is bandwidth-bound.
