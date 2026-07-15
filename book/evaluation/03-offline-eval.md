@@ -42,7 +42,9 @@ quality gate for your own feature.
 suites (MMLU, HumanEval, TruthfulQA) are largely saturated, so as of 2025 to 2026
 the meaningful public benchmarks are harder and more agentic. Know the families:
 reasoning and knowledge (GPQA Diamond, MMLU-Pro, SciCode); real software
-engineering (SWE-bench, Terminal-Bench); tool-using agents (tau-bench, or
+engineering (SWE-bench, and specifically SWE-bench Verified, the 500-issue
+human-validated subset filtered to tasks that are actually solvable, which is the
+number frontier labs report); tool-using agents (tau-bench, or
 $\tau$-bench, for airline and retail workflows); and economically-valuable
 knowledge work (GDPval). Because no single benchmark captures "intelligence,"
 independent aggregators now publish a **composite index** built from many of these
