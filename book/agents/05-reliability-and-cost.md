@@ -84,7 +84,7 @@ starting ceiling: lookup (1), eligibility check (1-2), action (1), reply (1),
 with room for re-tries.
 
 **Token budget.** A ceiling on total tokens across all steps for a single
-ticket. At a $0.10 cost ceiling and a blended rate of roughly $\$10$ per
+ticket. At a \$0.10 cost ceiling and a blended rate of roughly $\$10$ per
 million tokens, the budget is about 10,000 total tokens. A ticket that would
 exceed this is escalated before it completes.
 

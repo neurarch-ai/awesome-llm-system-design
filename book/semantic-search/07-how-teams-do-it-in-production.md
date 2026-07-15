@@ -14,7 +14,7 @@ they compress vectors, and whether they run one retrieval stage or two.
 | Meta (Faiss) | IVF-PQ on GPU | OPQ + IMI + PQ 20-byte codes | Not stated | Refine shortlist at full precision | Billion-scale GPU acceleration; k-selection kernel in registers; ~40% recall@1 at 2ms on Deep1B |
 | Google (ScaNN) | Partition + anisotropic PQ | Anisotropic learned quantization | Not stated | Full-precision rescore | Penalizes parallel error for MIPS; 2x QPS at equal recall on glove-100-angular |
 | Microsoft (DiskANN) | Vamana graph on SSD | PQ codes in DRAM for traversal | Not stated | Full-precision from SSD | 1B vectors on one commodity machine; 95% recall at ~5ms from SSD |
-| Vespa | HNSW-IF hybrid | int8 vectors | Yes (dense + inverted file) | Full-precision rescore (depth 4000) | 1B 100-dim int8 vectors; 90% recall@10 under 50ms at ~$6K/month; CRUD-friendly |
+| Vespa | HNSW-IF hybrid | int8 vectors | Yes (dense + inverted file) | Full-precision rescore (depth 4000) | 1B 100-dim int8 vectors; 90% recall@10 under 50ms at ~\$6K/month; CRUD-friendly |
 | LinkedIn | IVFPQ (Galene) | Matryoshka 2048-dim for ANN, 4096-dim for ranker | Not stated | DCNv2 learned ranker (L2 stage) | 1B+ profiles; weekly batch + daily CDC delta; one model trains both dimensions |
 | Instacart | FAISS ANN | Not stated | No (keyword and category complement EBR) | Downstream ranker | Daily FAISS index rebuild; 95% query embedding cache hit; +4.1% cart-adds in A/B |
 | Etsy | HNSW | 4-bit PQ | Yes (term + neural) | Not stated | Compact 4-bit PQ codes; +5.58% purchase rate; hard-negative training |

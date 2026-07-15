@@ -68,7 +68,7 @@ flowchart TD
 4. Your post-training run finished and MMLU dropped 4 points versus the base
    model. What happened and how do you diagnose it?
 
-5. Your serving cost is $2M per month and you need to cut it in half. Name
+5. Your serving cost is \$2M per month and you need to cut it in half. Name
    three levers in order of how you would apply them, and the risk of each.
 
 6. A user says "we should just fine-tune the model on all our internal

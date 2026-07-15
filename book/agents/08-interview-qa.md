@@ -26,7 +26,7 @@ a code-side check validates schema (amount is a number, not negative), policy
 standing), and authorization (refunds above a threshold route to a human
 approval queue rather than executing immediately). This cannot be bypassed by
 prompt injection because the check is not in the model's context; it is in the
-orchestration layer. A prompt that says "only refund under $50" is a suggestion
+orchestration layer. A prompt that says "only refund under \$50" is a suggestion
 the model can ignore or that a malicious ticket can override.
 
 ---
@@ -165,7 +165,7 @@ prompt says about limits.
 ---
 
 **Q: Can you put the policy check in the system prompt? For example: "only issue
-refunds under $50."**
+refunds under \$50."**
 
 A: No, for two reasons. First, prompt injection through ticket text can override
 or confuse a prompt-side policy. Second, the model's adherence to a prompt

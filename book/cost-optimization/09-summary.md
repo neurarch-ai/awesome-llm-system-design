@@ -80,4 +80,4 @@ flowchart TD
   KV cache and prefix caching
   [topics/02-long-context-and-kv-cache.md](../../topics/02-long-context-and-kv-cache.md);
   rerankers for context trimming
-  [topics/08-reranking.md](../../topics/08-reranking.md).
+  [topics/08-semantic-search-and-embeddings.md](../../topics/08-semantic-search-and-embeddings.md).
