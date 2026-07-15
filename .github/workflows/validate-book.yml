@@ -1,0 +1,25 @@
+name: Validate book
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "book/**"
+      - "tools/validate-book.mjs"
+      - ".github/workflows/validate-book.yml"
+  pull_request:
+    paths:
+      - "book/**"
+      - "tools/validate-book.mjs"
+      - ".github/workflows/validate-book.yml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Validate book markdown (links, fences, mermaid, KaTeX, math, style)
+        run: node tools/validate-book.mjs
