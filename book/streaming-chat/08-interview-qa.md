@@ -104,6 +104,20 @@ if the user resumes), which shaves 200 to 400ms off the turn-detection wait;
 intermediate transcript. Cutting network means multi-region deployment with
 traffic routed to the nearest region.
 
+**Q: The user's network blips mid-stream and the SSE connection drops. How does the
+standard help you resume without replaying the whole answer?**
+
+A: Server-Sent Events (W3C/WHATWG) has reconnection built in: the browser's
+`EventSource` automatically reconnects when the connection drops, and if the server
+tagged each event with an `id:` field, the client sends the last id it saw in a
+`Last-Event-ID` request header on reconnect. The server can then resume streaming
+from the token after that id rather than from the start, provided it buffered the
+in-flight generation keyed by a stream id (the transcript in the session store is the
+durable copy). Without server-side buffering the reconnect still fires but there is
+nothing to resume from, so the client either replays from scratch or waits for the
+persisted final message. This is why production streaming assigns per-event ids even
+though the happy path never reads them back.
+
 ## Commonly answered wrong
 
 **Q: Should I use WebSockets for voice to get lower latency than SSE?**
@@ -148,3 +162,15 @@ session lands on a cold replica. The correct design treats stickiness as
 best-effort: attempt to route to the warm replica, but accept that cache misses
 happen and make sure the cold-cache path is correct and merely slower, not
 broken.
+
+**Q: Streaming reduces the total time to generate the answer, right?**
+
+A: No. Streaming does not change how long the model takes to produce the last token;
+decode throughput is identical whether or not you stream. What it changes is perceived
+latency: it delivers the first token as soon as prefill finishes (TTFT) instead of
+withholding every token until the full completion is ready, so the user starts reading
+while generation continues. Time to the final token, and total cost, are unchanged.
+Confusing time-to-first-token with time-to-last-token leads people to promise a
+throughput win streaming does not deliver; the win is entirely in responsiveness,
+which is why TTFT and inter-token latency are the metrics that matter rather than a
+single end-to-end number.

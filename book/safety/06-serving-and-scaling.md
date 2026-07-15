@@ -91,3 +91,12 @@ driving GPU utilization up without adding latency to the median request.
 | False positives causing user friction | Support tickets about blocked legitimate requests | Tune thresholds per category; use safe-complete instead of hard block on borderline verdicts | Slightly higher pass-through on borderline harmful content |
 | Injection over untrusted content at scale | RAG-sourced harmful outputs; user reports of injected actions | Structural isolation (spotlighting, delimiting) plus code-side action gates; probabilistic detector | Design complexity; encoding tricks add content-processing overhead |
 | Audit log volume | Storage cost at 10k+ RPS with full request logging | Log the guard verdict and reason, not the full input; sample the full input for a fraction | Reduced forensic depth on sampled requests |
+
+**Detail.** The guard-latency row's async race is only sound when generation has no
+side effects: you launch the guard classifier and the LLM in parallel and drop the
+stream if the guard fires first, but a model that can send email or issue a refund
+cannot race and must gate serially, which is why the tradeoff column warns that some
+tokens surface before the block. The GPU-contention row isolates the guard onto its
+own pool precisely because a small guard model (Llama Guard, Meta) batches very
+differently from a large generator: co-scheduling them lets long generations stall
+the latency-critical guard requests queued behind them.

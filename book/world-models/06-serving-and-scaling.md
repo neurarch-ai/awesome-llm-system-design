@@ -58,6 +58,11 @@ humanoids. Offline generation and eval: NVIDIA Cosmos world foundation models, a
 GPU-parallel simulators (NVIDIA Isaac Lab, dm_control, ManiSkill) for running
 thousands of environments in parallel.
 
+**Provenance.** The online-control models are DreamerV3 (DeepMind) and V-JEPA 2
+(Meta, 2025), driven by a cross-entropy-method planner (Rubinstein) wrapped in
+model-predictive control (classical control); the VLA path is NVIDIA Isaac GR00T and
+the offline generator is NVIDIA Cosmos.
+
 ## Bottlenecks
 
 | Bottleneck | Symptom | Fix |
@@ -66,3 +71,15 @@ thousands of environments in parallel.
 | Compounding rollout error | plans look good but fail over a long horizon | shorten horizon, replan more often, add rollout-drift to eval |
 | Sim-to-real gap | high sim success, low real success | domain randomization, better contact physics, more real adaptation data |
 | Offline generation too slow | synthetic-data pipeline starves policy training | quantize the generative model, scale horizontally, cache reusable rollouts |
+
+**Detail.** The planner-budget row's n and horizon are the two cost multipliers of
+the cross-entropy-method planner (Rubinstein): CEM samples n candidate action
+sequences of length H, rolls each through the world model, keeps the top-scoring
+elite fraction, refits its sampling distribution, and repeats for a few iterations,
+so per-step cost scales with n times H times the iteration count; model-predictive
+control (classical control) then executes only the first action and replans on the
+next step. The compounding-rollout-error row is why the horizon cannot simply be
+lengthened: each predicted step conditions on the previous prediction, so small
+per-step errors accumulate over the horizon, and replanning more often (a shorter
+effective horizon with a fresh real observation each step) bounds the drift better
+than a longer open-loop plan.

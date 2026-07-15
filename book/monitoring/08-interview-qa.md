@@ -90,6 +90,21 @@ coherence checks: did the agent call the right tools with the right arguments, a
 did its conclusions follow from the tool results? Frozen evals are harder to
 maintain because agent traces are longer and more variable than single-shot QA.
 
+**Q: Your ungrounded-rate z-score alert fires at the same time every Monday
+morning. Is the model broken?**
+
+A: Probably not; this is the classic failure of a stationary-baseline z-score. The
+z-score $z_t = (\text{rate}_t - \mu) / \sigma$ assumes the baseline mean $\mu$ and
+standard deviation $\sigma$ describe a single stable distribution, but production
+traffic is seasonal: weekday-morning traffic can carry a different query mix (more
+first-time users, different topics) than the weekend window the baseline averaged in.
+The rate genuinely shifts, so the z-score genuinely spikes, but the model did not
+change. The fix is mechanism-level, not threshold-tuning: compute the baseline over a
+matched window (same hour-of-week) or difference against a seasonally-adjusted
+expectation, so you are alerting on the residual after known periodicity is removed
+rather than on the periodicity itself. Interviewers use this to see whether you
+understand that drift detection is a stationarity assumption, not a magic threshold.
+
 **Q: The grounding score looks fine but users are still unhappy. Where do you
 look?**
 
@@ -135,4 +150,10 @@ A: Not necessarily. A stable block rate could mean the dangerous outputs are sti
 getting through uncaught. The dangerous case is the harmful output that no
 guardrail flagged. Supplement the block-rate dashboard with a sampled safety
 re-scan on allowed traffic (outputs that were not blocked) to catch the failures
-the guardrail missed.
+the guardrail missed. The mechanism-level reason block rate is the wrong instrument:
+it measures the guardrail's recall against what it can already detect, not against
+the true harm base rate, so it is blind to any novel attack the classifier was never
+trained to catch. A jailbreak family the filter does not recognize produces zero
+blocks and a perfectly stable block rate while harmful outputs flow. Only sampling
+the allowed stream into an independent re-scan (ideally a different model or a human)
+estimates the miss rate on the traffic the primary guardrail called safe.

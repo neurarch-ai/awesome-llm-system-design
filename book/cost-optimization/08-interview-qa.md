@@ -56,12 +56,16 @@ The right thing to report is cost saved and quality retained, per routing bucket
 including the hard tail. If you did not measure it, the right answer is "I do not
 know, and that is a problem."
 
+**Deeper:** The blind spot is structural, not accidental. An aggregate quality metric is dominated by the easy majority of traffic, so a regression concentrated in the hard tail (a small fraction of requests) barely moves the mean. Only per-bucket quality measured on a fixed hard-tail slice can surface it, which is why the aggregate dashboard staying green is the signature of the failure rather than evidence against it.
+
 **Q: Everyone uses semantic caching. Should you always deploy one?**
 A: Only if the hit rate clears the break-even: $h^* = c_{\text{embed}} / (c_{\text{model}} - c_{\text{hit}})$.
 On typical numbers this is around 2%, but on traffic that is nearly all unique
 free-text queries (e.g., a general-purpose assistant), even a tuned semantic
 cache may not reach break-even. Measure the organic hit rate on a sample before
 shipping the cache.
+
+**Deeper:** The break-even $h^*$ rises as the served model gets cheaper, because the denominator $c_{\text{model}} - c_{\text{hit}}$ shrinks while the embedding cost $c_{\text{embed}}$ (paid on every request, hit or miss) stays fixed. So a workload already routed to a cheap small model can make the cache net-negative even at a respectable hit rate, which is the opposite of the intuition that caching is always free money.
 
 **Q: Bigger LLMs are slower and cost more per token. Can you always swap in a
 smaller model for a subtask?**
@@ -72,6 +76,8 @@ genuinely regresses. The test is running both on your eval set, not assuming
 either direction. The operational cost is real: each additional model in the
 fleet must be evaluated, monitored, and updated.
 
+**Deeper:** The regression shows up specifically on inputs outside the fine-tune's training distribution, so a small model that passes the offline eval today can still fail on novel phrasings tomorrow. That makes distribution drift the real risk: the eval set has to be refreshed against live traffic, or the gap silently reopens while the offline number stays green.
+
 **Q: When does LLMLingua compression actually net out as a win?**
 A: When the input-token saving exceeds the compression pass cost: $c_{\text{big}}
 \cdot (n_{\text{orig}} - n_{\text{comp}}) \gt c_{\text{small}} \cdot n_{\text{orig}}$.
@@ -80,6 +86,8 @@ On long, verbose, redundant RAG context (20 retrieved chunks with lots of
 repeated boilerplate) it can pay 5-10x. Profile the bill before applying
 compression; trim to top-3 chunks first since that is zero-cost and often
 achieves most of the input-token reduction.
+
+**Deeper:** The compression pass is itself a small-LM forward over the full original context to score token importance, so its cost scales with $n_{\text{orig}}$, not $n_{\text{comp}}$. That is the mechanism behind the break-even: on short-input or output-dominated workloads the pass is pure overhead because the tokens it removes were cheap to begin with; the win only materializes when the removed input tokens were both numerous and expensive on the big model.
 
 ## Commonly answered wrong (the traps)
 
@@ -90,6 +98,8 @@ plus the model call on the routed subset. The router's cost $c_{\text{router}}$
 is subtracted from savings in the formula; make it large enough and savings go
 negative. Use a classifier, a heuristic, or a small fine-tuned model.
 
+**Deeper:** Even setting price aside, a frontier router adds its full latency to every request before any useful generation begins, so it worsens time-to-first-token on exactly the easy queries routing was supposed to speed up. A router must be cheaper and faster than what it gates, on both axes.
+
 **Q: Should the router optimize for cost minimization?**
 A: No. Optimizing the router purely for cost causes it to dump newly-hard queries
 on the small model whenever the cost function dominates the training signal. The
@@ -97,11 +107,15 @@ correct objective is cost minimization subject to a quality floor per bucket.
 Load the eval set with the hard tail so a router that mis-handles hard queries
 shows as a quality regression, not a cost win.
 
+**Deeper:** This is a reward-specification failure. Cost is fully and cheaply observable at every request, while quality on the hard tail is sparsely sampled, so an unconstrained objective drifts toward the term it can see. Encoding the per-bucket quality floor as a hard constraint rather than a soft penalty is what stops the optimizer from trading away tail quality for a legible cost number.
+
 **Q: FP8 quantization improved throughput. Does this mean the API got cheaper?**
 A: Only if you are self-hosting. On a per-token API the provider controls the
 serving infrastructure; quantization on your side does not change the bill.
 FP8 is a self-hosting lever: it reduces VRAM footprint and increases tokens per
 GPU-second, which translates to lower cost per token only when you own the GPU.
+
+**Deeper:** On an API the per-token price is set by the provider's contract and is decoupled from their serving efficiency, so any throughput gain they get from quantization accrues to their margin, not your bill. Your quantization only moves cost when you are the one paying the GPU-hour, which is why the lever exists solely above the self-hosting QPS break-even.
 
 **Q: Should I route offline batch jobs through the same routing logic as
 interactive traffic?**
@@ -111,3 +125,5 @@ batch API (about half the per-token price of the sync endpoint) or to a
 self-hosted model running at maximum batch size on spot capacity. The interactive
 routing logic is designed around a latency budget that offline jobs do not have;
 apply it to offline traffic and you pay online prices for offline work.
+
+**Deeper:** The batch endpoint earns its lower price by deferring execution and packing requests into large batches that maximize GPU utilization, which is exactly the throughput-for-latency trade an interactive SLO forbids. So the roughly half price is the mechanism of batching showing up in the bill, not an arbitrary discount, and routing interactive traffic through it would blow the latency budget outright.

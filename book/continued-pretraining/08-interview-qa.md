@@ -71,6 +71,8 @@ Perplexity measures fluency at length; it does not measure use of the context.
 Gate on RULER-style retrieval and aggregation tasks and on recall-by-depth, not on
 perplexity. A low perplexity on long documents is necessary but not sufficient.
 
+**Deeper:** Perplexity averages over every token position, and the large majority of tokens are predictable from a short local window, so one unretrieved fact at 60K barely moves the mean. Recall-by-depth isolates exactly the positions that this average drowns out, which is why it exposes the mid-context dip that a single perplexity number hides.
+
 **Q: Your DAPT lifted the domain benchmark by six points but MMLU dropped by
 five. Diagnose and fix.**
 
@@ -82,6 +84,8 @@ model overfit it. Fix by adding a replay fraction of general web data (start at
 ten percent), lowering the re-warm peak, and re-running the full general suite as
 the gate before promoting the base.
 
+**Deeper:** Replay works because interleaving general tokens keeps a live gradient on the general distribution at every step, so the optimizer never sees a run of pure-domain batches long enough to walk out of the general minimum. A replay fraction fixed once and held constant is usually more stable than annealing it, since a decaying replay share reintroduces late-training drift exactly when the weights are consolidating.
+
 **Q: Why does uniform position interpolation hurt short-context quality after
 extending to 128K?**
 
@@ -91,6 +95,8 @@ those crowds nearby positions together: the model loses resolution between
 consecutive tokens and gets worse at short prompts where local ordering is most
 important. YaRN fixes this by leaving the high-frequency dimensions near-unscaled
 and interpolating only the low-frequency (long-range) ones.
+
+**Deeper:** The high-frequency dimension pairs complete a full rotation within a handful of token positions, so they are the ones that encode adjacency. Dividing their frequency by $s$ stretches that short period, and two neighboring tokens now sit at almost the same angle, which is precisely why local ordering blurs. YaRN's ramp keeps those dimensions near their original period and confines the interpolation to the slow, long-wavelength dimensions where the resolution loss does not matter.
 
 **Q: How much compute does context extension actually take compared to pretraining?**
 
@@ -102,6 +108,8 @@ language from scratch. Staged extension is even cheaper: early stages use shorte
 sequences and consolidate cheaply before the final length. The whole length
 adaptation is a tiny fraction of the original pretrain budget.
 
+**Deeper:** The reason it is so cheap is that RoPE encodes position relatively and the semantic weights are already trained, so the run only has to teach attention to read the rescaled angles rather than re-learn language. Most of the loss recovery happens in the first few hundred steps; the long tail buys diminishing returns, which is why staged extension can stop each stage early.
+
 ## Commonly answered wrong (the traps)
 
 **Q: To get a clinical model, fine-tune on our clinical documents.**
@@ -112,6 +120,8 @@ taking register at depth. Continued pretraining on billions of clinical tokens i
 what does that. If you have only a few thousand documents, use RAG to retrieve
 relevant chunks rather than hoping SFT will shift the base.
 
+**Deeper:** The tell is that SFT loss can look excellent while the model still hallucinates domain facts, because SFT optimizes the response conditioned on the prompt, not the base's underlying factual prior. Only continued pretraining on raw domain text moves that prior, which is why a fluent-sounding but factually shaky clinical model is the signature of SFT-only adaptation.
+
 **Q: To get 128K context, set `max_position_embeddings` to 128000.**
 
 A: That changes a config number, not the model. Without rescaling the RoPE
@@ -119,6 +129,8 @@ frequencies the model sees rotation angles it was never trained on and produces
 garbage past its original window. Without long-context continued training it never
 learns to use the extended window. Extension is a rescaling plus a training run
 on genuine long documents, not an edit.
+
+**Deeper:** That field only sizes the position-embedding table or caps the allowed position index. For a RoPE model there is no learned position table to extend at all: the rotation angles are computed on the fly from position times frequency, so raising the config number just lifts the guardrail on a model whose weights have never seen those angles.
 
 **Q: YaRN is just linear interpolation with an extra term.**
 
@@ -129,6 +141,8 @@ wavelength) ones near-unscaled to preserve local ordering, and adds a softmax
 temperature correction to counter the attention-entropy shift at long length.
 Conflating them is the most common technical error about context extension.
 
+**Deeper:** Concretely, YaRN partitions the RoPE dimensions by wavelength relative to the target length into interpolate, extrapolate, and ramp bands, so the rescale is per-dimension rather than one global factor. The softmax-temperature term is a separate correction that rescales attention logits to hold the attention entropy roughly constant as the sequence grows, addressing a failure mode linear PI does not even touch.
+
 **Q: Our model passes the needle test, so 128K works.**
 
 A: Needle-in-a-haystack is single-hop retrieval of one verbatim fact and is often
@@ -137,6 +151,8 @@ aggregation, and multi-needle tasks routinely fail on models that pass NIAH,
 because the effective context is shorter than the configured one. A NIAH pass is a
 minimum smoke test, not a proof of 128K.
 
+**Deeper:** Multi-hop fails because it forces the model to retrieve fact A, then use A to locate fact B elsewhere in the same long span, which stresses cross-position binding rather than a single lookup. Edge-anchored, single-needle NIAH never exercises that chained dependency, so it cannot distinguish a model that truly attends across the window from one that only reads its ends.
+
 **Q: General benchmarks did not drop, so there was no catastrophic forgetting.**
 
 A: Only if you ran them. Forgetting is silent inside the domain slice and shows up
@@ -144,3 +160,5 @@ outside it. If you ran only the domain benchmark, you cannot make this claim.
 Run the full general suite (MMLU, GSM8K, instruction following) before and after,
 compare, and then report the result. Asserting no forgetting without a before-and-
 after general-eval gate is the most common and quietly fatal mistake in DAPT.
+
+**Deeper:** Forgetting concentrates in capabilities the domain corpus never exercises, such as math reasoning or code, so a domain-only eval is structurally blind to it. This is why the gate has to run the specific general suites that stress those capabilities rather than a single averaged score, which can stay flat while a targeted skill collapses underneath it.

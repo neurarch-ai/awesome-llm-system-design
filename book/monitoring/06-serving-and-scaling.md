@@ -73,3 +73,15 @@ metric even if it wins on the faithfulness dashboard.
 | Human review queue overwhelmed | queue depth grows, review latency rises | tighten the stratification criteria; raise the threshold for entering the queue | smaller human-labeled sample; judge calibration drifts more |
 | Judge-human disagreement rising | kappa or F1 score against human labels falls | re-label a fresh sample, update the judge rubric and prompt version, pin the new version | short calibration lag after a domain shift |
 | Safety re-scan misses harmful outputs | periodic red-team finds outputs the guardrail did not catch | sample allowed traffic into the re-scan queue in addition to guardrail near-misses | extra re-scan cost on non-flagged traffic |
+
+Two details make the top rows concrete. The "instrumentation adds latency" fix works
+because the tracing standard the observability stack emits into, OpenTelemetry (CNCF),
+is designed for asynchronous span export: the SDK batches spans and flushes them off
+the request path, so the fire-and-forget write is the intended usage pattern rather
+than a hack, and the only real exposure is dropped spans when the export queue
+saturates. The "judge cost dominates" row is really a sampling-math problem: judge
+cost scales linearly with sampling rate, so the standard move is a cheap first-pass
+triage model that scores everything and escalates only the suspicious tail to the
+full judge, which keeps coverage high while cutting the expensive-call volume by the
+triage pass rate. Both fixes trade a bounded loss (a few dropped spans, slower
+tail detection) for a large constant-factor reduction in observation overhead.

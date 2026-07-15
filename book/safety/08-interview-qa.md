@@ -92,6 +92,21 @@ cheap tier cost for the overwhelming majority of requests. The distilled classif
 economics and the latency profile. The expensive model can be larger and slower
 than you would ever tolerate at full throughput, because it almost never runs.
 
+**Q: What makes Constitutional Classifiers more robust to novel jailbreaks than a
+fixed-taxonomy toxicity classifier?**
+
+A: Constitutional Classifiers (Anthropic) are trained on synthetic data generated
+from a constitution, a natural-language spec of allowed and disallowed categories,
+so the training distribution can be regenerated and expanded as new attack styles
+appear without hand-labeling each one. Because the classifier learns the category
+boundary rather than a fixed list of surface strings, encoding tricks (cipher,
+translation, role-play) that reword the same disallowed request still land inside
+the disallowed region. A fixed-head toxicity classifier trained on observed toxic
+strings generalizes poorly to a rewording it never saw. The lineage is Constitutional
+AI (Anthropic, 2022), which first used a constitution to supervise model behavior;
+the classifiers apply the same idea to the guard. The cost is an explicit
+safety-throughput trade, roughly 23% compute overhead.
+
 ## Commonly answered wrong
 
 **Q: Can you add the safety instructions to the system prompt and rely on that?**
@@ -126,3 +141,15 @@ by making them specify more to override. It does not prevent a sophisticated att
 and it is not a substitute for independent classifiers or code-side gates. Investing
 in classifier quality and structural isolation produces much larger safety gains than
 investing in system-prompt engineering.
+
+**Q: A high-accuracy prompt-injection classifier means you can safely put retrieved
+content in the prompt, right?**
+
+A: No. A classifier is probabilistic and adversarial input is adaptive: an attacker
+iterates until they find a phrasing the detector scores as benign, and encoding or
+translation tricks widen that space. The structural fix is orthogonal to detection:
+keep retrieved text in a data slot the model is told is untrusted (spotlighting or
+delimiting) so it is never interpreted as instructions, and gate every real action
+in code so an injected command cannot execute even if it slips past the detector.
+Prompt Guard (Meta) and similar detectors raise the attacker's cost but are a layer,
+not a guarantee; the code-side action gate is the one that holds when detection fails.

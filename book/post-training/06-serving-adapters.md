@@ -71,3 +71,15 @@ and hold a fixed fraction of each dataset as human-authored.
 | Stale knowledge in weights | tuned facts go stale; retraining needed weekly | move facts to retrieval (RAG); tune behavior only | adds a retrieval path |
 | Flywheel drift or model collapse | diversity narrows; tail cases disappear | keep human-labeled core; quarantine unfiltered synthetic data | labeling overhead each cycle |
 | Silent promotion regression | "better" model ships worse on secondary task | regression check vs current prod (not absolute bar) | wider eval suite per candidate |
+
+**Detail.** The training-memory row leans on LoRA (Microsoft, 2021) and QLoRA
+(University of Washington, 2023): LoRA freezes the base and learns a rank-r update
+on the projection matrices, so only that small delta lives in optimizer state, while
+QLoRA additionally holds the frozen base in 4-bit NF4 so a single consumer GPU
+suffices. The multi-LoRA serving row keeps one warm base resident and swaps adapters
+per request, so N tenants cost one base plus N small adapter tensors rather than N
+full checkpoints; throughput then hinges on batching heterogeneous adapters through a
+grouped-GEMM (SGMV) kernel, and the rank cap in the tradeoff column is what limits
+how many distinct-rank adapters share a batch. The stale-knowledge row routes facts
+to retrieval (RAG, Meta FAIR, 2020) so behavior tuning and knowledge freshness scale
+on separate clocks.

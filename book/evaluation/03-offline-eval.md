@@ -155,6 +155,8 @@ would miss both. Illustrative.*
 | Held-out slice, no tuning | Honest final evaluation before a model upgrade | The same set used for prompt iteration, which you may have overfitted |
 | Safety dataset, binary gate | Any change that could affect policy compliance | A single capability metric that ignores the safety dimension |
 
+**Provenance.** The open-ended LLM-as-judge gate runs on harnesses such as Ragas (open source); the public-benchmark and pass@k paths carry their origins inline as lm-evaluation-harness (EleutherAI), HumanEval, and SWE-bench. These are eval tooling rather than foundational-model methods, so no architecture attribution applies.
+
 **Tools for each approach.** Public benchmarks and pass@k task metrics run on
 lm-evaluation-harness (EleutherAI) and the SWE-bench and HumanEval harnesses; code
 tasks execute candidate solutions in a sandboxed container against the repo's tests.

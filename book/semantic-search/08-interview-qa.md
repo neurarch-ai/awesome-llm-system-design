@@ -90,6 +90,20 @@ inner product) should be penalized more than orthogonal error. Using a
 Euclidean-tuned quantizer for inner-product search silently loses recall on the
 items with the highest inner products, which are exactly the ones that rank first.
 
+**Q: When would you reach for ColBERT late-interaction over a cross-encoder
+reranker?**
+A: A cross-encoder (descended from Sentence-BERT, UKP Darmstadt, 2019) concatenates
+query and document and runs a full transformer forward pass per pair, so it is
+accurate but cannot be precomputed: every candidate costs a fresh pass at query time.
+ColBERT (Stanford, 2020) embeds each document token independently and offline, then
+at query time scores via MaxSim: for each query token it takes the max dot product
+over the document's token embeddings and sums those maxima. Because the document
+token embeddings are precomputed and indexed, ColBERT scales to first-stage retrieval
+or cheap reranking over large candidate sets, trading some accuracy for the ability
+to amortize document encoding. Reach for it when you need better-than-bi-encoder
+quality at a candidate volume a cross-encoder cannot afford; keep the cross-encoder
+for the small final shortlist where its full cross-attention pays off.
+
 ## Commonly answered wrong (the traps)
 
 **Q: Should you apply a score correction for compression bias at query time?**
@@ -128,3 +142,14 @@ a query for a product code that was minted after training. Any token the model
 has not seen maps to a vector in a neighborhood that reflects its rare occurrence
 statistics, not its actual identity. Lexical search is structurally complementary
 to semantic search, not a substitute for a weaker model.
+
+**Q: Adding more shards to the ANN index improves recall, right?**
+A: No; it usually costs recall unless you compensate. Sharding splits the corpus
+across N partitions and each shard returns its local top-k, which are then merged.
+HNSW (Malkov and Yashunin, 2016) recall is per-shard: a query that would have found
+its true neighbor by traversing the full graph may now land in a shard whose local
+graph does not contain that neighbor, and the merge cannot recover a document no
+shard surfaced. Sharding buys throughput and RAM headroom, not recall; to hold recall
+you must raise per-shard ef or over-fetch (request more than k per shard) so the merge
+has enough candidates to work with. Treating shard count as a recall knob inverts the
+actual trade.

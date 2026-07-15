@@ -213,6 +213,12 @@ preference tuning is needed.*
 | GRPO | verifiable reward exists (math, code, retrieval rank); no value function available | RLHF when the reward is not cheaply verifiable per sample |
 | Small beta (0.03 to 0.1) | first run; stability matters; Anyscale and Spotify both used this range | large beta, which over-steers the policy back to the SFT reference |
 
+**Provenance.** LoRA came from Microsoft (2021) and QLoRA from the University of
+Washington (2023). RLHF was popularized by OpenAI's InstructGPT (2022), whose RL
+step uses PPO (OpenAI, 2017); DPO came from Stanford (2023) as a reward-model-free
+alternative, and GRPO from DeepSeek (2024) as a value-function-free variant for
+verifiable rewards.
+
 **Tools for each method.** Hugging Face TRL implements SFT, DPO, and GRPO through its
 SFTTrainer, DPOTrainer, and GRPOTrainer, and PEFT supplies the LoRA and QLoRA
 adapters (QLoRA pairs PEFT with bitsandbytes 4-bit quantization). Axolotl and Unsloth

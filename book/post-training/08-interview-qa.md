@@ -95,6 +95,19 @@ set against live samples to find the gap, add representative production examples
 the eval set, fix the format/representation mismatch, and close the flywheel so
 the next training run sees the live distribution.
 
+**Q: GRPO drops the value network that PPO relies on. What replaces it, and why is
+that safe here?**
+A: GRPO (DeepSeek, 2024) samples a group of G completions for the same prompt,
+scores each with a verifiable reward, and computes each sample's advantage as its
+reward minus the group mean, normalized by the group standard deviation. PPO
+(OpenAI, 2017) instead trains a separate critic network to estimate the baseline
+value, which doubles model memory and gives the policy a moving target to chase.
+GRPO's baseline is just the batch statistic over the group, so it needs no learned
+critic and stays unbiased within the group, which is exactly why it fits
+verifiable-reward tasks (math, code, retrieval rank) where every sample can be
+scored cheaply. The cost it moves elsewhere: you must draw G samples per prompt, so
+training-time inference scales with the group size.
+
 ## Commonly answered wrong (the traps)
 
 **Q: Should you fine-tune to teach the model new facts?**
@@ -129,3 +142,13 @@ tone, or a secondary capability by five points should fail the gate. Without a
 comparison to the current production model on the same eval set, "newer" quietly
 ships "worse" and you find out from user complaints. The regression check is not
 optional.
+
+**Q: QLoRA stores the base in 4-bit, so the adapter you train is 4-bit too, right?**
+A: No, and the split is the whole point. QLoRA (University of Washington, 2023)
+keeps the frozen base weights in 4-bit NF4 and dequantizes them on the fly for each
+forward pass, but the LoRA adapter matrices are held and trained in 16-bit (bf16).
+Gradients flow only into the 16-bit adapter; the 4-bit base is never updated. You
+therefore get the memory savings of a 4-bit base without quantizing the parameters
+you are actually learning, so the learned delta keeps full precision. Assuming the
+adapter is 4-bit leads people to expect an accuracy hit on the update that does not
+occur, and to over-provision rank to compensate for a problem that is not there.

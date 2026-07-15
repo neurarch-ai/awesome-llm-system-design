@@ -111,6 +111,8 @@ via llama.cpp targets CPU and edge, and FP8 is exposed through TensorRT-LLM and 
 on H100-class hardware. KV-cache quantization (FP8/INT8 KV) is a flag in vLLM and
 TensorRT-LLM.
 
+**Provenance.** Tensor and pipeline parallelism originated with Megatron-LM (NVIDIA); the memory-sharding lineage they build on traces to ZeRO (Microsoft). Expert parallelism follows the sparse-MoE routing of GShard and Switch Transformer (Google). On quantization, GPTQ (2022) and AWQ (MIT, 2023) are the reference weight-only post-training methods.
+
 **Worked example.** Serving a 70B model for interactive chat on one 8xH100 node:
 the model does not fit on a single GPU, NVLink between the eight cards is fast, and
 single-request latency is the SLO, so use tensor parallelism within the node (TP=8)

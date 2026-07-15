@@ -61,6 +61,8 @@ the other binding.
 | Training cost of long-context passes | Long sequences dominate batch time and cost | Staged length increase (short sequences early), sequence packing with padding masks | Earlier stages are cheaper; must validate each stage before extending further |
 | Contamination in domain corpus | Domain benchmark inflates post-DAPT | Decontaminate domain corpus and long-context data against all evals before training | Extra data-engineering work; worth it to trust the numbers |
 
+**More detail.** Two rows have clean provenance for their fixes. The quadratic-prefill fix FlashAttention (Stanford, 2022) never materializes the full N-by-N score matrix in HBM; it tiles the computation and keeps blocks in SRAM, so it cuts memory traffic rather than the FLOP count, which is why it helps prefill latency most on long prompts. The KV-cache-OOM row leans on GQA (Google, 2023) and its extreme MQA (Google, 2019) to shrink the number of KV heads (and thus cache size), while paged attention from PagedAttention (vLLM, UC Berkeley, 2023) maps the cache to fixed-size blocks so a long request no longer needs one contiguous buffer and fragmentation stops forcing premature OOM.
+
 ## Long context and retrieval compose, they do not replace each other
 
 Long context handles one big document the model must reason over whole. It does

@@ -122,3 +122,8 @@ without any user API change.
 | Prefix caching (vLLM, Databricks, Anthropic) | A large fixed system prompt or document repeats across requests | Context is all-unique per request; the cache never hits |
 | RadixAttention (SGLang) | Requests share branching prefixes: few-shot, agent trees, parallel chains | Prefix diversity collapses cache benefit; LRU thrashes under highly varied traffic |
 | Per-turn chat caching (Character.AI rolling hash) | Long-conversation product with heavy turn reuse; 100+ turn histories | Short or ephemeral conversations where reuse is low |
+
+**Provenance.** PagedAttention originated with vLLM (UC Berkeley, 2023), which
+brought OS-style block paging to the KV cache; RadixAttention is SGLang's prefix-tree
+generalization of it, and prefix caching plus the Character.AI rolling-hash scheme
+are attributed inline above.

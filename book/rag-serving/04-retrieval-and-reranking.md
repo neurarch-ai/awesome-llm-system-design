@@ -93,3 +93,10 @@ one per document scored. Illustrative counts.*
 | IVF-PQ index | 50M+ chunks where index memory is the dominant constraint | HNSW, when quantization recall loss is unacceptable and memory is available |
 | Cross-encoder rerank (NVIDIA, Dropbox) | First-stage recall is fine but top-5 precision is the quality ceiling | Sending all top-n to the LLM, which inflates prompt cost and buries relevant passages |
 | No reranker | Hard first-token latency budget leaves no slack; first-stage recall is already very high | A cross-encoder, when the latency penalty matters more than precision gain |
+
+**Provenance.** Dense retrieval traces to DPR (Meta FAIR, 2020); the lexical side is
+BM25 (Robertson and Walker, 1994), fused with dense scores by Reciprocal Rank Fusion
+(Cormack et al., 2009). The two index choices are HNSW (Malkov and Yashunin, 2016)
+and IVF-PQ (Jegou et al.; FAISS by Meta). Cross-encoder reranking descends from
+Sentence-BERT (UKP Darmstadt, 2019); a late-interaction alternative is ColBERT
+(Stanford, 2020), and Cohere Rerank (Cohere) is a hosted option.

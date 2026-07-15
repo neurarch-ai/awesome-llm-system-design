@@ -101,6 +101,21 @@ within the "medium difficulty" bucket where the routing signal is weakest. Easy
 queries get the cheap model directly; hard queries escalate directly; the middle
 range gets the cascade to decide on real evidence.
 
+```mermaid
+flowchart LR
+  Q["incoming query"] --> R{"router<br/>(sub-ms classifier)"}
+  R -->|easy| S["small model"]
+  R -->|hard| B["big model"]
+  R -->|medium| C["cheap model first"]
+  C --> J{"self-score<br/>confident?"}
+  J -->|yes| OUT["answer"]
+  J -->|no, escalate| B
+  S --> OUT
+  B --> OUT
+```
+
+*Route only where the signal is strong (easy and hard); spend the extra cascade call only on the uncertain middle bucket.*
+
 ## When to use which
 
 | Reach for | When | Instead of |
@@ -110,6 +125,8 @@ range gets the cascade to decide on real evidence.
 | Preference router (RouteLLM) | You have comparative preference data (Chatbot Arena style) and need to generalize to new model pairs | A classifier, which must be retrained per model pair |
 | Cascade scorer (FrugalGPT) | Latency slack available and the task is verifiable or scoreable | A blind router, when you need to catch wrong cheap-model answers |
 | Router then cascade | Mixed traffic with a medium-difficulty bucket where routing is uncertain | Applying cascade everywhere (two calls on simple queries is wasteful) |
+
+**Provenance.** These carry their origins in the table itself: the classifier router is the Anyscale and IBM line, the preference router is RouteLLM, and the cascade scorer is FrugalGPT. They are systems-layer routing techniques rather than model-architecture methods, so no foundational-model attribution applies.
 
 **Tools.** RouteLLM is the reference open-source preference router and ships trained matrix-factorization and BERT-based routers. LiteLLM and its proxy expose model routing, fallbacks, and tiered dispatch across providers behind one API, which is a convenient place to hang a heuristic or classifier router. Classifier routers are typically small fine-tunes built on Hugging Face Transformers, and a heuristic layer is often just regex plus a rules engine in front of the same gateway. Cascade scorers along the lines of FrugalGPT are usually custom-trained reliability models; for verifiable tasks the "scorer" is the real check itself (a SQL execution, a compiler, a test runner) rather than a learned model.
 

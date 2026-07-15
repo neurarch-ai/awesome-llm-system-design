@@ -111,6 +111,12 @@ but the highest quality risk. Illustrative.*
 | MQA | Extreme concurrency and cost targets where one KV head per layer is acceptable | Quality risk is real; validate on your evals before shipping |
 | MLA (DeepSeek-V2/V3) | You control training and the KV cache is the binding long-context constraint | Train-time change plus the RoPE split-head fix; not a serving-time bolt-on |
 
+**Provenance.** MHA is the original multi-head attention from the Transformer
+(Google, 2017); MQA (Google, 2019) collapsed to a single shared KV head; GQA
+(Google, 2023) is the middle ground now used as the default in most open models; MLA
+(DeepSeek, 2024) compresses KV into a shared low-rank latent. The RoPE split-head
+detail MLA needs comes from RoPE (Su et al., 2021).
+
 ## Quantized KV cache: the serving-time lever
 
 If you are serving a model you cannot retrain, quantizing the KV cache is the
@@ -146,3 +152,8 @@ still halving memory versus an FP8 cache.
 | NVFP4 (NVIDIA TensorRT-LLM) | Long-context memory is the wall and you passed a long-context eval | Quality headroom is thin; sub-1% loss is benchmark-dependent |
 | INT4 per-token (Hugging Face) | Fixed model you cannot retrain; memory budget is tight | Shipping on vibes; measure perplexity and retrieval on your own data first |
 | INT2 (KIVI) | Extremely aggressive memory budget; research setting | Per-channel key scaling plus full-precision window adds serving complexity |
+
+**Provenance.** Unlike the attention variants above, these are serving-time formats
+rather than architectural changes. NVFP4 ships in TensorRT-LLM (NVIDIA); the FP8 KV,
+INT4 per-token, and INT2 (KIVI) approaches are attributed inline to Character.AI,
+Hugging Face, and the KIVI scheme respectively.

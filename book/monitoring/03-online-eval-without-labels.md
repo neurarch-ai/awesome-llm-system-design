@@ -121,6 +121,12 @@ scikit-learn on a few hundred annotated traces pulled into a labeling tool like 
 Studio, which also backs the human-review queue. Explicit and implicit feedback capture
 is instrumented in the app and forwarded to the same observability layer.
 
+**Provenance.** The trace_id join that ties these signals together rides on
+OpenTelemetry (CNCF), the vendor-neutral tracing standard the observability platforms
+above emit into. The judge and grounding scorers are conventional applications of the
+LLM-as-judge pattern rather than a single-origin method, so no further attribution is
+claimed here.
+
 **Worked example.** An enterprise-RAG team with no online labels leans first on implicit
 user behavior, accept, edit, and retry rates, because it is dense and free and more
 honest than the sparse thumbs widget that only the very angry or very pleased ever

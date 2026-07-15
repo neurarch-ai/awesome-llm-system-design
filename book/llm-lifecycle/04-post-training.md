@@ -110,6 +110,14 @@ labeler for an AI judge feeding the preference dataset. GRPO with verifiable rew
 pairs the GRPOTrainer with a rule-based checker you write, such as a unit-test runner
 or a math grader.
 
+**Provenance.** RLHF was popularized for instruction tuning by InstructGPT (OpenAI,
+2022); DPO (Stanford, 2023) reframed the same preference objective as a closed-form
+loss with no separate reward model or online sampling; GRPO (DeepSeek, 2024)
+introduced the critic-free, group-relative variant used with verifiable rewards. The
+LoRA and QLoRA adapters these trainers lean on come from LoRA (Microsoft, 2021) and
+QLoRA (University of Washington, 2023); the DeepSpeed sharding is the ZeRO (Microsoft)
+lineage.
+
 **Worked example.** A domain-LLM team first runs SFT to teach instruction following
 and refusal, the cheapest and most stable step, and confirms it before touching
 preference tuning. They then need the model to prefer the safer of two plausible

@@ -112,6 +112,12 @@ share one socket.
 | WebRTC over UDP | Voice audio, to avoid head-of-line blocking on packet loss | TCP-based transports for audio |
 | Throttled edit loop | Platforms that cannot stream natively (Teams, some Discord modes), Vercel's fallback path | Native streaming when the platform supports it |
 
+**Provenance.** Server-Sent Events is a W3C/WHATWG web standard (the HTML
+`EventSource` interface over a long-lived HTTP response), which is why plain HTTP
+load balancers and browsers understand it with no extra configuration; WebSocket,
+WebRTC, and the throttled edit loop are the alternatives for when SSE's
+one-directional model is not enough.
+
 ![Transport tradeoff: overhead vs capability](assets/fig-transport-tradeoff.png)
 
 *Transport options plotted by connection overhead and capability richness.

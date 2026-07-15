@@ -99,6 +99,18 @@ churn behind it.
 | Alignment drifts under adversarial users | jailbreaks succeed at scale | input/output filtering; periodic post-training refresh; red-team continuously | false-positive refusals on benign inputs |
 | Stale facts reach users between RAG index updates | users receive outdated answers | freshness SLA on the index; add a "last updated" citation; fall back to "I don't know" | more indexing infra; higher latency per query if index is slow |
 
+Two details behind the top rows. The "KV cache fills VRAM" fix pairs a serving-time
+lever with a training-time one that cannot be swapped in later: PagedAttention (from
+vLLM, UC Berkeley, 2023) reclaims fragmentation waste on any model, but the GQA/MQA
+reduction in the same cell has to be baked into the base at training time (GQA from
+Google 2023, MQA from Google 2019), so it is a next-model decision, not a hotfix. The
+"cost per token" row lists continuous batching (from Orca, OSDI 2022) alongside
+quantization because they attack different terms: batching amortizes the fixed
+weight-read across more concurrent tokens, while quantization shrinks the bytes read
+per step, and stacking both compounds. Speculative decoding (Google and DeepMind,
+2023) appears only in the latency row, not the cost row, because it trades extra
+compute for lower per-user latency and does not by itself lower cost per token.
+
 ## Serving shape by use case
 
 | Use case | Model size | Precision | KV variant | Batching | RAG |

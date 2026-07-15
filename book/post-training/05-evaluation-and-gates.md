@@ -133,6 +133,11 @@ Biases, and live traffic slices are decided by a feature-flag and experimentatio
 layer rather than a single library. BLEU and similar n-gram metrics come from
 sacrebleu or the Hugging Face evaluate package.
 
+**Provenance.** The "re-run safety eval after any preference tuning" row exists
+because preference tuning (RLHF/InstructGPT, OpenAI, 2022; DPO, Stanford, 2023) can
+silently shift a model off an earlier alignment pass, so the gate re-measures rather
+than assumes the pre-tuning result carried over.
+
 **Worked example.** A coding-assistant maker promotes a new checkpoint only after it
 clears a battery. Because completions are structured code with pass-or-fail tests,
 they gate on exact-match and unit-test accuracy rather than BLEU or a judge, which

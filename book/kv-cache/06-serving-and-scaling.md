@@ -65,3 +65,14 @@ bottleneck.
 | Throughput plateau at low batch | GPU underutilized; few concurrent requests | Static batching; blocked by long sequences | Switch to continuous batching |
 | Quality regression under quantization | Perplexity or retrieval eval degrades | KV quantization bits too low for this task | Raise bits; keep full-precision window; quantize keys less aggressively than values |
 | Single-node prefix cache misses in cluster | Hit rate lower than expected at scale | Prefix cache is per-node; requests not routed to the node holding their prefix | Cache-aware routing (llm-d approach); distributed prefix cache |
+
+Two of these rows are worth expanding. The "OOM under load" and "throughput
+plateau" rows are the paging story from both directions: the paging fix
+(PagedAttention, from vLLM at UC Berkeley, 2023) is what lets you cap fragmentation
+so that continuous batching (from Orca, OSDI 2022) can raise the active batch without
+tipping into OOM. The two levers ship together in practice. The "high inter-token
+latency" row is the one people misdiagnose as a compute problem: decode is
+memory-bandwidth-bound because every step re-reads the whole KV cache, so the fixes
+are all cache-shrinking (GQA, from Google 2023, or MLA, from DeepSeek 2024) or
+cache-eviction, not adding FLOPs. Raising batch size here helps throughput but not
+per-token latency, which is why the two rows pull toward different knobs.

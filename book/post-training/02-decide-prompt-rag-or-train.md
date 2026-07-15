@@ -83,6 +83,11 @@ usually with PEFT for LoRA or QLoRA adapters, and higher-level wrappers like Axo
 and Unsloth make the training config declarative. DeepSpeed (Microsoft) backs the
 distributed training when a run outgrows a single GPU.
 
+**Provenance.** RAG was introduced by Meta FAIR (2020). The preference-tuning rung
+traces to OpenAI's RLHF/InstructGPT (2022) and Stanford's DPO (2023), while the
+parameter-efficient adapters come from LoRA (Microsoft, 2021) and QLoRA (University
+of Washington, 2023).
+
 **Worked example.** A support-automation team finds the assistant answers in the
 wrong tone and does not know the current return policy. They start at rung 1 and
 rewrite the system prompt, which fixes the tone but not the policy gap, because the

@@ -36,6 +36,18 @@ backing store when the session must survive a Redis eviction.
 | Cost per long session | Per-session LLM spend climbing with turn count | Summarization; truncation; sliding window | Fidelity loss |
 | Overload spikes | TTFT spikes on traffic surge; retries amplify load | Load shedding with retry-after; fallback to smaller model | Quality dip |
 
+**Detail.** The high-TTFT row's prefix-caching fix works because a multi-turn chat
+re-sends the whole transcript every turn, so the inference engine can reuse the KV
+state of the shared prefix instead of recomputing prefill over it, collapsing
+per-turn prefill toward the new message length only; the catch is that this pays off
+only when sticky routing lands the follow-up turn on the replica that already holds
+that warm cache, which is why the cache-miss row and the sticky-routing fix are the
+same coin. The orphaned-streams row matters because a disconnected SSE client does
+not free the decode slot on its own: a TCP close may not surface until the next write
+to the socket, so the fix pairs a server-side heartbeat and timeout with an
+inference-engine abort call, and without engine-level interrupt support the slot
+stays pinned for the full generation.
+
 ## Capacity math
 
 The number of concurrent streams a deployment can serve is:

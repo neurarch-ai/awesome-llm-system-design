@@ -92,6 +92,21 @@ the scheduler starts preempting or rejecting. Past that point, bigger "batches"
 mean the scheduler is actually degrading. Measure your actual roofline and KV
 occupancy before assuming bigger is always better.
 
+**Q: Speculative decoding and large-batch throughput are both "make decode faster." Why can you not just stack them?**
+
+A: They fight over the same resource. Speculative decoding trades spare compute for
+fewer sequential target passes: each step runs the target on $k+1$ candidate tokens
+in parallel and keeps the longest verified prefix. That parallel verification is
+cheap only when the GPU has idle compute, which is true at low-to-moderate batch
+size where decode is bandwidth-bound. Large-batch continuous batching (from Orca,
+OSDI 2022) does the opposite: it packs enough concurrent sequences to push decode
+toward the compute roofline, so the "free" verification compute no longer exists and
+each speculative step's extra work now competes with real tokens. The mechanism-level
+consequence is that the speculative speedup formula's overhead term $ck$ stops being
+negligible once the batch is compute-saturated. In practice you pick one regime:
+speculation for latency-sensitive low-batch traffic, big batches for
+throughput-sensitive bulk traffic, and route between them rather than layering both.
+
 **Q: How do you hold p99 latency when you retrain and redeploy the model?**
 
 A: The main risk during a redeploy is the transition window where some replicas
@@ -141,4 +156,11 @@ changes to the attention structure (MQA, GQA, cross-layer sharing) must be train
 into the model from the start. Switching a model that was trained with full KV heads
 to MQA at serving time degrades quality significantly. The Character.AI approach
 works because those reductions are baked into their training runs, not applied as
-a serving-time overlay.
+a serving-time overlay. Mechanism: MQA (Google, 2019) and GQA (Google, 2023)
+collapse many key/value heads down to one or a few, so every query head must attend
+through shared KV projections. If you mean-pool the trained per-head KV projections
+at serving time, the query heads were never optimized to read from that averaged
+subspace, and attention resolves to the wrong tokens; only a training run (or at
+least a short uptraining pass) lets the query heads re-learn to share. Weight
+quantization has no analogous problem because it perturbs each stored value slightly
+rather than changing which parameters the attention computation reads.

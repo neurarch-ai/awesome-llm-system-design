@@ -81,6 +81,8 @@ within a ticket). Multi-agent fan-out cuts wall-clock latency but multiplies
 tokens; only reach for it if the independent subtasks are large enough to
 justify the token cost.
 
+**Deeper:** The parallel win is bounded by the critical path: if step B consumes step A's output, fan-out buys nothing, so build the tool-dependency graph first and only parallelize the independent frontier. Model-latency fixes act mostly on time-to-first-token, which is dominated by prefill over the whole transcript, so compressing context cuts latency as well as cost.
+
 ---
 
 **Q: The agent keeps calling the same tool twice in a loop. What is happening
@@ -96,6 +98,8 @@ cap that terminates the loop if $N$ steps have passed without the task reaching
 a terminal state. Log the repeated call pattern so you can improve the prompt or
 tool schema to make the result more clearly actionable.
 
+**Deeper:** The identity check must normalize arguments before hashing (sort JSON keys, round floats, drop volatile fields like timestamps), or semantically identical calls hash differently and slip past the dedupe. A loop that repeats even after deduping usually means the tool result does not actually answer the model's question, which is a tool-schema problem rather than a control-flow one.
+
 ---
 
 **Q: How would you evaluate whether the agent is actually resolving tickets
@@ -110,6 +114,8 @@ hours (proxy for unresolved tickets), and refund error rate (reversals that
 should not have happened). An offline success rate that does not correlate with
 online re-contact rate means the eval set does not reflect real ticket
 distribution.
+
+**Deeper:** Per-step correctness and end-to-end success can diverge: an agent can call every tool with valid arguments and still resolve the ticket wrong (right mechanics, wrong policy), so end-to-end task success is the gating metric and per-step metrics only localize where a regression entered the loop.
 
 ---
 
@@ -138,6 +144,8 @@ mechanism. Relying on the model to stop itself is unreliable: a model that
 thinks it needs one more step will ask for one more step, regardless of what the
 prompt says about limits.
 
+**Deeper:** The cap must live in the orchestration layer because it has to hold even when the model output is malformed or never emits a terminal signal; a prompt-level "stop after N" has no effect once the model is confidently wrong, since enforcement depends on the very output that has gone off the rails.
+
 ---
 
 **Q: Can you put the policy check in the system prompt? For example: "only issue
@@ -149,6 +157,8 @@ instruction is probabilistic, not guaranteed. A code gate that checks the
 refund amount against a hardcoded limit and rejects the call if it exceeds it
 is a guarantee. The prompt is for explaining to the model what tools exist and
 how to use them; safety constraints go in code.
+
+**Deeper:** Even with no injection, instruction-following decays as the transcript grows and the policy line drifts far from the current turn, so a prompt-side limit that held at step 1 can silently lapse by step 12. A code gate is position-invariant: it evaluates the proposed argument the same way no matter how long the context has become.
 
 ---
 
@@ -163,6 +173,8 @@ can see the other's full trace. Default to a single agent; add multi-agent
 topology only when the cost in tokens and coordination complexity is justified
 by the latency gain.
 
+**Deeper:** The 15x is a token multiple, not a latency multiple: fan-out only pays back when each subtask is large enough that the parallel wall-clock saving dominates the coordination and merge overhead. For short subtasks the fixed cost of spinning up and reconciling subagents can make the multi-agent version slower end to end, not just pricier.
+
 ---
 
 **Q: Is streaming only for UX? Does it affect correctness?**
@@ -174,3 +186,5 @@ model must finish its tool-call output before the orchestration layer can parse,
 validate, and execute it. The streaming visible to the user should be the reply
 text, not the raw tool-call JSON. Architecturally, decouple what you stream to
 the user from how the agent loop handles tool results.
+
+**Deeper:** Tool-call arguments must be parsed as one complete, valid JSON object before execution, so the orchestrator buffers the tool-call channel to completion even while it streams the assistant-text channel to the user; providers surface these as separate streamed content blocks, which is what lets you show reply text token by token without ever exposing partial, unvalidated tool JSON.

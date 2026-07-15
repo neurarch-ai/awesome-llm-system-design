@@ -65,3 +65,12 @@ Subsequent tokens stream without additional retrieval cost.
 | Cross-encoder rerank latency | Reranker dominates online-path budget | Reduce candidate set $n$; use smaller cross-encoder | Some precision loss |
 | Re-index lag | Stale answers for recent documents | Faster incremental upsert; reduce batch interval | More write-path load on the index |
 | ACL filter performance | High-ACL-complexity users see slow search | Pre-compute ACL token sets; use filter-native indexes | Staleness risk if permissions change mid-session |
+
+**Detail.** The prefill-cost row grows with the kept-chunk count m because every
+retrieved token is attended during prefill, so dropping m from 10 to 5 roughly halves
+first-token latency and prompt cost before generation even starts; that is why
+reranking harder is usually cheaper than widening the context window. The
+cross-encoder-rerank row runs a full transformer forward pass over each (query,
+candidate) pair, so its cost is linear in the candidate count n rather than in corpus
+size, and cutting n from 100 to 30 is the direct lever. The cross-encoder here
+descends from Sentence-BERT (UKP Darmstadt, 2019).

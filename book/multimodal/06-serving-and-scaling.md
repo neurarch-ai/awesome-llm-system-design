@@ -69,6 +69,19 @@ batching over the interleaved token sequences. Image requests carry longer prefi
 and vary in length with resolution; the scheduler must handle variable-length
 visual blocks without starving text-only requests.
 
+```mermaid
+flowchart LR
+  R[Request] --> H{Image hash<br/>in cache?}
+  H -- hit --> P[Projector]
+  H -- miss --> E[Encoder tier<br/>data-parallel replicas]
+  E --> C[(Embedding cache<br/>keyed by image hash)]
+  C --> P
+  P --> D[Decoder tier<br/>tensor-parallel + continuous batching]
+  T[Text-only request] --> D
+```
+
+*Two-tier serving: the encoder scales by data parallelism and is skipped on a hash cache hit, while the decoder runs tensor parallelism and continuous batching and text-only requests bypass the vision tier entirely.*
+
 ## Handling oversized and malformed images
 
 A single oversized upload can OOM the encoder GPU. Validate dimensions and file
@@ -86,6 +99,20 @@ in the batch.
 | Mixed-traffic head-of-line blocking | Large image requests hold up text-only requests in one queue | Separate queues or tiers; route text-only past the vision tier | Routing logic and two-tier ops |
 | Variable-length batch inefficiency | Dynamic-resolution models make every image a different token count | Cap max image tokens per request; pad or bucket batches | Wasted compute on padding |
 | Multi-image token blowup | k images stack token cost linearly into prefill and KV | Cap images per request; compress with a resampler for the extra images | Capability limit |
+
+Two details unify the top rows. Nearly every entry traces to the same root cause:
+an image expands into hundreds or thousands of decoder tokens, and those tokens hit
+both prefill compute (high TTFT) and the KV cache (memory pressure) because a token
+is a token once it enters the decoder, regardless of whether it came from pixels or
+text. That is why the fixed-cap connector fix appears twice: a resampler bounds the
+token count at the source before either bottleneck sees it. The resampler that makes
+this bound possible is the Perceiver-style design from Flamingo (DeepMind, 2022) and
+the query-token bridge from BLIP-2 (Salesforce, 2023), which compress an arbitrary
+patch grid to a fixed small set of tokens. The second detail is that the vision
+encoder tier is cacheable in a way text prefill is not: because the encoder output
+for a given image is deterministic, hashing the image and caching its token sequence
+turns a repeat upload into a zero-encode, zero-prefill hit, which is why the
+encoder-throughput row lists "cache by image hash" rather than more GPUs.
 
 ![Serving latency breakdown by resolution](assets/fig-latency-breakdown.png)
 

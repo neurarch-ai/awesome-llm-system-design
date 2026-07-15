@@ -124,6 +124,23 @@ architecture at lower precision. The two compose: distill then quantize. Begin
 with INT8, move to INT4 under an eval gate, and reach for distillation when
 the model architecture itself is the bottleneck.
 
+---
+
+**Q: PPO keeps a separate value network to estimate the advantage. GRPO drops it.
+Where does GRPO get its advantage signal from instead?**
+
+A: From the group, not from a critic. GRPO (DeepSeek, 2024) samples a group of $G$
+completions for the same prompt, scores each with the verifier, and defines each
+completion's advantage as its reward standardized against the group's own mean and
+standard deviation. The mean of the sampled rewards is the baseline that PPO would
+otherwise learn a value head to predict, so a per-prompt Monte Carlo baseline
+replaces the learned critic entirely. That is why GRPO is called critic-free: it
+halves the number of large models resident in the training loop (no value network to
+host and update) and sidesteps the value-function fitting that makes PPO finicky. The
+tradeoff is that you must sample several completions per prompt, so it leans on
+cheap, high-throughput verifiable rewards (unit tests, math graders) rather than an
+expensive learned reward model.
+
 ## Commonly answered wrong (the traps)
 
 **Q: "We will just fine-tune it on our knowledge base."**
@@ -144,10 +161,16 @@ not raw size. Name the right metric per stage.
 
 **Q: "RLHF is just fine-tuning on good answers."**
 
-That is SFT, not RLHF. RLHF optimizes a preference signal (which of two answers
-is better) under a KL constraint via a reward model, which is a different
-objective that can improve on any single demonstration and can also reward-hack
-if the leash is dropped.
+That is SFT, not RLHF. RLHF (popularized by InstructGPT, OpenAI 2022) optimizes a
+preference signal (which of two answers is better) under a KL constraint via a reward
+model, which is a different objective that can improve on any single demonstration
+and can also reward-hack if the leash is dropped. The mechanism-level reason it beats
+SFT-on-good-answers: SFT can only push probability toward demonstrated tokens, so it
+is capped by the best demonstration in the dataset, whereas a reward model scores
+arbitrary samples and lets the policy climb above any single human answer by
+comparing its own generations. That same freedom is why the KL leash matters: with it
+removed, the policy drifts to whatever degenerate text maximizes the imperfect reward
+model, which is reward hacking.
 
 ---
 

@@ -146,6 +146,10 @@ is Microsoft's SSD-resident index. As managed services, Qdrant, Weaviate, Milvus
 and pgvector default to HNSW; Vespa (used by Spotify and Yahoo) runs HNSW at scale;
 Pinecone abstracts the index choice behind a hosted API.
 
+**Provenance.** HNSW comes from Malkov and Yashunin (2016) and IVF-PQ from Jegou et
+al. (shipped in FAISS by Meta). ScaNN is Google (2020) and DiskANN is Microsoft
+(2019). Spotify's own tree-based nearest-neighbor library is Annoy.
+
 **Worked example.** A product-search team has 40M item embeddings (~60 GB, fits in
 RAM across a couple of replicas), ingests ~50k new items a day, and needs p99 under
 30 ms at recall@10 above 0.95. Both design questions point one way: the corpus fits

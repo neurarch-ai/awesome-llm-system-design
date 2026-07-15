@@ -148,3 +148,10 @@ hide both effects. Illustrative.*
 | Sliding-window attention (Mistral, Databricks MixAttention) | Unbounded or very long sequences where losing the middle of the context is acceptable | Question-answering or retrieval tasks that require whole-document recall |
 | Attention sinks (StreamingLLM) | Truly streaming, never-ending conversations; memory must not grow | Any task that requires recall of content beyond the most recent window |
 | Chunked prefill (SGLang, vLLM) | Very long prompts where one-pass prefill would OOM at your target batch size | Short prompts where chunking adds latency overhead for no benefit |
+
+**Provenance.** These extensions all build on RoPE (Su et al., 2021): position
+interpolation is from Meta (2023) and rescales the RoPE frequencies to fit an
+existing checkpoint, YaRN (2023) refines that per-frequency schedule. ALiBi (Press
+et al., 2022) is the alternative linear-bias scheme that extrapolates without
+retraining. Chunked prefill (SGLang, vLLM) is a scheduling technique, not a
+position method.

@@ -112,6 +112,11 @@ bitsandbytes, exposed as flags in vLLM and TensorRT-LLM, with GGUF via llama.cpp
 CPU and edge. Distillation to a smaller student is a training-time step run on
 Hugging Face Transformers and TRL, not a serving library.
 
+**Provenance.** GQA (Google, 2023) is the source-level KV reduction; PagedAttention
+comes from vLLM (UC Berkeley, 2023); continuous (iteration-level) batching from Orca
+(OSDI 2022); speculative decoding from Google and DeepMind (2023). The weight
+quantizers are GPTQ (2022) and AWQ (MIT, 2023).
+
 **Worked example.** A chat product serving a 70B model behind a shared system prompt
 starts by picking a base that already ships GQA, cutting the KV cache at the source
 rather than paying the MHA VRAM tax. For serving they run vLLM to get PagedAttention

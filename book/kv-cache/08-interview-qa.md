@@ -109,6 +109,22 @@ verification sequences can increase total memory pressure without clearing the
 bottleneck. Speculative decoding wins most cleanly at low-to-moderate batch sizes
 on structured or predictable output (code, formulaic responses).
 
+**Q: Why does MLA need a special "decoupled RoPE" head instead of just applying
+RoPE to the latent like everything else?**
+
+A: Because RoPE (Su et al., 2021) rotates keys by a position-dependent matrix, and
+MLA (DeepSeek, 2024) wants to store one shared low-rank latent per token and
+up-project it to per-head keys at attention time. Those two goals collide: if you
+apply the position rotation before compression, the rotation is baked into the
+stored latent and you can no longer factor the up-projection out of the
+query-key dot product, which is the whole trick that makes MLA cheap. If you apply
+it after up-projection, every decode step must re-rotate every reconstructed head,
+losing the saving. DeepSeek's fix is to split each head into two parts: a large
+compressed part carrying content that is stored as the position-free latent, and a
+small separate part that carries RoPE and is cached directly. Interviewers probe
+this because "just RoPE the latent" is the natural wrong guess and shows whether you
+understand why MLA is a training-time change rather than a serving overlay.
+
 ## Commonly answered wrong (the traps)
 
 **Q: Does PagedAttention speed up individual request latency?**
@@ -143,7 +159,13 @@ becomes larger than the weights, so KV quantization has a larger marginal impact
 at those context lengths. You can apply both: many production stacks run INT8
 weights with FP8 or INT4 KV. Each requires its own eval because the error modes
 are different (weight quant affects all token computations; KV quant degrades
-historical attention accuracy for old tokens in the context).
+historical attention accuracy for old tokens in the context). One mechanism-level
+subtlety: within the KV cache, keys are usually more sensitive than values, because
+key error passes through the softmax where it can flip which tokens win the
+attention weight, whereas value error only perturbs the weighted average after the
+weights are fixed. That is why production schemes quantize keys to a higher bit
+width than values (or keep a full-precision recent-token window) rather than
+treating the two symmetrically.
 
 **Q: MLA is just another way to say "fewer KV heads", right?**
 

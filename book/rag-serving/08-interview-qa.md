@@ -95,6 +95,18 @@ queries plus a human review of a smaller subset. Gate any change on both: a
 chunking change that improves recall@k but breaks answer groundedness is not
 a net improvement.
 
+**Q: You want to combine BM25 and dense scores. Why not just add the two scores,
+and what does Reciprocal Rank Fusion do instead?**
+A: BM25 (Robertson and Walker, 1994) scores are unbounded and corpus-dependent (they
+scale with term rarity and length normalization), while cosine similarities live in a
+bounded range near [-1, 1]. Adding them directly lets whichever scale is larger
+dominate, and the balance drifts query to query. Reciprocal Rank Fusion (Cormack et
+al., 2009) sidesteps calibration entirely: it discards the raw scores and sums
+1/(k + rank) across each ranked list, so a document both retrievers place near the top
+scores high regardless of the underlying magnitudes. The constant k (often around 60)
+damps the pull of low-rank tail positions. That is why hybrid RAG fuses on rank, not
+on score.
+
 ## Commonly answered wrong (the traps)
 
 **Q: Can you just use a larger LLM context window instead of a retrieval index?**
@@ -134,3 +146,15 @@ every cited source ID exists in the assembled prompt, and confirm that the key
 claims in the answer can be traced to a specific span in the retrieved chunks.
 LLM-as-judge scoring on groundedness does this at scale; human review on a
 sample confirms it. Trusting fluency is the failure mode, not the fix.
+
+**Q: IVF-PQ uses less memory than HNSW, so it is the right choice at scale.**
+A: Not automatically; the two indexes trade different resources. HNSW (Malkov and
+Yashunin, 2016) stores full vectors plus a multi-layer navigable graph, so it is
+memory-hungry but delivers top recall per millisecond on a stable corpus. IVF-PQ
+(Jegou et al.; FAISS by Meta) partitions the space into cells (the IVF step) and
+compresses each vector into a product-quantized code, cutting memory by roughly an
+order of magnitude, but the quantization is lossy: recall drops unless you raise
+nprobe (cells searched per query), which spends the latency budget back. So IVF-PQ
+wins when index memory is the binding constraint and a small recall loss is
+acceptable; when RAM is available and recall is the priority, HNSW is the better call.
+"Always" ignores the recall-memory-latency triangle.

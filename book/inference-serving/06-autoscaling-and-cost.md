@@ -119,3 +119,16 @@ latency SLO, and re-check it periodically, because the frontier moves.
 | Tail latency under overload | p99 TTFT explodes at high QPS | Admitting all requests into a saturated queue | SLO-aware admission with 429 backpressure |
 | Spike latency | New replicas not ready during a QPS surge | Cold-start duration longer than spike rise time | Warm buffer, leading-signal autoscaling, fast weight load |
 | Memory bandwidth on decode | Throughput below bandwidth roofline even at large batch | Full-precision weight reads per step | Weight and KV quantization (FP8, INT8) |
+
+Two details worth internalizing from this table. First, the "low GPU utilization"
+and "KV cache OOM" rows pull in opposite directions: the iteration-level batching
+that fixes the first (continuous batching, from Orca, OSDI 2022) admits more
+concurrent sequences, which is exactly what fills HBM with KV cache and triggers the
+second. The paged KV fix (PagedAttention, from vLLM at UC Berkeley, 2023) is what
+lets you push batch size up without the fragmentation waste that would otherwise
+force OOM sooner, so the two fixes are designed to be deployed together, not chosen
+between. Second, the "decode latency floor" row has a precondition often skipped:
+speculative decoding (Google and DeepMind, 2023) only lowers the floor when
+per-workload acceptance is high enough that the verified-token yield beats the draft
+overhead; on low-acceptance free-form traffic it raises the floor instead, so
+measure acceptance before enabling it rather than treating it as a free win.

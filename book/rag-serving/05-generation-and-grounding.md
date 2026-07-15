@@ -122,6 +122,11 @@ JSON-mode. Prompt-injection defenses draw on scanners like Rebuff and the guardr
 layers in NeMo Guardrails (NVIDIA) and Guardrails AI, though the core fix is keeping
 retrieved text out of the instruction slot.
 
+**Provenance.** The retrieve-then-ground pattern itself is RAG (Meta FAIR, 2020).
+The hard-reranking rows use cross-encoders descended from Sentence-BERT (UKP
+Darmstadt, 2019), and the prompt-injection-defense row's guardrail layer includes
+NeMo Guardrails (NVIDIA).
+
 **Worked example.** An enterprise-RAG team serving answers over an internal wiki injects
 explicit source IDs into every chunk and runs the sub-millisecond post-generation
 citation check, since it costs nothing and catches a model that cites a document it was

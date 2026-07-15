@@ -56,6 +56,8 @@ higher similarity before a pair is a candidate; raising $b$ catches more pairs
 at a given similarity. You tune them to place the curve's knee at your target
 duplicate threshold.
 
+**Deeper:** The S-curve is an OR-of-ANDs: a pair becomes a candidate if it collides in at least one band (OR over the $b$ bands), and a band collides only if all $r$ of its rows match (AND within the band). So $r$ sharpens the threshold and $b$ lowers it, and the knee lands near $J \approx (1/b)^{1/r}$, which is the quantity you actually solve for when placing the curve at your duplicate cutoff.
+
 **Q: You deduplicated harder and the downstream benchmark got worse. How?**
 A: Over-dedup strips legitimately repeated text: canonical explanations, license
 headers, quoted references, common phrasings that the model benefits from seeing.
@@ -63,6 +65,8 @@ It can also reduce the effective size of high-quality domains. Deduplication is
 not monotonic in quality. FineWeb found that per-dump dedup plus a measured global
 pass beat maximal global dedup. Ablate aggressiveness on downstream evals rather
 than maximizing it.
+
+**Deeper:** The mechanism is that repetition is a crude frequency signal the model rightly uses: a canonical explanation appearing across many pages is upweighted precisely because it is worth learning, so blanket dedup flattens that useful signal along with the spam. That is why FineWeb's per-dump-then-measured-global pass beats maximal dedup; you want to remove pathological duplication without erasing the natural frequency structure of good text.
 
 **Q: Your multilingual model is strong in English and weak in Thai despite
 plenty of Thai data. What do you check first?**
@@ -72,6 +76,8 @@ and more of the context window. Check tokens-per-word per language; if Thai
 fertility is high, the tokenizer is the bug, not the data volume, and fixing it
 requires a retrain.
 
+**Deeper:** High fertility hurts twice. Beyond the extra token and context cost, each word is split into subword fragments that individually carry little meaning and occur rarely, so their embeddings are undertrained: the model receives a noisier, sparser signal per concept, not merely a longer sequence. That is why more Thai data does not close the gap while the tokenizer stays English-heavy.
+
 **Q: Chinchilla says 20 tokens per parameter, but Llama 3 8B trained on 15T
 tokens (about 1800 tokens per parameter). Justify it.**
 A: Chinchilla minimizes training compute for a target loss. A model you serve
@@ -79,6 +85,8 @@ billions of times has a second, larger cost: inference. Spending extra training
 FLOPs to overtrain a smaller model lowers the per-token serving cost forever, so
 the deployment-optimal size is smaller and more-trained than the training-optimal
 one. Different objective, different optimum.
+
+**Deeper:** Past the Chinchilla (DeepMind, 2022) point, loss keeps falling but with sharply diminishing returns per training FLOP, as the neural scaling laws (OpenAI, 2020) power law predicts, while per-token inference cost falls roughly linearly with parameter count. Overtraining pays that diminishing training return once to buy the linear inference saving on every future token, which is why it wins only when serving volume is large.
 
 **Q: Your loss spiked at step 40K. Walk me through recovery.**
 A: Roll back to the last good checkpoint before the spike. Identify and skip (or
@@ -88,6 +96,8 @@ clipping through the rough region, then resume. Confirm the data-loader resumes
 at the right position so you neither repeat nor skip tokens. This is routine
 tooling at scale, not an incident. Bake it into the training harness before the
 run starts.
+
+**Deeper:** A rollback-and-skip works because spikes usually come from a specific pathological batch interacting with a large adaptive-optimizer step, so resuming from just before it with that batch removed avoids re-triggering the divergence. Rolling back only the weights while keeping the optimizer state can re-diverge, because the second-moment estimates are already corrupted; the checkpoint has to restore optimizer state too.
 
 ## Commonly answered wrong (the traps)
 
@@ -99,6 +109,8 @@ Extraction, filtering, and dedup are the work, not a preprocessing footnote.
 RefinedWeb's thesis is that cleaning web data hard enough alone can match curated
 corpora: the investment is in the pipeline, not in adding more raw data.
 
+**Deeper:** Near-duplicates do more than waste tokens: they bias the loss toward memorizing the repeated strings, which surfaces as verbatim regurgitation and as inflated benchmark scores wherever a duplicate of an eval example leaked into training. Cleaning is therefore an integrity control, not just a compute saver.
+
 **Q: "Perplexity is the right metric for comparing our model to competitors'."**
 A: Only if both models share a tokenizer. A model with a larger vocabulary emits
 fewer tokens per sentence and flatters perplexity while being no better. Use
@@ -106,17 +118,23 @@ bits-per-byte (BPB), which normalizes by bytes and is tokenizer-invariant, when
 comparing models with different vocabularies. Also confirm both eval sets are
 decontaminated.
 
+**Deeper:** Perplexity is a per-token average, so a coarser tokenizer that emits fewer tokens per sentence spreads the same total surprisal over fewer steps and reports a lower number with no real modeling gain. Bits-per-byte re-normalizes by raw bytes, a quantity no tokenizer choice can change, which is exactly why it is comparable across vocabularies.
+
 **Q: "Decontamination is a nice-to-have."**
 A: It is the integrity of every number you report. Skip it and your benchmarks
 are fiction. A headline score without a decontamination claim is untrustworthy,
 and a sharp interviewer probes this first. Lead with the decontamination claim,
 not as a footnote.
 
+**Deeper:** The failure is silent and one-directional: contamination can only inflate a score, never deflate it, so a clean-looking leaderboard gain is indistinguishable from leakage unless you measured and reported the overlap you removed. Absence of a decontamination claim is therefore itself evidence that the number is untrustworthy.
+
 **Q: "Bigger vocabulary is strictly better because sequences get shorter."**
 A: It also grows the embedding matrix and output softmax (parameters and compute
 proportional to vocabulary size), undertrains rare tokens, and makes perplexity
 incomparable across models. Vocabulary size is a fertility tradeoff tuned to the
 language mix, not a free win.
+
+**Deeper:** The output softmax is computed over the whole vocabulary at every position, so a larger vocab raises both the parameter count and the per-step output compute. Combined with rare tokens that each appear too seldom to train well, past some point the shorter-sequence saving no longer offsets the added width, which is why the optimum tracks the language mix rather than growing without bound.
 
 **Q: "The bottleneck in pretraining is FLOPs, so buy faster GPUs."**
 A: At scale the bottleneck is interconnect and memory bandwidth: tensor-parallel
@@ -126,9 +144,13 @@ gather traffic, and MoE all-to-all routing. A well-tuned frontier run achieves
 Faster compute you cannot feed does nothing. The parallelism plan and the
 network decide MFU.
 
+**Deeper:** The tell is that MFU, not peak FLOP/s, is the number that moves: two clusters with identical rated FLOPs can differ substantially in real throughput purely on interconnect, because the tensor-parallel all-reduces sit on the critical path inside every layer and cannot be hidden behind compute. The ZeRO/FSDP gather traffic and MoE all-to-all routing add to that same communication-bound ceiling.
+
 **Q: "Pretraining is just a big `.fit()` call."**
 A: It is a distributed-systems problem. You need multi-axis parallelism to fit
 and feed a model that does not fit on one GPU, MFU management to not waste the
 cluster, and checkpointing plus elastic restart plus loss-spike recovery to
 survive weeks on hardware that fails every few hours. The objective is one line;
 the systems are the job.
+
+**Deeper:** The next-token cross-entropy loss really is a handful of lines, but fitting a model that overflows one GPU is what forces multi-axis parallelism, and surviving weeks on failing hardware is what forces checkpoint, elastic restart, and loss-spike recovery. The engineering is dominated by the constraints around the loss, not by the loss itself, which is why `.fit()` framing badly understates the work.

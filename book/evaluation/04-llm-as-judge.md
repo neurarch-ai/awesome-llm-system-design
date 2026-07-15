@@ -111,6 +111,8 @@ gating on it gives false confidence.
 | Different model family as judge | Evaluating a specific model family's outputs | The same family as judge, which self-prefers |
 | Task metric instead of judge | The answer is checkable (code passes tests, field matches label) | A judge you then have to calibrate and maintain indefinitely |
 
+**Provenance.** The judging harnesses here include Ragas (open source). Pairwise preference judging, position-bias order-swapping, and Cohen's kappa agreement are standard evaluation-methodology techniques rather than foundational-model methods, so no architecture attribution applies.
+
 **Tools for each approach.** Pairwise and pointwise judging, position-bias order
 swapping, and per-dimension rubrics are packaged by Ragas, DeepEval, Arize Phoenix,
 and Promptfoo, each of which lets you pin the judge model and version the judge

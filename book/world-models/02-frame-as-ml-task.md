@@ -62,6 +62,13 @@ models plus tokenizers). VLA: the OpenVLA release and NVIDIA Isaac GR00T. Video
 encoders reuse the multimodal stack (CLIP (OpenAI), SigLIP (Google), and the V-JEPA
 2 weights from Meta).
 
+**Provenance.** The four paradigms trace to distinct lineages. The latent-dynamics
+row runs from World Models (Ha and Schmidhuber, 2018) through Dreamer/DreamerV3
+(DeepMind) and MuZero (DeepMind); the JEPA-predictive row is V-JEPA 2 (Meta, 2025);
+the generative-video row includes NVIDIA Cosmos, Genie (DeepMind, 2024), and GAIA-1
+(Wayve, 2023); and the VLA row is OpenVLA (2024) and NVIDIA Isaac GR00T. Run-time
+planning on top of these uses model-predictive control (classical control).
+
 **Worked example.** A manipulation team wants a robot to follow spoken instructions
 in a warehouse it was never trained in, with a small teleoperation dataset. Because
 action-labeled data is scarce and the target is zero-shot transfer, they pretrain a

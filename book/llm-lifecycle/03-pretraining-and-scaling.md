@@ -104,6 +104,13 @@ and Accelerate over a downloaded checkpoint, which needs a fraction of the
 infrastructure. Data curation and decontamination for any of these leans on the
 datasets and tokenizers libraries plus dedup tooling.
 
+**Provenance.** The compute-optimal token-to-parameter ratio comes from Chinchilla
+(DeepMind, 2022), which corrected the earlier power-law tradeoffs of the original
+scaling laws (OpenAI, 2020); the "overtrain past the optimal ratio when inference
+dominates" logic is the practical inversion of that result. The distributed-training
+tooling traces to Megatron-LM (NVIDIA) for tensor and pipeline parallelism and to
+ZeRO (Microsoft), which DeepSpeed implements.
+
 **Worked example.** A domain-LLM team needs a model fluent in a specialized corpus but
 lacks lab-scale compute. Because an open base already covers general language ability
 and only the domain vocabulary is missing, they choose mid-training on that base over

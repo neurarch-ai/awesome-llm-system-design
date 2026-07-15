@@ -38,6 +38,36 @@ rollout as small errors feed back on themselves, so a long open-loop plan is oft
 less accurate than a short horizon with frequent replanning, and it costs more
 compute per control step.
 
+**Q: MuZero plans without ever reconstructing the environment's observations. How
+does it learn a model useful for planning then?**
+MuZero (DeepMind) trains a latent dynamics model end-to-end so that only the
+quantities planning needs are predicted: from an encoded state it learns a transition
+function plus reward, policy, and value heads, and it optimizes these purely so the
+predicted rewards, policies, and values match what actually happened along real
+trajectories. It has no decoder and never tries to reproduce pixels, so the latent
+state is free to discard everything visually salient but decision-irrelevant, and its
+tree search plans entirely in that learned latent space. The lesson for world models:
+a model can be excellent for control while useless as a video generator, because
+reconstruction and decision utility are different objectives. That is the same split
+behind JEPA-predictive models like V-JEPA 2 (Meta, 2025), which predict in embedding
+space rather than pixel space.
+
+```mermaid
+flowchart LR
+  O["observation"] --> E["encoder"]
+  E --> S["latent state"]
+  S --> D["dynamics:<br/>predict next latent"]
+  D --> S
+  S --> R["reward head"]
+  S --> P["policy head"]
+  S --> V["value head"]
+  N["no decoder:<br/>pixels never reconstructed"] -.-> S
+```
+
+*MuZero learns only the quantities planning needs (next latent, reward, policy,
+value) and never reconstructs observations, so its state is optimized for decisions
+rather than for looking realistic.*
+
 ## Commonly answered wrong
 
 **Q: Should the world model run on the robot or in the data center?**
@@ -58,3 +88,14 @@ explicitly as the release gate.
 Not by itself. A VLA maps observation plus goal to actions; it reacts. It becomes a
 world-*action* model when you couple it with an explicit predictive model so it can
 imagine and plan, not only react.
+
+**Q: A model that generates realistic long videos is a world model, right?**
+Not on its own. A world model must be action-conditioned: given the current state
+and an action, it predicts the next state, so a planner can ask "what happens if I do
+this?" A pure video generator produces one plausible continuation but not the
+counterfactual futures for different actions, which is exactly what planning needs.
+That is the difference that makes Genie (DeepMind, 2024) a world model: it learns a
+latent action space so the generated frames respond to chosen actions, rather than
+rolling forward a single unconditioned continuation. Realism (FVD) measures the
+perception axis; action-conditioning is what buys the decision axis. A generator with
+no action input is a data source at best, not something you can plan through.

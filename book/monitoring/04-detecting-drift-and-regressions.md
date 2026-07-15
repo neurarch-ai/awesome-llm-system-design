@@ -108,6 +108,11 @@ experimentation layer (GrowthBook, Statsig, Unleash, or LaunchDarkly), and the
 candidate-versus-control proxy scores, latency, and cost surface in an observability
 platform such as Arize Phoenix, LangSmith, or Langfuse.
 
+**Provenance.** Of the drift-monitor tools named here, Evidently (open source) is the
+one whose data-drift and regression-report primitives are widely reused as a
+reference; the canary, shadow, and frozen-replay gates are standard deployment
+patterns rather than single-origin methods, so no further attribution is claimed.
+
 **Worked example.** A chat product shipping a drop-in model swap runs frozen eval replay
 first, since it is the lowest-cost check and catches a regression before any user sees
 it, and refreshes that set by promoting flagged production traces so it does not go

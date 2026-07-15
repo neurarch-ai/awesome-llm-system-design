@@ -80,6 +80,8 @@ golden set, then check whether the judge preferentially scored longer outputs. T
 fix is not to adjust the tolerance; it is to recalibrate the suite to match what
 the online loop is telling you about real user value.
 
+**Deeper:** Verbosity bias is measurable, not a hunch: regress the judge score on output length across a matched set, and a significantly positive slope means the judge is partly scoring length rather than quality. Controlling for length (or penalizing it in the rubric) is then a more targeted fix than swapping the judge wholesale, since it removes the specific confound the online loss exposed.
+
 **Q: A teammate says "let us just check quality manually before every release."
 What is wrong with that?**
 
@@ -90,6 +92,8 @@ examples will miss a regression buried in one language or customer tier. Manual
 review is valuable for calibrating the judge and for the uncertain canary cases
 where the automated gate is too close to call. It is not a substitute for a wired-
 in automated gate that runs on every change and gates per segment.
+
+**Deeper:** The non-repeatability is quantifiable as low intra-rater and inter-rater agreement, the exact same Cohen's kappa you would compute for an LLM judge. A manual gate no one has measured kappa on is an uncalibrated instrument with none of the version history or per-slice auditability of a wired-in suite, so it cannot even tell you whether two "passes" mean the same thing.
 
 **Q: Why is position bias a problem in pairwise judgment, and is running both
 orderings actually enough to fix it?**
@@ -104,6 +108,8 @@ residual bias after averaging (for example, by checking swap consistency on a
 matched set of known-equal outputs), the rubric may be the problem and needs
 revision.
 
+**Deeper:** Averaging only cancels a position effect that is additive and symmetric. When the judge instead flips to prefer whichever answer is in a given slot (A beats B in one order, B beats A in the other), that pair carries no real signal and should be recorded as a tie, not averaged into a spurious half-win. The swap-consistency rate, the fraction of pairs whose verdict survives the swap, is the diagnostic that tells you which case you are in.
+
 **Q: How do you handle judge drift? The hosted judge model updated silently and
 yesterday's scores are not comparable to today's.**
 
@@ -115,6 +121,8 @@ disruptive as a judge model change. Third, maintain a fixed calibration set of
 shift on the calibration set with no change to the candidate signals judge drift.
 When you detect drift, do not retroactively compare scores across the boundary;
 re-baseline against the new judge version before the next gate.
+
+**Deeper:** The calibration set works because the judge is the only variable that changes between re-scorings, so any score movement is attributable to it, the same controlled-variable logic as a regression test. For that to catch real drift it must include examples near the decision boundary, where a small score shift flips a verdict, not just easy extremes that stay correctly ranked no matter how the judge moves.
 
 ## Commonly answered wrong (the traps)
 
@@ -129,6 +137,8 @@ quality gate for a specific feature. Your gate needs a private, freshly-sampled
 golden set from your own task and traffic, versioned and held out from prompt
 iteration.
 
+**Deeper:** Contamination inflates the benchmark specifically and only, so the gap between benchmark score and production performance widens exactly on the cases you most need to catch. A freshly sampled private set drawn after the model was trained is the only one you can argue was never in the training data, which is what makes it a trustworthy gate rather than a coarse filter.
+
 **Q: Should the LLM judge be the same model as the one you are evaluating, to
 keep everything consistent?**
 
@@ -139,6 +149,8 @@ family as judge where possible, measure its kappa against human labels, and
 document the cross-family agreement. If cross-family options are limited, at minimum
 validate the within-family judge more carefully against human labels on the specific
 rubric before trusting it.
+
+**Deeper:** Self-preference is not mere familiarity: a model assigns higher likelihood to text near its own output distribution, so it rates its own completions as more fluent and more correct even when the rubric asks strictly about factuality. Using a different family as judge breaks that shared distribution, which is the mechanism that makes the cross-family verdict independent of the candidate's own style.
 
 **Q: If my eval score is high, do I still need an online A/B test?**
 
@@ -151,6 +163,8 @@ after the gate has demonstrated it reliably predicts A/B outcomes in the past. E
 then, major changes (new model family, large capability shift) should still reach
 an online canary before full rollout.
 
+**Deeper:** The judge's blindness is categorical, not a matter of accuracy. It cannot observe whether the user kept the output, retried, or churned, because those signals simply do not exist at eval time. No amount of judge quality recovers a variable that is structurally absent from the offline input, which is why online validation is a different measurement rather than a more precise version of the same one.
+
 **Q: Set the gate tolerance to zero: any regression at all blocks the deploy.**
 
 A: Judge noise means a tolerance of zero will flap the gate constantly. The judge
@@ -161,3 +175,5 @@ blocks valid changes. Set the tolerance from the judge's measured score variance
 on identical inputs (the standard deviation of repeated scores on the same output),
 typically one to two percentage points, so the gate blocks real regressions and
 passes through noise.
+
+**Deeper:** The threshold is derived from the noise floor, not chosen by taste: measure the standard deviation of repeated judge scores on identical (input, output) pairs and set the tolerance a small multiple above that sigma, so the gate's false-block rate is controlled to a known level. A tolerance set below the measured one-sigma noise blocks valid changes at a predictable and high rate, which is exactly the flapping the zero-tolerance proposal guarantees.

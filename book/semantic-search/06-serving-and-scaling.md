@@ -114,3 +114,12 @@ SSD-backed Vamana graph with no full rebuild.
 | Stale index | New documents not searchable within SLA | Streaming upsert pipeline; smaller batch cadence | Write-path complexity |
 | Reranker tail latency | p99 spikes when reranker runs | Truncate reranker input; make reranker optional per query class | Precision loss on queries that skip it |
 | Index rebuild on model upgrade | Zero-downtime impossible with a single index | Build new index alongside old; dual-read; cut over | 2x storage temporarily |
+
+**Detail.** The ANN-search-latency row's two knobs come from the two index families:
+ef (ef_search) is HNSW's beam width, the number of candidate nodes kept while
+descending the navigable graph (Malkov and Yashunin, 2016), while nprobe is IVF-PQ's
+cell count, how many inverted lists a query scans (Jegou et al.; FAISS by Meta). Both
+trade recall for latency roughly linearly, so lower them only after confirming recall
+stays above the bar. The recall-too-low row adds a lexical channel because dense
+vectors blur exact tokens; BM25 (Robertson and Walker, 1994) recovers SKUs, codes,
+and rare identifiers the encoder never learned to separate.

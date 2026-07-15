@@ -80,6 +80,22 @@ resampler must discard information to hit the fixed budget. Use a resampler when
 the task is general-understanding and the budget is tight; use an MLP projector
 when the task needs fine detail and you can afford variable token counts.
 
+**Q: You cache encoder embeddings by content hash, but two users crop or re-save
+the same photo slightly and get zero cache hits. Is the cache broken?**
+A: No, it is working exactly as designed, and that is the point. A content hash is
+intentionally brittle: it hits only on byte-identical (or pixel-identical, if you
+hash the decoded pixels) inputs, because the encoder output is only guaranteed
+reusable when the input is truly the same. A re-crop, a re-compression, or an EXIF
+rewrite produces a different pixel grid and therefore a legitimately different
+embedding, so a hit there would return stale features and silently corrupt the
+answer. If you want near-duplicate reuse you cannot get it from hashing; you would
+need perceptual hashing or an embedding-similarity lookup, which trades exactness for
+recall and reintroduces the risk of serving the wrong image's features. The
+interview signal is recognizing that the "miss" is the cache refusing to be wrong,
+not the cache failing. The right lever for raising hit rate is normalizing inputs
+upstream (fixed downscale, strip metadata, canonical re-encode) so genuinely
+equivalent uploads converge to the same bytes before hashing.
+
 **Q: How do you scale the vision encoder and the LLM decoder independently?**
 A: Run them as separate services. The encoder is a bounded, batchable, stateless
 pass that can be scaled horizontally by replicating encoder pods. The decoder is
@@ -118,4 +134,12 @@ at the image placeholder position in the instruction template (before or in the
 middle of the question), so the model attends to the image in context with the
 question. Appending image tokens at the end forces the model to first read the
 question without the image, then see the image. Instruction-tuned VLMs expect
-the interleaved layout they were fine-tuned on.
+the interleaved layout they were fine-tuned on. The mechanism-level reason it hurts:
+the decoder is causal, so a token only attends to tokens at or before its own
+position. If the image tokens sit after the question, none of the question tokens
+can attend to the image at all, and only the generated answer tokens ever see it, so
+the model effectively answers a text-only question and then glances at the image
+while decoding. Placing the image before the question lets every question token
+attend to the visual evidence, which is why the LLaVA (2023) instruction templates
+and their successors interleave image tokens at the placeholder rather than
+appending them.

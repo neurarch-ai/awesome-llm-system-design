@@ -105,6 +105,8 @@ evals are opinions, not evidence."
 | Human expert A/B | Output is regulated, irreversible, or stakes are high enough to require human arbitration (Thomson Reuters) | Automated gate alone on non-reversible or legally sensitive output |
 | Guardrail tracking (latency, cost, refusals) | Every online eval, alongside the target metric | Target metric only, which misses the cases where you won quality and lost cost |
 
+**Provenance.** These are standard online-experimentation techniques, carried in the table with the production teams that use them (Spotify, Pinterest, Ramp, GitHub, Thomson Reuters); none is a foundational-model method, so no architecture attribution applies.
+
 **Tools for each approach.** Traffic splitting for A/B tests and canaries runs on
 feature-flag and experimentation platforms such as GrowthBook, Statsig, Unleash, and
 LaunchDarkly, which also route the internal-only cohort for dogfooding. Shadow-mode
