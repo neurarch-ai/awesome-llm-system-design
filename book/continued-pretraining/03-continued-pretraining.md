@@ -119,6 +119,10 @@ you did not measure. Almost every failure here is forgetting, a mis-set learning
 rate, or a corpus too small for the objective, and the loss curve plus a full
 general-eval run before and after are the two diagnostics that surface all of them.
 
+![Reading training curves: four diagnostics](assets/fig-training-diagnostics.png)
+
+*Four shapes a training run takes: healthy convergence (train and val fall together), overfitting (val turns up, early-stop there), learning rate too high (loss oscillates or diverges), and underfitting (loss stays high and flat). Illustrative.*
+
 | Problem | Symptom | Fix |
 |---|---|---|
 | Catastrophic forgetting | domain metric rises but general benchmarks quietly drop | mix 5 to 10 percent general-data replay back into the domain corpus, and gate on the full general suite run before and after |

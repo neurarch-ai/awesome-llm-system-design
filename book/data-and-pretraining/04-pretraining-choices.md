@@ -222,6 +222,10 @@ whether the corpus feeding the objective is clean. Most base-model incidents tra
 back to the learning-rate schedule, a routing imbalance, or contamination in the
 data, and the loss curve is the first place all three announce themselves.
 
+![Reading training curves: four diagnostics](assets/fig-training-diagnostics.png)
+
+*Four shapes a training run takes: healthy convergence (train and val fall together), overfitting (val turns up, early-stop there), learning rate too high (loss oscillates or diverges), and underfitting (loss stays high and flat). Illustrative.*
+
 | Problem | Symptom | Fix |
 |---|---|---|
 | Loss spike then divergence | loss jumps and goes to NaN mid-run | gradient clipping at norm 1.0, lower the peak LR, rewind to the last checkpoint and skip the offending batch |
