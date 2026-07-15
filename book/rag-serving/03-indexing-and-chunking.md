@@ -1,5 +1,30 @@
 # 3. Indexing and chunking
 
+## Parsing: from raw files to clean text (before you chunk)
+
+Chunking assumes you already have clean text, but real corpora arrive as PDFs, HTML,
+scanned images, slides, and spreadsheets. Parsing (turning those raw files into
+faithful text) is the quiet stage that decides the ceiling for everything after it:
+garbage extraction cannot be fixed by a better embedder or reranker. The recurring
+hazards:
+
+- **Reading order.** Multi-column PDFs and newspapers interleave columns if you read
+  top to bottom; the parser must recover the true reading order or the text becomes
+  scrambled nonsense.
+- **Tables.** A table flattened to a run of numbers loses the row and column meaning,
+  so a question about a specific cell can never be answered. Preserve table structure
+  (as markdown or HTML) instead of flattening.
+- **Boilerplate.** Headers, footers, page numbers, and navigation chrome pollute
+  every chunk; strip them or they dominate the embedding.
+- **Scanned documents.** Image-only PDFs need OCR (optical character recognition,
+  turning pixels of text into characters) before any of this applies.
+
+**Tools.** Layout-aware PDF parsing comes from libraries such as PyMuPDF, pdfplumber,
+Unstructured, and Docling; table extraction from Camelot or a vision model; OCR from
+Tesseract or a cloud document-AI service. The practical rule: budget real effort here,
+because in most production RAG failures the answer was never retrievable, it was
+mangled at parse time.
+
 ## Chunking is a real design decision
 
 Naive fixed-size chunking (say, every 512 tokens) splits mid-sentence, mid-table,
