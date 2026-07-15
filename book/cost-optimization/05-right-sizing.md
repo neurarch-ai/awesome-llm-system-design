@@ -39,10 +39,10 @@ This is a **self-hosting lever only**. On a per-token API your pricing is set by
 the provider; quantization on their side is already baked in. The self-host versus
 API break-even is:
 
-$$Q^* = \frac{c_{\text{gpu/hour}}}{3600 \cdot t_{\text{tok}} \cdot c_{\text{api/tok}}}$$
+$$Q^{\ast} = \frac{c_{\text{gpu/hour}}}{3600 \cdot t_{\text{tok}} \cdot c_{\text{api/tok}}}$$
 
 where $t_{\text{tok}}$ is tokens per request and $c_{\text{api/tok}}$ is the
-API price per token. Above QPS $Q^*$, the fixed GPU cost beats per-token API
+API price per token. Above QPS $Q^{\ast}$, the fixed GPU cost beats per-token API
 pricing; below it, the API wins and you are paying for idle GPU time. Do the
 arithmetic before self-hosting.
 
@@ -88,7 +88,7 @@ subtasks are stable and the quality eval per model is automated.
 | Fine-tuned small model (1-13B) | Narrow, stable task (classify, extract, label) where task-specific training data is available | Frontier model for every subtask, which is correct but expensive |
 | Dedicated embedding model | Any vector embedding need (caching, RAG, semantic search) | A generative frontier call to produce embeddings (much more expensive, not better) |
 | Small cross-encoder reranker | Reranking a retrieved shortlist (50-100 items) for relevance | A full generative model scoring each chunk individually |
-| Quantization (FP8, INT8, INT4) | Self-hosted model above the QPS break-even $Q^*$ where fixed GPU cost beats API price | API pricing, where the lever does not exist on your side |
+| Quantization (FP8, INT8, INT4) | Self-hosted model above the QPS break-even $Q^{\ast}$ where fixed GPU cost beats API price | API pricing, where the lever does not exist on your side |
 | Distillation | High-QPS stable task where a training run is justified by the volume of calls | A one-off or low-QPS task where the training investment never pays back |
 | Mixture-of-Experts (Mixtral style) | You want large-model capacity but can control your own serving: only 2-3 experts fire per token | Dense models where every parameter pays for every token |
 | Batch API (provider-side) | Bulk work with no user waiting (backfills, nightly summarization, offline eval generation) | Interactive endpoint, which charges online prices for offline work |

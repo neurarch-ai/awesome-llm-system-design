@@ -75,7 +75,7 @@ be discovered. Track these together:
 |---|---|---|---|
 | Frontier model on every request | Bill dominated by one model, even for simple queries | Route easy traffic to cheap model; right-size subtasks | More models to maintain, evaluate, and keep from drifting |
 | Router eats its own savings | Router cost is comparable to model cost | Sub-ms classifier or tiny model; never a frontier call to route | Less routing accuracy from a simpler model |
-| Low semantic cache hit rate | Hit rate below break-even $h^*$ despite tuning | Broaden threshold slightly; improve query normalization | Looser threshold risks wrong-answer hits |
+| Low semantic cache hit rate | Hit rate below break-even $h^{\ast}$ despite tuning | Broaden threshold slightly; improve query normalization | Looser threshold risks wrong-answer hits |
 | Input-token bill dominates | Profiling shows input cost, not output | Reranker to top-3 chunks, then LLMLingua if still high | Lossy compression risks answer quality on extraction tasks |
 | Bulk work at online prices | Offline jobs on the sync endpoint | Provider batch API or saturated self-host | Hours of latency; unacceptable for interactive traffic |
 | Spend invisible until the invoice | Direct provider calls, no gateway | Route all calls through the gateway | Gateway is a new latency hop (usually under 5ms) |

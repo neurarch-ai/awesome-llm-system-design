@@ -32,7 +32,7 @@ $$\mathbb{E}[C_{\text{cache}}] = h \cdot c_{\text{hit}} + (1-h)(c_{\text{embed}}
 Caching pays when savings exceed the embedding overhead, i.e., when hit rate
 clears the break-even:
 
-$$h^* = \frac{c_{\text{embed}}}{c_{\text{model}} - c_{\text{hit}}}$$
+$$h^{\ast} = \frac{c_{\text{embed}}}{c_{\text{model}} - c_{\text{hit}}}$$
 
 If $c_{\text{model}} = 1$, $c_{\text{hit}} = 0.005$, and $c_{\text{embed}} =
 0.02$, then $h^* \approx 2\%$. Caching pays even at modest hit rates; the
@@ -41,7 +41,7 @@ quality.
 
 ![Cache hit rate vs net cost savings, with break-even marked](assets/fig-cache-hit-savings.png)
 
-*Net cost savings as a function of hit rate. The break-even hit rate $h^*$ is
+*Net cost savings as a function of hit rate. The break-even hit rate $h^{\ast}$ is
 low (around 2% for typical embedding-vs-model cost ratios), so caching pays at
 modest hit rates. The profit zone grows roughly linearly; the constraint is
 threshold quality, not break-even math. Illustrative.*

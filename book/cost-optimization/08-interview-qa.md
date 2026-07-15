@@ -59,13 +59,13 @@ know, and that is a problem."
 **Deeper:** The blind spot is structural, not accidental. An aggregate quality metric is dominated by the easy majority of traffic, so a regression concentrated in the hard tail (a small fraction of requests) barely moves the mean. Only per-bucket quality measured on a fixed hard-tail slice can surface it, which is why the aggregate dashboard staying green is the signature of the failure rather than evidence against it.
 
 **Q: Everyone uses semantic caching. Should you always deploy one?**
-A: Only if the hit rate clears the break-even: $h^* = c_{\text{embed}} / (c_{\text{model}} - c_{\text{hit}})$.
+A: Only if the hit rate clears the break-even: $h^{\ast} = c_{\text{embed}} / (c_{\text{model}} - c_{\text{hit}})$.
 On typical numbers this is around 2%, but on traffic that is nearly all unique
 free-text queries (e.g., a general-purpose assistant), even a tuned semantic
 cache may not reach break-even. Measure the organic hit rate on a sample before
 shipping the cache.
 
-**Deeper:** The break-even $h^*$ rises as the served model gets cheaper, because the denominator $c_{\text{model}} - c_{\text{hit}}$ shrinks while the embedding cost $c_{\text{embed}}$ (paid on every request, hit or miss) stays fixed. So a workload already routed to a cheap small model can make the cache net-negative even at a respectable hit rate, which is the opposite of the intuition that caching is always free money.
+**Deeper:** The break-even $h^{\ast}$ rises as the served model gets cheaper, because the denominator $c_{\text{model}} - c_{\text{hit}}$ shrinks while the embedding cost $c_{\text{embed}}$ (paid on every request, hit or miss) stays fixed. So a workload already routed to a cheap small model can make the cache net-negative even at a respectable hit rate, which is the opposite of the intuition that caching is always free money.
 
 **Q: Bigger LLMs are slower and cost more per token. Can you always swap in a
 smaller model for a subtask?**
