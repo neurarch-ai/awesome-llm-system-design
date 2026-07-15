@@ -79,3 +79,31 @@ candidate who separates the write path from the read path, identifies the ACL
 constraint as a retrieval problem not a post-processing problem, and names
 retrieval recall as the quality ceiling has already answered the hardest part
 of the question before touching a single component.
+
+## The RAG paradigm ladder
+
+Naive "embed, retrieve top-k, stuff into the prompt" is the bottom rung. When it
+plateaus (wrong chunks retrieved, multi-hop questions, a noisy corpus), teams climb
+a ladder of paradigms. Naming the rungs, and knowing which failure each one fixes,
+is a strong senior-level signal.
+
+| Paradigm | What it adds over naive RAG | Reach for it when |
+|---|---|---|
+| Naive RAG | embed, retrieve top-k, generate | a clean corpus and single-fact questions |
+| Advanced RAG | pre-retrieval (query rewriting/expansion) plus post-retrieval (rerank, compress) | retrieval recall or precision is the bottleneck |
+| Modular RAG | swappable modules (router, memory, fusion) composed per query | different query types need different pipelines |
+| Self-RAG | the model emits reflection tokens deciding when to retrieve and whether a passage is relevant and supported | the model should retrieve only when needed and self-check its own grounding |
+| Corrective RAG (CRAG) | a lightweight retrieval evaluator grades the hits; a low-confidence grade triggers a fallback search | the corpus is patchy and wrong retrievals must be caught before generation |
+| GraphRAG | an LLM-built entity graph plus community summaries used as context | whole-corpus sensemaking and multi-hop questions that flat vector search misses |
+| Agentic RAG | retrieval becomes a tool an agent calls in a loop, rewriting the query and retrieving repeatedly | complex multi-step questions that need iterative retrieval |
+
+**Provenance.** The naive, advanced, and modular framing is from the RAG survey
+(Gao et al., 2023). Self-RAG's reflection-token approach is from Asai et al.
+(University of Washington and Allen AI, 2023); Corrective RAG (CRAG) from Yan et al.
+(2024); GraphRAG from Microsoft Research (2024). Agentic RAG is the pattern where an
+[agent loop](../agents/) drives retrieval, deployed for example in Uber's support
+chatbot (section 7).
+
+Climb only as far as the failure mode demands: each rung up the ladder adds latency,
+cost, and moving parts, so a clean single-fact FAQ should stay near the bottom while
+a noisy multi-hop knowledge base earns the graph or agentic rungs.

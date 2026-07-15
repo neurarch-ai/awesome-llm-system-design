@@ -36,6 +36,30 @@ flowchart TD
   end
 ```
 
+## More cognitive architectures
+
+ReAct and plan-then-execute are the two base loops. Three more architectures layer
+on top when reliability or hard reasoning demands it. They are not exclusive: most
+production agents combine them.
+
+| Architecture | The idea | Reach for it when |
+|---|---|---|
+| Reflexion | after a failed attempt, the agent writes a self-critique into memory and retries with that lesson in context | tasks with a verifiable success signal (tests pass, task solved) where a retry can improve |
+| Tree of Thoughts (ToT) | explore several reasoning branches, score them, and expand the promising ones (search, not a single chain) | puzzle-like problems where one linear chain of reasoning often goes wrong |
+| Plan-and-Solve | draft a plan, then solve step by step; a lighter, prompt-only cousin of plan-then-execute | reasoning tasks that benefit from an explicit plan without full tool orchestration |
+| Memory-augmented | a retrieval-backed long-term memory feeds relevant past state into each step | long-running or multi-session agents that must remember beyond the context window |
+
+**Provenance.** ReAct (reasoning and acting interleaved) is from Yao et al.
+(Princeton and Google, 2022); Reflexion from Shinn et al. (2023); Tree of Thoughts
+from Yao et al. (Princeton and Google DeepMind, 2023); Plan-and-Solve from Wang et
+al. (2023). A typical production agent is a plan-then-execute loop with a
+Reflexion-style retry on failure and a retrieval-backed memory, rather than any one
+architecture in its pure form.
+
+More structure buys reliability at the cost of more model calls, so add a rung only
+when the base loop's failure mode (wandering, repeated tools, forgetting) actually
+shows up.
+
 ## Tool schemas
 
 A tool is a function the model can call by name with typed arguments. The schema
