@@ -248,3 +248,32 @@ if the reward were cheaply verifiable per sample, which for open-ended tone it i
 > and find those weight matrices to see how little of the network an adapter
 > actually moves. All reference graphs are in the
 > [Model Zoo](https://github.com/neurarch-ai/awesome-llm-model-zoo).
+
+## Implementation and training pitfalls
+
+Most fine-tuning failures are not exotic; they are a handful of recurring problems.
+The first diagnostic is always the loss curve, so learn to read it.
+
+![Reading training curves: four diagnostics](assets/fig-training-diagnostics.png)
+
+*Four shapes a training run takes. Healthy: train and validation loss both fall and
+stay close. Overfitting: validation loss bottoms out then rises while training loss
+keeps falling, so stop at the turning point (early stopping). LR too high: the loss
+oscillates or climbs instead of settling, so lower the learning rate or add warmup.
+Underfitting: the loss stays high and flat, so the model, data, or learning rate is
+too small. Illustrative curves.*
+
+| Problem | Symptom | Fix |
+|---|---|---|
+| Learning rate too high | loss spikes, oscillates, or diverges (bottom-left above) | lower the LR, add linear warmup, clip gradients at norm 1.0 |
+| Overfitting on a small SFT set | train loss keeps dropping, validation loss rises | early-stop at the validation minimum, fewer epochs (1 to 3), add held-out eval |
+| Loss looks fine, model got worse | eval regresses despite low loss | check for train/eval contamination and format drift between training and serving |
+| Catastrophic forgetting | fine-tuned model loses general ability | mix in a fraction of general data, prefer LoRA over full fine-tuning, lower LR |
+| DPO reward hacking / degeneracy | outputs get shorter or repetitive, reward up but quality down | raise beta (keep the policy near the reference), cap length, re-check the preference data |
+| DPO/RLHF instability | reward or KL blows up mid-training | smaller LR, larger beta or KL coefficient, verify the reference model is frozen |
+| Chat template mismatch | model ignores system prompt or mis-parses turns | use the exact same chat template in training and serving; pin it |
+| QLoRA out-of-memory | OOM at load or first step | 4-bit base with NF4, gradient checkpointing, smaller batch with gradient accumulation |
+
+The through-line: change one thing at a time, always watch a held-out eval next to
+the loss (a low loss with a falling eval is the classic trap), and keep the training
+and serving formats byte-identical.
