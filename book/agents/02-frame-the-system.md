@@ -14,6 +14,27 @@ proposed actions must pass before execution. "Loop" means the model sees the
 result of its last action before deciding on the next. "Tool" means the model
 can reach outside its own weights to read from or write to real systems.
 
+## Kinds of agents by capability
+
+"Agent" covers a range of systems that share the loop above but differ in what the
+tools do. Naming the type early scopes the design (which tools, which risks, which
+evaluation).
+
+| Agent type | Core tools | Main design risk |
+|---|---|---|
+| Retrieval / knowledge | search, RAG, database queries | grounding and citation faithfulness |
+| Tool-use / orchestration | APIs, functions, other services | correct arguments and side-effect safety |
+| Data-analysis / reasoning | code execution, calculators, SQL | correctness of generated code and results |
+| Software-development | file edit, run tests, shell | destructive actions and verification of changes |
+| Conversational / content | generation, light tools | tone, safety, and staying on task |
+| Multimodal-perception | vision and audio encoders plus tools | reliable perception before acting |
+| Embodied / physical | actuators, planners, world models | real-world consequences (see [world models](../world-models/)) |
+
+The support agent in this chapter is a tool-use and retrieval hybrid: it retrieves
+account state, then calls refund and escalation tools behind a gate. The type sets
+the priorities, a software-development agent lives or dies on running its own tests,
+while a retrieval agent lives or dies on citation faithfulness.
+
 ## The plan-act-observe cycle
 
 Every iteration follows the same three beats:
