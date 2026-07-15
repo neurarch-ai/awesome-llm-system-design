@@ -135,3 +135,35 @@ risk, they run it in shadow mode and diff candidate against control with zero us
 exposure. Alongside all of this they keep an input-embedding drift monitor as the
 leading indicator, so a moving query distribution warns them before output drift
 confirms the damage.
+
+## Implementation and training pitfalls
+
+Drift and regression monitors fail in a predictable way: they either cry wolf until
+everyone mutes them, or they sleep through a real regression. The failures below are
+the recurring reasons a monitor loses the team's trust.
+
+| Problem | Symptom | Fix |
+|---|---|---|
+| Alerting on single flagged events | the channel floods with one-off ungrounded answers and real alerts get ignored | alert on the rate delta or z-score over a window, not on individual traces |
+| Stale frozen eval set | the frozen replay passes while live quality regresses because the set no longer reflects traffic | refresh by promoting flagged production traces (bad judge or grounding scores) into the labeled set |
+| Reference window never reset | the drift monitor fires on every deliberate model or prompt swap | reset the reference window after each intended change so you compare against the right baseline |
+| Window and threshold mistuned | too short trips on normal variance, too long hides real drift | size the window to traffic volume and tune the z threshold on historical data |
+| Unvalidated LLM judge | the "drift" is really judge noise or a judge version change, not a model change | validate the judge against human labels and pin the judge model and prompt version |
+| Acting on input drift alone | rollback or scaling fires on a leading indicator that has not confirmed any harm | treat input drift as a predictor; confirm with output-drift metrics before acting |
+| Full rollout then monitor | all users are exposed to a regression before it is caught | canary a five to ten percent slice first and compare proxy scores against control |
+| Silent provider model swap | quality moves with no deploy on your side | run frozen eval replay on a schedule to catch provider-side regressions you did not trigger |
+
+The input-versus-output distinction is the one most teams get wrong, so it is worth
+a decision flow:
+
+```mermaid
+flowchart TD
+  ID["input drift rising?"] -->|yes| OD["output drift confirmed?<br/>(judge score, ungrounded rate)"]
+  ID -->|no| WATCH["keep watching"]
+  OD -->|yes| ACT["gate, roll back, or refresh the eval set"]
+  OD -->|no| PRIME["expand review and eval coverage<br/>do not roll back yet"]
+```
+
+The through-line: alert on rate shifts not single events, keep the reference and
+the eval set fresh, and let a leading indicator warn you without letting it act on
+its own.

@@ -92,3 +92,24 @@ image-token count.
 [LLaVA-1.5 7B](https://www.neurarch.com/?import=https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/llava-1.5-7b/model.json).
 SigLIP and Whisper-small are also in the
 [Model Zoo](https://github.com/neurarch-ai/awesome-llm-model-zoo).
+
+## Implementation and training pitfalls
+
+Encoder and fusion choices look clean on a diagram and then break at the seam where
+one modality is spliced into the decoder. The failures below are the recurring ones
+when wiring a vision or audio stack to an LLM.
+
+| Problem | Symptom | Fix |
+|---|---|---|
+| Image-token budget blowup | high resolution or tiling floods the context with vision tokens, cost and latency spike and text gets truncated | cap tiles and resolution, pool or resample patch tokens, budget image tokens against text tokens explicitly |
+| Projector/decoder dim mismatch | the projector output does not match the decoder hidden size, load error or garbage generations | set the projector output dimension to the decoder hidden size and verify shapes before training |
+| Encoder resolution too low for the task | a frozen 336px CLIP cannot read small text or fine layout | use a native-resolution encoder or tiling, or pick SigLIP; do not just upscale into a fixed-resolution encoder |
+| Freezing the encoder on a far domain | projector-only training never adapts features for documents, medical, or satellite imagery | unfreeze the encoder or add LoRA adapters when the target domain is far from the encoder's pretraining |
+| Modality data imbalance | the model takes the text-only shortcut and ignores images, or text quality degrades | balance and interleave mixed-modal training data and watch per-modality loss |
+| Image-placeholder template drift | image tokens land in the wrong positions between training and serving and alignment breaks | pin the exact image-placeholder chat template and keep it identical train and serve |
+| Early-fusion codebook squeeze | discretizing images through a VQ codebook loses fine visual detail and destabilizes training | prefer late fusion unless image generation is required; when using early fusion, balance modality data carefully |
+| Audio frame-token inflation | long audio inflates frame tokens the same way high resolution inflates image tokens and blows the context | segment or downsample audio and cap the frame-token count per request |
+
+The through-line: the encoder and projector are a shape-and-budget contract with the
+decoder, so most multimodal breakage is a dimension mismatch, a token budget nobody
+capped, or a train-versus-serve template that quietly drifted.

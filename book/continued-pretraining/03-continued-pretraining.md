@@ -111,3 +111,36 @@ inside the domain slice; it shows up only when you look outside it.
 The recipe: fix the regression bar up front (as the requirements dialogue did),
 run the full suite after DAPT, and promote the adapted base only if it passes the
 gate. Repeat the measurement after every tuning change.
+
+## Implementation and training pitfalls
+
+Continued pretraining rarely fails on the domain metric; it fails on the things
+you did not measure. Almost every failure here is forgetting, a mis-set learning
+rate, or a corpus too small for the objective, and the loss curve plus a full
+general-eval run before and after are the two diagnostics that surface all of them.
+
+| Problem | Symptom | Fix |
+|---|---|---|
+| Catastrophic forgetting | domain metric rises but general benchmarks quietly drop | mix 5 to 10 percent general-data replay back into the domain corpus, and gate on the full general suite run before and after |
+| Resuming at the decayed floor LR | loss barely moves, the run stalls | re-warm the learning rate from the floor to a modest peak, then re-decay |
+| Resuming at the original peak LR | loss spikes, converged base ability is erased | cap the re-warm peak at a fraction of the original pretraining peak |
+| Corpus too small (well under a billion tokens) | model memorizes the narrow set and forgets more than it learns | reach for SFT or RAG instead, or gather more in-domain text before DAPT |
+| Loss spike mid-run | sudden divergence from a bad batch or too-high peak | gradient clipping at norm 1.0, lower the re-warm peak, rewind to the last good checkpoint and skip the batch |
+| Reporting only the domain gain | domain up a few points, general down more, a net product loss | fix the regression bar up front and block promotion on it, not on the domain slice alone |
+| Adapter over-scoped for a broad shift | LoRA plateaus and cannot absorb a new register or vocabulary | use full DAPT with replay for broad distributional shifts; keep adapters for lighter nudges under a forgetting budget |
+
+When a general benchmark regresses after DAPT, this is the order to check:
+
+```mermaid
+flowchart TD
+  A["general benchmark<br/>dropped after DAPT"] --> B{"was replay<br/>in the mix?"}
+  B -->|no| C["add 5 to 10 percent<br/>general-data replay"]
+  B -->|yes| D{"re-warm peak<br/>too high?"}
+  D -->|yes| E["lower the peak<br/>toward the pretrain fraction"]
+  D -->|no| F{"corpus large<br/>enough?"}
+  F -->|no| G["too few tokens:<br/>use SFT or RAG instead"]
+  F -->|yes| H["anneal on highest-quality<br/>data at the LR tail"]
+```
+
+The through-line: a domain win you did not pay for in general ability is usually an
+unmeasured forgetting loss, so distrust any DAPT result that only reports the domain slice.

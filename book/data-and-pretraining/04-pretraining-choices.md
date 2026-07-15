@@ -214,3 +214,25 @@ lunch.*
 > small (byte-level BPE, dense), OLMo 7B (the fully open base with documented
 > data recipe), Llama 3 8B (GQA + RoPE + RMSNorm at production scale), and
 > DeepSeek-V3 (MoE routing with 671B total and 37B active parameters per token).
+
+## Implementation and training pitfalls
+
+The architecture choices above are second-order to whether the run stays stable and
+whether the corpus feeding the objective is clean. Most base-model incidents trace
+back to the learning-rate schedule, a routing imbalance, or contamination in the
+data, and the loss curve is the first place all three announce themselves.
+
+| Problem | Symptom | Fix |
+|---|---|---|
+| Loss spike then divergence | loss jumps and goes to NaN mid-run | gradient clipping at norm 1.0, lower the peak LR, rewind to the last checkpoint and skip the offending batch |
+| Warmup too short | early divergence against randomly-initialized weights | lengthen the linear warmup so the first noisy-gradient steps use a tiny learning rate |
+| MoE routing collapse | a few experts take all tokens, the rest sit idle | add the auxiliary load-balancing loss, or use auxiliary-loss-free bias balancing |
+| Document-boundary bleed | attention leaks across unrelated packed documents | mask at document boundaries and reset position ids at each document start |
+| Benchmark contamination in the corpus | public eval scores look inflated, real quality lags | decontaminate the corpus against known eval sets by n-gram overlap before training |
+| Near-duplicate under-dedup | model memorizes repeated spans and wastes compute | fuzzy dedup (MinHash or LSH), not just exact-match dedup |
+| Oversized vocabulary | rare tokens are undertrained and the embedding matrix bloats | size the vocabulary to the corpus and report fertility per language, not just overall size |
+| Tokenizer fit on the wrong sample | high fertility on the real training mixture | fit the tokenizer on a representative sample of the final mixture before committing |
+
+The through-line: a stable base run is a clean-data run with a conservative schedule,
+so treat a loss spike or a suspiciously high benchmark as a data or LR problem first,
+not an architecture one.

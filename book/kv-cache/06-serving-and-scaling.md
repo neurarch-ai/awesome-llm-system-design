@@ -76,3 +76,24 @@ memory-bandwidth-bound because every step re-reads the whole KV cache, so the fi
 are all cache-shrinking (GQA, from Google 2023, or MLA, from DeepSeek 2024) or
 cache-eviction, not adding FLOPs. Raising batch size here helps throughput but not
 per-token latency, which is why the two rows pull toward different knobs.
+
+## Implementation and training pitfalls
+
+The bottleneck table diagnoses where a node saturates; the failures below are the
+implementation mistakes that make the KV cache misbehave well before the roofline,
+often as correctness bugs rather than pure performance ones.
+
+| Problem | Symptom | Fix |
+|---|---|---|
+| KV growth OOM under concurrency | continuous batching admits more sequences than HBM can hold, requests get preempted mid-decode | cap concurrent sequences, page the cache, set a per-request max KV budget, quantize KV |
+| Fragmentation from contiguous allocation | OOM far below theoretical capacity while much of HBM is reserved but unused | block-based allocation (PagedAttention) so a sequence grows in fixed pages instead of one contiguous reservation |
+| Prefix cache shared across trust boundaries | a cached prefix is matched to a request that must not see it (different tenant or system prompt) | key the prefix cache by tenant and prompt hash; never share blocks across auth or trust boundaries |
+| Evicting active sessions | a live conversation loses its cache and must re-prefill, spiking its TTFT | evict by last access (LRU), protect in-flight sequences, reclaim only truly idle sessions |
+| KV quantization bits too low | long-context or retrieval eval regresses after enabling KV quantization | raise bits, quantize keys less aggressively than values, keep a full-precision recent window, eval-gate the change |
+| GQA/MQA head count mismatch | serving engine loads the wrong n_kv and emits garbage or errors on load | match n_kv_heads to the trained checkpoint; GQA/MQA is a training-time choice, not a serving flag |
+| Sliding window evicts needed tokens | model forgets earlier context and degrades on long documents | size the window to the task, keep attention-sink tokens, do not evict below what the task needs |
+| Per-node prefix cache in a cluster | hit rate collapses at scale because requests are not routed to the node holding their prefix | cache-aware routing so a request lands on the node with its prefix, or a distributed prefix cache |
+
+The through-line: the cache is shared mutable state, so most of these are about
+who is allowed to reuse a block and which sequence gets protected when memory is
+tight, not about raw size alone.

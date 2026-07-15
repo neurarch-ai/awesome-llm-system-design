@@ -140,3 +140,25 @@ flowchart LR
 **Tools.** RouteLLM is the reference open-source preference router and ships trained matrix-factorization and BERT-based routers. LiteLLM and its proxy expose model routing, fallbacks, and tiered dispatch across providers behind one API, which is a convenient place to hang a heuristic or classifier router. Classifier routers are typically small fine-tunes built on Hugging Face Transformers, and a heuristic layer is often just regex plus a rules engine in front of the same gateway. Cascade scorers along the lines of FrugalGPT are usually custom-trained reliability models; for verifiable tasks the "scorer" is the real check itself (a SQL execution, a compiler, a test runner) rather than a learned model.
 
 **Worked example.** A chat product sees a flood of greetings and canned FAQ lookups mixed with a long tail of genuinely hard reasoning questions, and it must answer under a tight latency SLO. Because the easy classes are stable and pattern-shaped, the team puts a heuristic regex router in front to send greetings and template requests straight to the small model at zero training cost, avoiding a classifier whose training would be unjustified for such simple patterns. For the remaining ambiguous traffic they add a classifier router since they can label difficulty with a judge pipeline, rather than a preference router that would need comparative data they do not collect. They skip a cascade on the hot path because the latency budget has no slack for a cheap-model-then-scorer round trip, and reserve a cascade only for an offline batch queue where a verifiable code-generation task lets them escalate on a real compile-or-run signal.
+
+## Implementation and training pitfalls
+
+Routers and cascades are cost mechanisms, so their failures show up as money and
+quiet quality loss, not as errors. The recurring traps are a router that costs more
+than it saves, a cutoff calibrated once and never re-checked, and escalation on a
+signal the model cannot actually trust.
+
+| Problem | Symptom | Fix |
+|---|---|---|
+| Router costs more than it saves | savings go negative after router overhead | keep the router strictly cheaper than the cheapest model it gates (heuristic or a small classifier) |
+| Miscalibrated cascade cutoff | either quality drops or you pay for both models on everything | calibrate the escalation threshold on held-out data and re-check as traffic shifts |
+| Stale router on drift | cost looks great, quality quietly drops on newly-hard queries | monitor per-slice quality and retrain the router on fresh traffic |
+| Over-trusting log-probabilities | confident-looking cheap answers are wrong yet not escalated | prefer a verifiable check or a trained reliability scorer over raw log-probabilities |
+| Cascade on easy traffic | two calls on trivially simple queries waste money | route easy and hard directly, cascade only the uncertain middle bucket |
+| Self-consistency cost blowup | sampling N times multiplies spend with little quality gain | add repeated sampling only where a real success signal justifies it |
+| No per-request cost ceiling | one pathological query runs every stage at max cost | cap total spend per request and fall back or truncate at the ceiling |
+| Escalating on a saturated signal | logprob or self-consistency is flat on the hard tail | use ground-truth verification where the task allows (does the SQL run, does the code compile) |
+
+The through-line: a router or cascade only saves money if its own decision is cheaper
+and better-calibrated than the model it gates, so measure the net savings and the
+per-slice quality together, never the headline cost alone.

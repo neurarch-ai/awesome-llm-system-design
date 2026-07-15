@@ -99,3 +99,33 @@ Any gateway can reach any inference replica (correctness) but the hash
 preferentially routes a session to the replica with its warm cache
 (performance). The session store is shared; it is the durable record of the
 conversation.
+
+## Implementation and training pitfalls
+
+Streaming chat breaks in ways a request-response service never does: connections
+die silently, proxies buffer the stream you meant to flush, and a disconnected
+client keeps burning a GPU slot. The recurring failures on the serving path:
+
+| Problem | Symptom | Fix |
+|---|---|---|
+| Orphaned streams pinning slots | Slot utilization is high while user QPS is low | Cancel on disconnect with a heartbeat plus server-side timeout, and call the inference-engine abort so the decode slot frees |
+| Half-open TCP not detected | A dropped client is not noticed until the next write to the socket | Send server-side heartbeats or pings on an interval and enforce an idle timeout rather than trusting the socket state |
+| SSE reconnection gaps or dupes | Reconnecting clients lose tokens or restart the reply from the top | Assign idempotent event ids and honor Last-Event-ID with a short server replay buffer so the stream resumes where it stopped |
+| Buffering proxy defeats streaming | Tokens arrive in one burst at the end instead of incrementally | Disable proxy buffering (for example X-Accel-Buffering: no) and flush per token or per small batch |
+| Sticky-routing cache miss | TTFT is high even at low concurrency | Consistent-hash on session id to the replica holding the warm KV cache and monitor the hit rate |
+| Retry storm amplification | A TTFT spike triggers client retries that multiply load and deepen the spike | Shed load with Retry-After and require exponential backoff with jitter on the client |
+| Session store eviction | A transcript vanishes mid-conversation after a cache eviction | Back the Redis TTL with a durable store so the session survives eviction |
+| Slot exhaustion | New streams queue for seconds before the first token | Add GPU replicas, enable continuous batching, and fall back to a smaller model under pressure |
+
+```mermaid
+flowchart TD
+  D["stream stops<br/>producing tokens"] --> Q1{"client still<br/>connected?"}
+  Q1 -->|"no"| A["abort generation,<br/>free the slot"]
+  Q1 -->|"yes"| Q2{"tokens arriving<br/>in a burst?"}
+  Q2 -->|"yes"| B["proxy buffering:<br/>disable and flush per token"]
+  Q2 -->|"no"| C["reconnect with<br/>Last-Event-ID to resume"]
+```
+
+Treat every stream as something that can disconnect at any token: free slots on
+disconnect, make reconnection resumable, and keep proxies from buffering the
+output you worked to stream.

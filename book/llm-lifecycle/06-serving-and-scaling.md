@@ -119,3 +119,24 @@ compute for lower per-user latency and does not by itself lower cost per token.
 | Code completion (low latency) | 7B distilled | INT4 + eval gate | GQA / MQA | continuous + speculative decode | no |
 | Overnight batch summarization | 70B | BF16 | GQA | large static batches | yes, if grounding needed |
 | Chatbot at 20k+ QPS (Character.AI style) | custom small | INT8 + KV INT8 | MQA | continuous + inter-turn prefix cache | no (weights hold persona) |
+
+## Implementation and training pitfalls
+
+The lifecycle only pays off if the three pipelines stay decoupled and each stage
+respects what it can and cannot fix. The failures below span training and serving,
+and most are a stage reaching for the wrong lever.
+
+| Problem | Symptom | Fix |
+|---|---|---|
+| Fine-tuning to fix factual gaps | facts bake into weights, go stale, and the model hallucinates them confidently | use RAG for facts and fine-tuning for behavior; the two compose, they do not substitute |
+| Stale RAG index between rebuilds | users receive outdated answers even though retrieval is grounded | put a freshness SLA on the index, re-embed on a schedule in the feature pipeline, add a last-updated citation |
+| Chat template drift train vs serve | the served model mis-parses turns or ignores the system prompt | pin the exact chat template and keep training and serving formats byte-identical |
+| Quantizing to a cost target without a gate | INT4 hits the budget but silently regresses quality | eval-gate every compression on the full suite, fall back to INT8 if INT4 regresses |
+| Retraining coupled into the serving path | a model refresh becomes a risky serving deploy and cannot scale independently | keep feature, training, and inference as separate pipelines communicating only through artifacts (index, model registry) |
+| Interactive and batch traffic on one pool | a long batch job blocks interactive users and their TTFT spikes | split the real-time and batch paths onto separate capacity with opposite batching policies |
+| GQA/MQA decided too late | you cannot cut the KV cache on an already-trained MHA base without another training run | choose GQA/MQA at training time; it is a next-model decision, not a serving hotfix |
+| Catastrophic forgetting from full fine-tune | the fine-tuned model loses general ability it had before | prefer LoRA over full fine-tuning, mix in a fraction of general data, lower the learning rate |
+
+The through-line: match the fix to the stage. Facts belong to retrieval, behavior
+to fine-tuning, KV-cache shape to training, and every compression step earns its
+place only behind an eval gate.

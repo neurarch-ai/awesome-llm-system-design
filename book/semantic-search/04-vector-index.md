@@ -185,3 +185,24 @@ accept the quantization recall loss; if it had to run on a single box, DiskANN o
 SSD. The MIPS detail matters if the embeddings are two-tower dot-product vectors:
 prefer ScaNN's anisotropic PQ over a Euclidean-tuned index that silently loses
 inner-product recall.
+
+## Implementation and training pitfalls
+
+Vector-index bugs are quiet: recall drops without an error, so you learn about
+them from user complaints rather than a stack trace. Measure recall against a
+flat brute-force ceiling on a sample and the failures become visible:
+
+| Problem | Symptom | Fix |
+|---|---|---|
+| ANN recall vs latency | recall@k sits below target at the required p99 | Raise `ef` (HNSW) or `nprobe` (IVF) until recall meets target, then trade back the latency you can afford; calibrate against the flat ceiling |
+| Metric mismatch on MIPS | Inner-product ranking is quietly wrong under a Euclidean-tuned quantizer | Use ScaNN-style anisotropic PQ for dot-product retrieval, or L2-normalize and switch the index to cosine |
+| Unnormalized vectors | A cosine index fed raw vectors returns off ranking | L2-normalize vectors on both insert and query so the stored metric matches the intended one |
+| Quantization recall loss | IVF-PQ or PQ-compressed scores reorder the true top-k | Page the full-precision vectors for the shortlist and rescore, recovering precision the codes lost |
+| Sharding recall loss | Splitting the corpus across shards drops true neighbors from the merged top-k | Over-fetch k from every shard and merge, rather than fetching k/shards from each |
+| HNSW memory blowup | The index OOMs at load time | Budget `(dim * 4 + M * 8)` bytes per vector up front; move to IVF-PQ or DiskANN when it will not fit RAM |
+| Stale index under churn | Newly ingested items are not searchable until a rebuild | Use incremental upsert (HNSW inserts, FreshDiskANN) instead of periodic full rebuilds |
+| nprobe or ef set too low | Recall is capped no matter how the model improves | Raise the search-breadth knob first; a low beam width, not the embedding, is often the ceiling |
+
+Before blaming the embedding model for weak results, confirm the index is not the
+ceiling: sweep the search-breadth knob and rescore the shortlist, and compare
+against exact search on a held-out query set.

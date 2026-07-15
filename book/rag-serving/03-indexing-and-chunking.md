@@ -172,3 +172,32 @@ live index without a full rebuild. On a document change event (webhook or poll):
 Incremental upsert adds write-path complexity but is the only way to avoid
 stale answers in a high-churn internal knowledge base. Tombstoning deleted
 documents immediately prevents retrieval of expired content.
+
+## Implementation and training pitfalls
+
+Most RAG quality bugs are not model bugs; they are indexing bugs that make the
+right answer unretrievable long before the reranker or LLM ever sees it. The
+recurring failures on the write path:
+
+| Problem | Symptom | Fix |
+|---|---|---|
+| Chunk boundary loss | The answer is split across two chunks, so each match is incomplete and the LLM hedges or gets it wrong | Recursive structural chunking on headings and paragraphs, plus a small overlap window so a straddling answer stays whole in at least one chunk |
+| Reading-order scramble | Multi-column PDFs and tables retrieve as garbled text that never matches any query | Layout-aware parsing that recovers true reading order and preserves table structure before chunking |
+| Boilerplate poisoning | Off-topic chunks rank high because headers, footers, and nav chrome dominate the embedding | Strip boilerplate at parse time so the embedding reflects the body text only |
+| Standalone-chunk context loss | A chunk full of pronouns ("this system", "the above") embeds well in place but retrieves poorly alone | Prepend a short section or document summary to each chunk before embedding (contextual chunking) |
+| Embedding to index metric mismatch | Recall collapses silently after an index or model swap | Match the index distance metric to the embedding objective and L2-normalize vectors when using cosine |
+| Dimension mismatch on model change | Upserts fail or new vectors are unsearchable after switching embedders | Version the index and full-reindex on any embedding model change; never mix dimensions in one index |
+| Stale index after edits | Users get answers from deleted or superseded documents | Upsert by document ID and tombstone old chunks immediately so expired content cannot be retrieved |
+| Overlap inflation | Near-duplicate chunks fill the top-k and index memory balloons | Cap overlap at 10 to 15 percent and dedupe overlapping neighbors at read time |
+
+```mermaid
+flowchart TD
+  R["low retrieval recall"] --> Q1{"is the answer<br/>in the index at all?"}
+  Q1 -->|"no"| P["parse or chunk bug:<br/>reading order, boundary loss"]
+  Q1 -->|"yes but not matched"| Q2{"embeds well<br/>standalone?"}
+  Q2 -->|"no"| C["contextual chunking:<br/>prepend section summary"]
+  Q2 -->|"yes"| M["metric or normalization<br/>mismatch: check index config"]
+```
+
+Fix the write path first: a better embedder or reranker cannot recover an answer
+that parsing mangled or chunking cut in half.

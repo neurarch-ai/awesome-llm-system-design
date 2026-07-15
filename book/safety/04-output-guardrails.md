@@ -150,3 +150,25 @@ the operating point is a business decision, not a technical default. Illustrativ
 **Provenance.** The guard-LLM output row uses Llama Guard (Meta), orchestrated by NeMo Guardrails (NVIDIA). The streaming token-level cut-off row is attributed to Anthropic, as already noted in the table.
 
 **Worked example.** A document-AI team ships a RAG assistant that answers questions over regulated financial filings, where a polite but ungrounded claim is itself a safety failure. On every completion they run a small fine-tuned toxicity classifier for low latency, but because toxicity and groundedness are orthogonal they add a grounding classifier that compares the answer against the retrieved chunks rather than assuming the model only used its sources. Since obvious rule-level violations must never slip through for audit reasons, they pair the models with deterministic rules in a hybrid rather than pure-model scoring. They set the classifier threshold by fixing a false-refusal budget and reading off the catch rate they can hit, and route the small slice of high-stakes ambiguous outputs to human review instead of hard-blocking, since a false positive on an irreversible decision would cause real harm.
+
+## Implementation and training pitfalls
+
+Output guards fail in two opposite directions at once: they over-block benign
+users and they under-block determined attackers. Both are operating-point and
+implementation problems, not reasons to abandon the guard. The recurring
+failures:
+
+| Problem | Symptom | Fix |
+|---|---|---|
+| Guardrail false positives (over-refusal) | Benign requests get refused, user complaints climb, engagement drops | Set the threshold against an explicit false-refusal budget and read off the catch rate; KL-anchor refusal training to the reference model so helpfulness does not drift |
+| Jailbreak leakage past the base model | The model's own refusal is argued away and an unsafe completion is returned | Score the output with an independent classifier that never joined the conversation, so a jailbroken base model still has to clear it |
+| Groundedness false flag on paraphrase | Correct answers that paraphrase the sources score low on lexical overlap and get blocked | Use an entailment or semantic support scorer rather than bare word-overlap; reserve overlap for a coarse pre-filter |
+| Partial unsafe output already streamed | Unsafe tokens reach the user before the full-completion check runs | Run a token-level streaming classifier that can cut off generation mid-stream instead of checking only the finished text |
+| Private-data regurgitation | The completion echoes another user's PII even from a benign prompt | Add an output-side PII or DLP scan independent of the input, since input guards cannot see what the model generated |
+| Threshold drift over time | Catch rate degrades quietly as the traffic and attack mix shift | Monitor recall and false-refusal rate on a held-out labeled set and recalibrate the operating point on a schedule |
+| Non-English bypass | Attacks in other languages sail past an English-trained guard | Use a multilingual guard model or per-language thresholds; do not assume the base model's language coverage matches the guard's |
+| Guard-LLM latency stacking | Every completion pays a full extra generation in series | Keep a small fine-tuned classifier on the hot path and reserve the guard-LLM for low-QPS or ambiguous routing only |
+
+The guard is a business decision expressed as a threshold: pick the operating
+point from the false-refusal budget the product can tolerate, then watch it drift
+and recalibrate, rather than shipping a default and trusting it.

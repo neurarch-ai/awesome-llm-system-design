@@ -190,3 +190,25 @@ never tune against for the honest final check before an upgrade, and they run a
 separate binary safety gate so a more capable but less safe candidate still blocks.
 Public benchmarks stay in the process only as the coarse first filter when picking a
 base model.
+
+## Implementation and training pitfalls
+
+An offline gate is only as trustworthy as the dataset under it. The recurring
+failures are a suspiciously good number that turns out to be contamination or
+overfitting, an average that hides a slice collapse, and a judge that scores surface
+features instead of quality.
+
+| Problem | Symptom | Fix |
+|---|---|---|
+| Benchmark contamination | public scores look inflated, the model fails on real user queries | gate on a private held-out set and decontaminate the golden set against training data |
+| Tuning on the eval set | the offline number climbs but generalization does not | keep a held-out slice you never look at during development |
+| Average hides a slice regression | overall score rises while one segment collapses | score per slice (language, length, tier) and block on any segment regression |
+| Golden-set drift | a stale set misses query patterns that emerged later | periodically sample production traffic, annotate, and merge new rows |
+| Dataset not versioned | scores across runs are not comparable | version the dataset in source control and gate a change on a fixed snapshot |
+| pass@k underestimation at k=1 | a capable model scored as failing on stochastic misses | draw k samples and use the unbiased pass@k estimator |
+| Label errors in the gold set | a ceiling on measurable accuracy and false regressions | audit and fix mislabeled rows, and keep a regression row for every bug you fixed |
+| Judge bias (position, verbosity, self-preference) | LLM-judge scores track length or option order, not quality | randomize option order, calibrate against human labels, and prefer a task metric wherever the answer is checkable |
+
+The through-line: a suspiciously good offline score is contamination or overfitting
+until proven otherwise, so distrust the number until you have ruled both out on a
+held-out, versioned, per-slice basis.

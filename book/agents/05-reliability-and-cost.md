@@ -152,3 +152,40 @@ by the agent itself.
 **Tools.** The step cap, token budget, and per-step model routing live in the orchestration layer, which frameworks like LangGraph and LlamaIndex expose as explicit graph limits and node-level model selection rather than prompt instructions. Policy gates and output checks are built with guardrail libraries such as Guardrails AI and NeMo Guardrails (NVIDIA), which run deterministic schema and content checks off the model's critical path. Transient tool retries are handled by a backoff library like tenacity in the executor, not by the model, and verification retries reuse whatever real success signal exists (a test runner, a ledger check) as the stopping criterion.
 
 **Worked example.** An enterprise-RAG team running a support agent enforces a hard step cap and a per-ticket token budget in code, because a prompt instruction like stop after ten steps is something the model can ignore and the economics require a bounded cost per ticket. Any write action that touches refunds or accounts passes a pre-call policy gate implemented as a deterministic code check, since a prompt-side reminder would be bypassed by prompt injection, and a post-call output check runs in parallel with reply generation so compliance is verified without doubling latency. Transient API timeouts are retried with exponential backoff in the executor rather than letting the model decide inconsistently. Routing steps go to a cheap model and only genuine policy-reasoning steps pay for the expensive one, and verification retries are added only where a clear end-to-end success signal justifies the extra cost.
+
+## Implementation and training pitfalls
+
+Agent loops fail at runtime, not at design time: the loop wanders, the transcript
+overflows, a tool call is malformed, or a retry storm turns a transient blip into a
+cost spike. Almost every one of these is bounded by a limit enforced in the
+orchestration layer rather than requested in the prompt.
+
+| Problem | Symptom | Fix |
+|---|---|---|
+| Infinite or wandering loop | agent repeats tool calls and never terminates | hard step cap enforced in the orchestrator, then escalate to a human |
+| Context overflow | transcript exceeds the window, quality drops or the call errors | summarize old turns, drop raw tool payloads, prefix-cache the stable head |
+| Quadratic cost growth | per-ticket cost balloons as steps accumulate | per-task token budget plus transcript compression, since prefill re-reads the whole context each step |
+| Malformed tool call | schema-invalid arguments, the tool rejects the call | validate arguments against the tool schema pre-call and return a structured error the model can correct |
+| Hallucinated result on failure | model invents an answer when a tool times out | return a structured error rather than empty, and require the model to acknowledge and handle it |
+| Retry storm | one transient failure multiplied into a latency and cost spike | exponential backoff with a fixed retry cap in the executor, not decided by the model |
+| Non-idempotent retried write | a retried refund or order action fires twice | attach an idempotency key to write tools so a retry is a no-op |
+| Error compounding across steps | one bad mid-step result corrupts every downstream decision | place a verification gate between steps to raise the per-step success floor |
+
+When a tool call returns, the executor (not the model) decides what happens next:
+
+```mermaid
+flowchart TD
+  A["tool call returns"] --> B{"schema<br/>valid?"}
+  B -->|no| C["structured error<br/>back to model"]
+  B -->|yes| D{"transient<br/>failure?"}
+  D -->|yes| E{"retries<br/>left?"}
+  E -->|yes| F["backoff, retry<br/>(idempotency key)"]
+  E -->|no| G["structured error,<br/>let model escalate"]
+  D -->|no| H{"step cap or<br/>token budget hit?"}
+  H -->|yes| I["escalate to human"]
+  H -->|no| J["pass result<br/>to next step"]
+```
+
+The through-line: reliability in an agent is a set of code-enforced limits and gates
+around a fallible model, so anything you only asked for in the prompt should be
+assumed unenforced.

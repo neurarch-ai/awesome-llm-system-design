@@ -78,3 +78,33 @@ The common failure across all three is **compounding error**: a model accurate f
 one step drifts over a long imagined rollout as small errors feed back on
 themselves. This is why short horizons with frequent replanning usually beat long
 open-loop predictions, and why section 5 measures multi-step rollout drift directly.
+
+## Implementation and training pitfalls
+
+A world model can look excellent on one-step held-out prediction and still be
+useless for control, because the planner queries it far off the training
+distribution and over horizons where errors compound. The recurring failures:
+
+| Problem | Symptom | Fix |
+|---|---|---|
+| Compounding error | One-step accuracy is high but long imagined rollouts drift into nonsense | Shorten the horizon and replan often (MPC); train on multi-step rollouts so the model sees its own predictions as input |
+| Representation collapse (JEPA) | The encoder outputs a near-constant embedding the predictor matches trivially, and the loss looks great | Anti-collapse mechanism: stop-gradient target, an EMA target encoder, and variance or covariance regularization |
+| Planner exploits model error | The planner finds a high imagined return that fails on the real system | Penalize model uncertainty (ensemble disagreement) in the score and constrain actions to the model's trusted region |
+| Action-conditioning underfit | The model dreams the same future regardless of the action fed in | Train on balanced action-labeled data and check action sensitivity; passive-video pretraining alone learns dynamics but not the action effect |
+| Exposure bias | Teacher-forced training does not match autoregressive rollout at inference | Scheduled sampling: gradually feed the model its own predictions during training |
+| On-policy distribution gap | Accurate on logged data, fails once the policy visits new states | Iterate with on-policy data collection so the model sees the states its own planner reaches |
+| Reward hacking in imagination | Imagined return climbs while real-task performance stalls | Ground the reward in a verifiable signal and validate imagined return against measured real return |
+| Over-regularized latent transition | Dynamics lose the detail needed to distinguish outcomes | Tune the KL or transition-regularization weight, using free-bits so the latent keeps informative capacity |
+
+```mermaid
+flowchart TD
+  F["planner controls poorly<br/>despite good 1-step loss"] --> Q1{"does rollout drift<br/>over the horizon?"}
+  Q1 -->|"yes"| A["compounding error:<br/>shorten horizon, train multi-step"]
+  Q1 -->|"no"| Q2{"does output ignore<br/>the action?"}
+  Q2 -->|"yes"| B["action-conditioning underfit:<br/>balance action-labeled data"]
+  Q2 -->|"no"| C["planner exploits error:<br/>penalize uncertainty, collect on-policy data"]
+```
+
+Validate the model the way the planner will use it: measure multi-step rollout
+drift and on-policy behavior, not just one-step held-out loss, or the planner
+will happily optimize against the model's blind spots.

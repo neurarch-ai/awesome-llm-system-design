@@ -150,3 +150,35 @@ speculative decoding (Google and DeepMind, 2023) only lowers the floor when
 per-workload acceptance is high enough that the verified-token yield beats the draft
 overhead; on low-acceptance free-form traffic it raises the floor instead, so
 measure acceptance before enabling it rather than treating it as a free win.
+
+## Implementation and training pitfalls
+
+The bottlenecks table above is about steady-state serving; the failures below are
+the operational ones that show up the first time real traffic swings. Most trace
+back to treating a GPU fleet like a stateless CPU service.
+
+| Problem | Symptom | Fix |
+|---|---|---|
+| Scaling on a lagging signal | replicas start booting only after p99 TTFT has already breached the SLO | scale on a leading signal (queue depth, mean wait time in queue, KV occupancy), not on CPU or latency after the fact |
+| Scale-to-zero on the hot path | the first request after an idle period eats the full multi-minute cold start | keep a warm buffer on interactive paths; only scale to zero cold paths where first-request latency is acceptable |
+| Autoscaler flapping | replicas are added and removed rapidly, paying repeated cold starts and thrashing capacity | add a scale-down cooldown and a stabilization window, and use hysteresis (scale up faster than you scale down) |
+| Retry storms under overload | a saturated fleet gets hit with client retries that amplify the load and deepen the outage | return 429 with a retry-after hint, require exponential backoff with jitter on clients, add a circuit breaker |
+| No per-sequence KV reservation | a new admission triggers an out-of-memory event that kills requests already mid-decode | reserve each request's maximum KV budget at admission time with paged (block-based) allocation |
+| Cost target met by quantizing blind | cost per token drops but output quality silently regresses in production | eval-gate every precision drop; keep INT8 as a fallback before dropping to INT4 |
+| Cold start dominated by image and weight load | new replicas take minutes, forcing an oversized warm buffer | cache the model image on local NVMe, stream weights into HBM during warm-up, restore from a warmed process snapshot |
+| Quoting one provider as "the model cost" | real speed and price vary several-fold across hosts of the same open model and drift over time | benchmark p50 output speed and price per provider over a rolling window, re-check periodically |
+
+A quick decision flow for the scale-up moment, which is where leading signals and
+the warm buffer have to work together:
+
+```mermaid
+flowchart TD
+  Q["queue depth or wait time rising?"] -->|yes| WARM["warm replicas available?"]
+  Q -->|no| HOLD["hold capacity"]
+  WARM -->|yes| ABSORB["route the spike to the warm buffer<br/>trigger a cold boot to refill it"]
+  WARM -->|no| SHED["SLO-aware admission<br/>429 with retry-after, shed the lowest tier first"]
+```
+
+The through-line: react before the SLO signal moves, protect requests already in
+flight over new admissions, and never let a cost target ship a quality regression
+without an eval gate in front of it.
