@@ -101,8 +101,18 @@ def chunk_with_overlap(tokens, size, overlap):   # tokens: list of token ids; si
 | Recursive structural chunking | Docs carry headings, tables, or code blocks that a fixed window would split | Fixed-size, which destroys structure and poisons the chunk embedding |
 | Overlap window | Answers commonly straddle chunk boundaries (long prose) | High overlap on short chunks, which inflates the index for little gain |
 | Contextual chunking (prepend summary) | Chunks lose meaning in isolation (pronoun references, section headers) | Bare chunks that embed well in context but retrieve poorly when standalone |
+| Late chunking (embed the whole doc, then pool per chunk) | You want each chunk embedding to carry document-level context without an LLM call per chunk | Contextual chunking, when the per-chunk LLM cost is too high, but it needs a long-context embedding model |
 | Parent-child retrieval | You want high precision on retrieval but richer context at generation time | Forcing a single chunk to serve both roles, which trades one for the other |
 | Fixed-size with overlap (baseline) | Simple unstructured text corpus, fast prototyping | Structural chunking when documents have clear sections to exploit |
+
+**Recent methods (2024).** Two 2024 techniques attack the "a chunk loses its
+document context" problem from opposite ends. **Contextual Retrieval** (Anthropic,
+2024, see section 7) prepends an LLM-generated context sentence to each chunk before
+embedding. **Late chunking** (Jina AI, 2024) instead runs a long-context embedding
+model over the whole document first, then mean-pools the token embeddings within each
+chunk's span, so every chunk vector already carries global context with no per-chunk
+LLM call. Contextual Retrieval is more powerful per chunk but costs an LLM call each;
+late chunking is far cheaper but needs a long-context embedder.
 
 ## The embedding service
 
