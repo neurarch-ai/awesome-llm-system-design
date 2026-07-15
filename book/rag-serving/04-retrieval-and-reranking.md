@@ -154,3 +154,55 @@ BM25 (Robertson and Walker, 1994), fused with dense scores by Reciprocal Rank Fu
 and IVF-PQ (Jegou et al.; FAISS by Meta). Cross-encoder reranking descends from
 Sentence-BERT (UKP Darmstadt, 2019); a late-interaction alternative is ColBERT
 (Stanford, 2020), and Cohere Rerank (Cohere) is a hosted option.
+
+## Query transformation (pre-retrieval)
+
+Retrieval quality is capped by the query as much as by the index. If the user's
+phrasing does not match how the answer is written, no reranker can recover it. So
+before retrieving, teams often rewrite the query. These are the common transforms
+(a beginner note: "embedding" here means the numeric vector the query is turned into
+for search).
+
+| Transform | What it does | Reach for it when |
+|---|---|---|
+| Rewriting | clean up and disambiguate the raw query (resolve "it", drop chit-chat) | conversational or messy user input |
+| Expansion | add synonyms or related terms so lexical and dense search both widen | recall is low because the query is terse |
+| HyDE | ask the model to draft a hypothetical answer, then embed and search with that | the query and the answer use very different vocabulary |
+| Decomposition | split a multi-part question into sub-queries, retrieve for each, then merge | multi-hop questions that no single passage answers |
+| Step-back | ask a more general version first to fetch background, then the specific query | questions that need broad context before the detail |
+| Routing | classify the query and send it to the right index or tool | a corpus split across sources with different retrievers |
+
+**Provenance.** HyDE (hypothetical document embeddings) is from Gao et al. (2022);
+step-back prompting from Google DeepMind (2023). Query rewriting, expansion, and
+decomposition are standard information-retrieval techniques adapted to RAG; routing
+is the entry point to the modular-RAG paradigm (section 2).
+
+## Maximal Marginal Relevance: diversity in the shortlist
+
+Top-k by relevance alone often returns near-duplicate chunks (the same paragraph
+copied across documents), which wastes context-window budget and buries the
+complementary information the answer needs. **Maximal Marginal Relevance (MMR)** picks
+each next chunk to maximize relevance to the query *minus* redundancy with what is
+already picked, trading a little relevance for coverage.
+
+```python
+import numpy as np
+def mmr(query, docs, k, lam=0.5):
+    # query, docs: L2-normalized vectors. lam trades relevance (1.0) vs diversity (0.0).
+    sel, cand = [], list(range(len(docs)))
+    while cand and len(sel) < k:
+        best, best_s = None, -1e9
+        for i in cand:
+            rel = float(query @ docs[i])                                  # relevance to the query
+            red = max((float(docs[i] @ docs[j]) for j in sel), default=0.0)  # redundancy vs picked
+            s = lam * rel - (1 - lam) * red
+            if s > best_s: best_s, best = s, i
+        sel.append(best); cand.remove(best)
+    return sel
+# with one query-relevant doc and a near-duplicate of it, mmr(lam=0.5) skips the duplicate
+# and picks the diverse doc instead; mmr(lam=1.0) reduces to plain top-k by relevance.
+```
+
+MMR was introduced by Carbonell and Goldstein (1998). An alternative post-retrieval
+step is **context compression** (for example LLMLingua, Microsoft), which prunes the
+retrieved passages down to the tokens that matter before they reach the generator.
