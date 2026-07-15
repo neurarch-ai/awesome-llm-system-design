@@ -74,6 +74,22 @@ def cohen_kappa(a, b):
 A model swap at day 18 triggers a score drop that crosses the threshold and fires
 an alert. Score recovers partially as prompt tuning compensates. Illustrative.*
 
+**Pointwise scoring versus pairwise, the tradeoff to name.** The judge above
+returns an absolute (pointwise) score per trace, which is what makes it
+monitorable: you can trend it and set a threshold. But pointwise absolute scores
+are the *least* reliable way to use a judge. Work on LLM judges (Zheng et al.,
+2023, the MT-Bench and Chatbot Arena study) found that models are far more
+consistent when asked to *compare* two answers than when asked to assign a number
+to one, because a lone answer gives the judge no anchor and small prompt or
+version changes shift the whole scale. The tension is real: pairwise comparison
+is more trustworthy but gives you a relative winner, not a level you can alert on.
+The standard reconciliation is reference-anchored grading, scoring each production
+answer by comparing it against a fixed reference answer for that query (or a frozen
+prior model's answer), which keeps the reliability of a comparison while still
+yielding a stable, trendable win-rate. Whichever you choose, pin the judge model
+and prompt version: a provider-side judge update silently re-scales a pointwise
+metric and manufactures a "regression" that is really a judge change.
+
 ## Grounding check
 
 A grounding check is more targeted than a general judge: it asks whether the

@@ -152,6 +152,17 @@ on genuinely long inputs teaches it to use them. Three data principles:
   Each stage consolidates before the next. This is cheaper (shorter sequences
   early) and more stable than one giant-length run.
 
+A senior caveat on measuring the result: passing a needle-in-a-haystack retrieval
+probe does not prove the extended model can actually use its new window. Liu et
+al. (Stanford, 2023), Lost in the Middle, documented a U-shaped position curve:
+models recall a fact placed at the very start or very end of a long context far
+better than the same fact placed in the middle, even when it sits well within the
+trained length. Single-needle retrieval can therefore look solved while multi-hop
+reasoning, aggregation across many passages, or a fact buried mid-context still
+fails. Evaluate the extended model with tasks that force use of the middle of the
+window and that require combining several distant spans, not just one lookup near
+an edge, or the frequency rescale will report a success the model does not have.
+
 ## When to use which
 
 | Reach for | When | Instead of |

@@ -62,6 +62,19 @@ def greedy_search(graph, dist, entry, query):    # graph: node -> list of neighb
 # on chain 0-1-2-3 with dist(n,q)=abs(n-3): greedy_search({0:[1],1:[0,2],2:[1,3],3:[2]}, lambda n,q: abs(n-3), 0, None) -> 3
 ```
 
+**The edge case under churn: deletes are HNSW's weak spot.** The incremental-insert
+story above is only half of an upsert. HNSW has no clean removal: most
+implementations mark a deleted vector as a tombstone and leave its node wired into
+the graph, because physically excising a node would sever the neighbor links other
+nodes rely on to stay reachable. Under heavy churn the graph accumulates tombstoned
+nodes that the greedy traversal still walks through, so recall drifts down and
+latency creeps up even though the live set is unchanged, and the degradation is
+silent because nothing errors. The mitigations are to reconnect a deleted node's
+neighbors at removal time (some libraries do this, paying the cost on the write
+path) and to schedule a full rebuild once the tombstone fraction crosses a
+threshold. A service that upserts millions of documents a day should budget for
+that rebuild rather than assume incremental inserts stay free forever.
+
 ### IVF-PQ (inverted file plus product quantization)
 
 IVF-PQ clusters vectors into `nlist` cells (Voronoi partition). At query time,

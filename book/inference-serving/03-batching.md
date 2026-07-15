@@ -47,6 +47,12 @@ drops below 4%. The combined effect over naive static batching is roughly 23x
 throughput, with most of the scheduling gain (about 8x) coming from continuous
 batching and most of the memory gain from paging.
 
+## The edge case continuous batching hides: KV exhaustion and preemption
+
+Continuous batching admits new sequences greedily up to whatever the KV cache can hold, but decode grows the cache by one token per step for every live sequence, so a batch that fit at admission can outgrow memory mid-flight. When the pool is full and a running sequence needs another block, the scheduler cannot simply wait: it must preempt one or more in-flight sequences to free blocks. vLLM handles this two ways. It can swap the victim's KV blocks out to CPU memory and page them back when space frees up, or it can discard them and recompute the prefill when the sequence is rescheduled. Swapping pays PCIe bandwidth; recomputation pays a redundant prefill pass. Either way the victim stalls, and because preemption falls on the sequences the scheduler picks as victims rather than spreading evenly, the effect lands as a tail-latency cliff rather than a uniform slowdown.
+
+The senior consequence: peak admitted concurrency is not a safe steady state. If you size the batch by what fits at admission time, a workload with long outputs will drive the pool into thrashing, where sequences are repeatedly preempted and restored and aggregate throughput collapses even though the GPU looks busy. The guard is to admit against a KV budget that reserves headroom for the tokens the batch will still generate, not just the tokens present when each request arrives, and to watch the preemption and swap counters as a leading indicator that the admission policy is too aggressive.
+
 ## Chunked prefill: smoothing the interference
 
 When a new request arrives, its prefill (computing KV for the entire prompt) must

@@ -140,6 +140,19 @@ inference cost drops. Llama 3 8B saw roughly 15T tokens, close to 1800 tokens
 per parameter, because the serving economics dominate the training cost. State
 which cost you are minimizing before quoting a ratio.
 
+**The other limit: running out of unique tokens.** Overtraining a small model
+assumes you have the tokens to do it, and high-quality unique text is finite. Once
+the token budget exceeds the unique corpus, the question becomes how much
+repetition costs you. Muennighoff et al. (2023), Scaling Data-Constrained
+Language Models, studied exactly this and found that repeating the data for up to
+roughly four epochs is nearly as useful as training on an equal amount of fresh
+unique tokens, after which the value of each additional repetition decays and
+eventually adds almost nothing. The practical reading: when unique data is the
+binding constraint, a few epochs of repetition plus more parameters still buys
+real quality, but you cannot repeat your way to an arbitrarily large effective
+budget, which is part of why the quality-filtering and deduplication levers of the
+previous section have the most headroom left.
+
 ## Architecture: dense versus mixture-of-experts
 
 The base architecture is a pre-norm decoder-only transformer. The choices that

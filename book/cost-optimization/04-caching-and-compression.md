@@ -77,6 +77,28 @@ threshold quality, not break-even math. Illustrative.*
   genuinely different question. Tune $\tau$ on labeled should-hit / should-not
   pairs, not by raw hit rate.
 
+## Prefix (prompt) caching
+
+Semantic caching reuses a whole response; prefix caching reuses the model's
+internal computation over a shared, unchanging prompt prefix. When many requests
+begin with the same long system prompt, tool schema, few-shot block, or document,
+the provider can store the key-value tensors computed for that prefix once and
+reuse them on later calls, so only the new suffix is prefilled. Anthropic exposes
+this as prompt caching and several providers offer an equivalent. It is
+exact-match on the token prefix, not semantic, so it composes with a semantic
+response cache rather than replacing it.
+
+Two properties decide whether it pays. First, the pricing is asymmetric: writing
+the cache (the first call that populates it) usually costs more than a normal
+input token, while reading it costs much less, so the break-even needs enough
+reuse of the same prefix within the cache's time-to-live to amortize the write.
+Second, and the part engineers miss, ordering is load-bearing: the cache matches
+from the front of the prompt, so any change high up (a per-request timestamp, a
+user id interpolated into the system prompt, a reordered tool list) invalidates
+everything after it. Put the stable content first (system prompt, schemas, static
+context) and the volatile per-request content last, or the hit rate silently
+collapses while nothing in the output looks wrong.
+
 ## Prompt compression
 
 You pay per token. Tokens the model did not need are money burned. Two moves,

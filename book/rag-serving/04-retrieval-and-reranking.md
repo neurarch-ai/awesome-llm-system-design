@@ -136,6 +136,18 @@ present in the context.
 to 5 in the LLM context. Each stage is dramatically cheaper than the previous
 one per document scored. Illustrative counts.*
 
+**The reranker inherits the retriever's recall ceiling.** A cross-encoder only
+reorders the n candidates it is handed, so if the gold chunk never enters the
+top-n shortlist, no amount of reranking recovers it: the recall@k ceiling from
+above applies just as hard to the candidate depth n that feeds the reranker. That
+makes n a genuine quality knob, not a cost detail, and it is why deepening the
+candidate set (say 50 to 100) sometimes buys more than swapping in a stronger
+reranker. A second subtlety a senior watches for: cross-encoder relevance scores
+are not calibrated probabilities, and their scale drifts from query to query, so a
+fixed absolute cutoff ("keep everything above 0.5") admits noise on some queries
+and discards good chunks on others. Prefer a relative rule, keep the top-m or keep
+scores within a margin of the best, over a global threshold.
+
 **When to use which retrieval and reranking strategy.**
 
 | Reach for | When | Instead of |

@@ -94,6 +94,21 @@ def sse_frame(data, event=None):        # SSE wire format: field lines, blank li
 # sse_frame("hi") -> "data: hi\n\n"; sse_frame("[DONE]", event="done") -> "event: done\ndata: [DONE]\n\n"
 ```
 
+**The resumption detail SSE gives you for free, and its trap.** The browser's
+`EventSource` client auto-reconnects when the connection drops, and on reconnect
+it resends the id of the last event it saw in a `Last-Event-ID` request header,
+provided the server tagged its events with an `id:` field. That is the built-in
+mechanism for resuming a token stream across a flaky network without restarting
+generation. The trap is that it only works if the server buffered the tokens
+emitted since that id: LLM decoding is not replayable, so a gateway that keeps no
+per-stream buffer will either lose the tokens generated during the gap or be
+forced to regenerate from scratch, and the user sees the stream come back
+mid-word with a hole in it. Either tag events with ids and retain a short
+ring buffer of recent tokens keyed by session, or disable auto-reconnect and
+treat a drop as a full disconnect (section 04). Relying on `EventSource`
+reconnect without server-side buffering is a silent correctness bug, not a
+resilience feature.
+
 **WebSockets** establish a persistent, full-duplex connection after an HTTP
 upgrade handshake. Both sides can send at any time. The duplex channel is useful
 when the client needs to signal the server mid-stream: live interrupt ("stop

@@ -87,6 +87,19 @@ attend to the encoder features and produce exactly 32 output tokens for the
 decoder. The cost is constant and tiny, but 32 tokens is a hard detail ceiling.
 Dense content like charts and OCR is lost.
 
+**Which encoder layer the projector reads (a detail that changes results).** The
+projector does not necessarily consume the encoder's final-layer output. LLaVA-1.5
+taps the *penultimate* layer of CLIP ViT-L/14, not the last, and the reason is
+mechanistic: CLIP's final layer is optimized for a single global image-text
+contrastive match, so its features are pooled toward one semantic summary and shed
+the local, spatially-resolved detail a decoder needs to reason about specific
+regions, small objects, or text. The layer just before it still carries per-patch
+local structure. Choosing the tap layer is therefore a real design knob: too late
+and the features are over-globalized for the contrastive loss, too early and they
+are not yet semantically aligned to language. This is also why swapping to a
+differently-trained encoder (SigLIP) is not a drop-in replacement, since the useful
+tap layer and the projector calibrated to it move together.
+
 ![Connector tradeoff: recoverable detail vs image-token cost](assets/fig-connector-tradeoff.png)
 
 *Each point is a connector type placed by its image-token cost (x-axis) and the

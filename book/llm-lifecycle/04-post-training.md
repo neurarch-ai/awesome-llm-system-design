@@ -101,6 +101,22 @@ follow-up on DPO, and naming it is strong signal.
 Meta used SFT plus rejection sampling plus DPO for Llama 3. The recipe is
 stable and does not require an online PPO training loop.
 
+**The DPO edge case: likelihood displacement.** DPO's loss only pushes the
+*margin* between the chosen and rejected log-ratios; it does not anchor the
+absolute probability of the chosen response. A documented failure mode is that
+during training the log-probability of the preferred response can fall at the
+same time as the rejected one falls faster, so the margin improves while the
+model becomes *less* likely to produce the very answer it was taught to prefer.
+This is called likelihood displacement (Razin et al., 2024), and when the
+probability mass that leaves the chosen response lands on a third, unintended
+output it can push a safety-tuned model toward behavior the pairs were meant to
+suppress. The practical guards are to keep an SFT term alongside the DPO loss
+(or use a variant that adds a chosen-likelihood anchor), and to monitor the
+absolute chosen log-probability during training rather than trusting the margin
+alone. It is a sharper answer than the generic "DPO still has a KL leash" point,
+because it names a case where the leash holds but the objective still moves
+quality the wrong way.
+
 ## Step 2c: RLAIF and Constitutional AI (Anthropic)
 
 Replace most human harm labels with AI feedback against a written constitution

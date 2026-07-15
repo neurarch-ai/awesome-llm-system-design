@@ -63,6 +63,22 @@ any goal you can write as a reward, without retraining. It is also where the lat
 budget bites, because cost is roughly `n * horizon * iters` model evaluations per
 control step (section 6).
 
+**Why the planner is an adversary to its own model, and why short horizons win.**
+The CEM loop is an optimizer, and an optimizer pointed at a learned reward will
+find wherever the model is wrong in the optimistic direction. Among thousands of
+sampled sequences, the elite set is biased toward the ones the model *over*-scores,
+so the planner systematically seeks out the model's blind spots (the
+optimizer's-curse view of model-based control). Two mechanisms keep it honest.
+First, plan over a *probabilistic ensemble* and score each sequence by its return
+across all ensemble members, so a trajectory only one model likes is penalized by
+the others' disagreement; this is the PETS recipe (Chua et al., 2018), the
+canonical robust sampling-MPC baseline. Second, keep the horizon short and replan
+every step: single-step errors are roughly independent and compound super-linearly
+once they feed back on themselves, so imagined return decorrelates from true return
+past some horizon, and re-grounding the state in a real observation each control
+step resets that accumulation. This is the concrete reason short-horizon MPC beats
+a long open-loop rollout even when the model was trained to predict long sequences.
+
 ## Training objectives, by paradigm
 
 - **Generative:** next-frame likelihood (autoregressive cross-entropy over visual

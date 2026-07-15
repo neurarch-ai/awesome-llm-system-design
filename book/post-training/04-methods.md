@@ -145,6 +145,21 @@ def dpo_loss(pol_chosen, pol_rejected, ref_chosen, ref_rejected, beta=0.1):
     return -F.logsigmoid(beta * (pol_logratio - ref_logratio)).mean()
 ```
 
+**The edge case seniors watch for: DPO can lower the chosen probability.** The
+loss constrains only the *margin* between the chosen and rejected log-ratios, not
+either term on its own, so gradient descent can satisfy it by pushing the rejected
+log-probability down faster than the chosen one, dragging the absolute
+log-probability of the preferred response down at the same time. This likelihood
+displacement (studied by Razin et al., 2024) shows up as a chosen-reward curve
+that falls even while the training loss keeps improving, and in the worst case it
+moves probability mass onto a third, unintended response rather than onto $y_w$.
+It is most acute when the chosen and rejected texts are near-duplicates that share
+most of their tokens, because their gradients largely cancel and only the small
+difference is left to steer on. The standard remedy is DPO-Positive (Pal et al.,
+2024), which adds a term penalizing the chosen log-probability for dropping below
+the reference, so the margin is widened by pushing the rejected response down
+rather than by sacrificing the response you actually want.
+
 ### RLHF (reinforcement learning from human feedback)
 
 RLHF trains a separate reward model $r_\phi$ on human preference comparisons, then

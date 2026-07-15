@@ -27,6 +27,16 @@ sharp rubric for dimension-level scoring (accuracy, helpfulness, groundedness)
 where you need a per-dimension breakdown rather than just a winner. Avoid
 unvalidated 1-to-10 scales.
 
+The reason pairwise is more reliable is mechanistic: a pointwise score has no
+fixed anchor, so the judge invents a scale each time and its notion of what a 7
+means drifts across examples and rubric versions, whereas a pairwise verdict only
+needs the sign of a preference to be stable, a far easier judgment for a model
+just as it is for a human rater. The canonical treatment is Zheng et al. (2023),
+Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena, which established that a
+strong judge can reach agreement with human raters comparable to the agreement
+between two humans, and which named the position, verbosity, and self-enhancement
+biases the next section addresses.
+
 ## Bias types: what breaks a judge
 
 Four biases are well-documented in the literature. A senior answer names them

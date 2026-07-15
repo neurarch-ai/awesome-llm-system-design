@@ -106,6 +106,24 @@ incorrect. There are three layers:
    patterns the real-time checks might miss (e.g., an agent that is
    consistently pushing the refund limit). This does not block the live path.
 
+### The lethal trifecta
+
+The prompt-injection risk a tool-using agent faces is sharpest when three
+capabilities coincide in one loop, a combination Simon Willison (2025) named the
+lethal trifecta: access to private data, exposure to untrusted content, and the
+ability to exfiltrate (any outbound channel, a tool call, a URL fetch, an email
+send). An attacker who plants instructions in the untrusted content (a support
+ticket body, a fetched web page, an attached document) can steer the agent into
+reading private data and shipping it out through the exfiltration channel, and no
+amount of prompt hardening reliably closes this, because the injected text
+arrives as ordinary model input the model cannot distinguish from its real
+instructions. The defense is architectural, not prompt-level: break the trifecta
+by removing one leg. Scope tools so a loop that has touched untrusted content
+cannot also reach an outbound channel, or gate every egress behind the
+deterministic pre-call policy check rather than the model's judgment. This is why
+the pre-call gate sits in code: it is the one layer prompt injection cannot
+rewrite.
+
 ## Retries
 
 Tool calls can fail for transient reasons (API timeout, network error). The

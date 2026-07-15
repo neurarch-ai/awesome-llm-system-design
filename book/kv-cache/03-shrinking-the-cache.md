@@ -165,6 +165,8 @@ attends to most heavily) reduces error on retrieval-style tasks. NVIDIA's NVFP4
 dequantizes to FP8 before the attention matmul, which protects accuracy while
 still halving memory versus an FP8 cache.
 
+**Why keys quantize worse than values (the mechanism).** The asymmetry is not folklore; it follows from the structure of the two tensors. Key vectors carry a small number of channels (fixed embedding dimensions) whose magnitudes are consistently large across almost every token, an outlier-channel pattern that a single per-tensor or per-token scale cannot represent without crushing the normal channels down to a few levels. Values show no such fixed high-magnitude channels. KIVI's answer (Liu et al., 2024) is to quantize keys per-channel (one scale per embedding dimension, so the outlier channels get their own range) and values per-token (one scale per token), which is why a naive symmetric scheme that treats both tensors the same loses accuracy that per-channel key handling recovers. RoPE compounds the effect: it rotates key channels by position, so the outlier energy shifts across channels as the sequence lengthens, which is part of why leaving a recent-token window in full precision protects retrieval more than spending the same bit budget elsewhere.
+
 **When to use which quantization.**
 
 | Reach for | When | Skip it when |

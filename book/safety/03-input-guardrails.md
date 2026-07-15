@@ -63,6 +63,19 @@ hit the same policy check that a real user request would. The model being fooled
 does not translate into a real action if the action is gated in code, not in the
 prompt. This is the principle of least privilege applied to LLM tool use.
 
+**Why injection is not a model bug: the lethal trifecta.** The reason no
+classifier fully closes prompt injection is structural. Instructions and data
+arrive as the same undifferentiated token stream, and the model carries no
+privilege bit that marks "these tokens may command me and those may not," so any
+text in the context can in principle steer generation. Simon Willison's lethal
+trifecta (2025) names the precise condition under which that turns dangerous: an
+agent is exploitable when it simultaneously has access to private data, exposure
+to untrusted content, and a way to communicate externally. Strip any one leg and a
+successful injection has nothing worth stealing or no channel to exfiltrate it,
+which is why the durable defenses are architectural (remove external egress,
+isolate untrusted content, gate actions in code) rather than a cleverer prompt or
+a stronger detector. Treat the classifier as blast-radius reduction, not a seal.
+
 ## PII detection
 
 PII detection on input prevents two problems: user-submitted PII getting logged or
