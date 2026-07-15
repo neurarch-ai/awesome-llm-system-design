@@ -20,6 +20,7 @@ model zoo that open live at real dimensions, not screenshots.
 - Ground a model in knowledge: RAG, semantic search, and the embedding and re-ranking stack.
 - Compose models into products: agent orchestration and multimodal serving.
 - Know that a system works and keep it working: offline and online evaluation, safety and guardrails, and production monitoring.
+- Look ahead to the frontier: world models and world-action models that let embodied agents plan, evaluated in simulation and on real robots.
 - Connect every design choice to the architecture underneath it, traced on a real graph rather than a box diagram.
 
 ## Chapters
@@ -65,6 +66,12 @@ Ordered the way a model comes to life: build it, serve it, ground it, compose it
 | [Evaluating LLM Systems](evaluation/) | Offline suites, LLM-as-judge, online A/B, regression gates |
 | [Safety, Moderation, and Guardrails](safety/) | Input and output filtering, jailbreak and injection defense, PII, policy routing |
 | [Production Monitoring and Observability](monitoring/) | Tracing, online eval without labels, hallucination detection, drift, regression |
+
+### Frontier
+
+| Chapter | Covers |
+|---------|--------|
+| [World Models and Embodied Agents](world-models/) | World-action models, the four paradigms, the embodied-data pyramid, planning with model-predictive control, and evaluation on embodied agents in simulation and real |
 
 A companion book covers the classic-ML half (recommenders, ranking, fraud,
 computer vision, speech, NLP, forecasting) in the
