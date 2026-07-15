@@ -42,6 +42,13 @@ floor. Right: gradient clipping leaves normal steps untouched and caps only the
 occasional spike at the threshold, so one pathological batch cannot blow up the
 run. Illustrative values.*
 
+You do not want to search for the peak learning rate on a full-size run, and you do
+not have to. **Maximal update parametrization (muP)** rescales initialization and
+learning rates by width so that the optimal hyperparameters found on a small proxy
+model transfer to the large one, letting you tune cheaply and scale up once (Yang et
+al., Microsoft, [arXiv:2203.03466](https://arxiv.org/abs/2203.03466)). It is now a
+standard trick for de-risking an expensive pretraining run.
+
 ## Tokenizer: BPE, SentencePiece, and vocabulary size
 
 The tokenizer is fit before pretraining, on a representative sample of the final

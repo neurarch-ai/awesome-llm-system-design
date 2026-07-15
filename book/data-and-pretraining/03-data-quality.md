@@ -52,6 +52,14 @@ beat more tokens.
 The tradeoff: classifiers are powerful but bake in the biases of their reference.
 Filter too hard toward "educational" and you may lose valid registers of text
 (forums, fiction, conversational text) that are valuable for other capabilities.
+
+**DCLM (DataComp-LM)** made the same point with a controlled benchmark: a cheap
+fastText classifier trained on a well-chosen positive set (instruction-formatted and
+ELI5-style text) beat more elaborate filters, and the whole comparison was run over a
+fixed 240-trillion-token pool so data recipes could be measured head to head rather
+than argued (Li et al., 2024, [arXiv:2406.11794](https://arxiv.org/abs/2406.11794)).
+The lesson pairs with FineWeb-Edu: model-based filtering wins, but the reference set
+you train the filter on is the real design choice.
 Always validate the classifier's effect on downstream evals, not just on how
 clean the filtered samples look.
 
