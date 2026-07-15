@@ -22,12 +22,12 @@ hardware too? Those two answers decide almost everything.
 Evaluate in simulation during development, but the acceptance bar is real-robot
 success in a new lab the model has never seen.
 
-**Candidate:** That last constraint is the hard one: zero-shot transfer to a new
+**Candidate:** That last constraint is the hard one: zero-shot transfer (working in a brand-new setting with no extra training there) to a new
 real environment. It pushes us toward pretraining a general dynamics model on
 large-scale passive video (so it learns physics broadly), then adapting it with a
-small amount of action-labeled robot data, rather than training a policy from
+small amount of action-labeled robot data, rather than training a policy (the rule mapping states to actions) from
 scratch in one lab. It also means the evaluation has to measure the sim-to-real
-gap explicitly, not just report a simulator number.
+gap (how much worse the model does on real hardware than in simulation) explicitly, not just report a simulator number.
 
 ## What the answers pin down
 
@@ -38,7 +38,7 @@ gap explicitly, not just report a simulator number.
 | Action-labeled data volume | scarce | pretrain on passive video, adapt on the little action data you have |
 | Evaluation surface | sim and real | you must report the sim-to-real gap, not a single simulator score |
 | Open-loop or closed-loop | closed-loop control | short-horizon prediction with replanning beats long-horizon video accuracy |
-| Latency budget on the robot | tens of milliseconds per step | planning compute (rollout count times horizon) becomes a hard design constraint |
+| Latency budget on the robot | tens of milliseconds per step | planning compute (rollout count times horizon; a rollout is one imagined trajectory rolled forward) becomes a hard design constraint |
 
 ## The trap to avoid
 

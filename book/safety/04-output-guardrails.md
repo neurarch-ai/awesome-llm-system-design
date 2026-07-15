@@ -7,7 +7,8 @@ another user's private data. Input guards are necessary but not sufficient.
 
 ## Toxicity and policy classifiers
 
-A toxicity classifier scores the completion for harmful content: violence,
+A toxicity classifier (toxicity means harmful language such as hate speech,
+threats, or self-harm content) scores the completion for harmful content: violence,
 self-harm, sexual content, hate speech. A policy classifier scores for
 domain-specific violations: off-topic replies in a customer-service product,
 medical advice in an application that is not licensed to give it, financial
@@ -32,7 +33,19 @@ high-stakes domain (legal, medical, financial), an ungrounded hallucination is a
 safety issue, not just a quality issue.
 
 A groundedness classifier compares the generated text against the retrieved chunks
-and returns a support score. NVIDIA's NeMo Guardrails uses AlignScore for this.
+and returns a support score. A minimal version scores what fraction of the answer's
+words actually appear in the sources; a low score flags a claim the sources do not back:
+
+```python
+def support_score(answer, sources):   # answer: generated text; sources: list of retrieved chunk texts
+    a = set(answer.lower().split())
+    src = {w for chunk in sources for w in chunk.lower().split()}
+    # fraction of the answer's words that actually appear in the retrieved sources
+    return len(a & src) / len(a)
+# support_score("the filing reports a profit", ["the filing reports a loss"]) -> 0.8
+```
+
+NVIDIA's NeMo Guardrails uses AlignScore for this.
 Thomson Reuters' CoCounsel grounds legal answers in a trusted corpus and runs
 1,500 automated tests per night to verify the grounding holds.
 
@@ -50,9 +63,24 @@ Define the catch rate (true positive rate) as:
 
 $$\text{Recall} = \frac{TP}{TP + FN}$$
 
-And the false-refusal rate (false positive rate) as:
+```python
+def recall(tp, fn):                  # tp: attacks caught; fn: attacks that slipped through
+    # catch rate: of all real attacks (tp + fn), what fraction the guard flagged
+    return tp / (tp + fn)
+# recall(90, 10) -> 0.9
+```
+
+And the false-refusal rate (false positive rate: the share of legitimate requests
+wrongly blocked) as:
 
 $$\text{FRR} = \frac{FP}{FP + TN}$$
+
+```python
+def frr(fp, tn):                     # fp: benign requests wrongly blocked; tn: benign correctly allowed
+    # false-refusal rate: of all benign requests (fp + tn), what fraction got blocked
+    return fp / (fp + tn)
+# frr(3, 997) -> 0.003
+```
 
 The operating point is the threshold that sets both. Reporting only the catch rate
 is misleading. Anthropic's Constitutional Classifiers dropped the attack success
@@ -65,10 +93,34 @@ budget and read off the catch rate you can achieve, or vice versa:
 
 $$\text{Recall} \Bigl|_{\text{FRR} \leq \delta} = \max \Bigl\lbrace \frac{TP}{TP + FN} : \frac{FP}{FP + TN} \leq \delta \Bigr\rbrace$$
 
+```python
+import numpy as np
+def recall_at_frr(scores_pos, scores_neg, delta):   # guard scores for attacks (pos) and benign (neg)
+    best = 0.0
+    # sweep every candidate threshold; keep the best attack-recall whose benign block rate stays <= delta
+    for t in np.unique(np.concatenate([scores_pos, scores_neg])):
+        frr = np.mean(scores_neg >= t)              # benign wrongly blocked at this threshold
+        if frr <= delta:
+            best = max(best, np.mean(scores_pos >= t))  # recall on attacks at this threshold
+    return best
+# recall_at_frr(np.array([.9,.8,.4]), np.array([.3,.2,.7]), 0.0) -> 0.6666666666666666
+```
+
 During training, the KL-anchored objective keeps refusal training from wrecking
 benign behavior:
 
 $$\max_{\pi} \; \mathbb{E}_{x \sim D}\bigl[R_{\text{safe}}(x, \pi)\bigr] - \beta \cdot \text{KL}\bigl(\pi \;\|\; \pi_{\text{ref}}\bigr)$$
+
+The KL term is the concrete penalty on drift; between two next-token distributions it is:
+
+```python
+import numpy as np
+def kl_divergence(p, q):             # p: trained-policy probs; q: reference-model probs, same tokens
+    p, q = np.asarray(p), np.asarray(q)
+    # sum p * log(p / q): how far the trained policy p has drifted from the reference q
+    return float(np.sum(p * np.log(p / q)))
+# kl_divergence([0.5, 0.5], [0.25, 0.75]) -> 0.14384103622589042
+```
 
 The refusal reward pushes the policy to decline harmful prompts. The KL term to
 the reference model penalizes drift from benign behavior. A large $\beta$ keeps

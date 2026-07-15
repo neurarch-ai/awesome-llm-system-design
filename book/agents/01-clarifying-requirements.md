@@ -74,7 +74,8 @@ signal in this question:
 - **Cost per ticket is steps times growing transcript, not a flat per-call
   price.** At $0.10 per ticket and 50k tickets per day, that is $5,000 per day.
   A runaway 30-step loop on a single ticket can eat a disproportionate share.
-  A hard step cap and token budget are not optional.
+  A hard step cap and token budget (a token is a chunk of text, roughly a few
+  characters, that models read and are billed by) are not optional.
 
 - **Latency and reliability pull in opposite directions.** More verification
   steps raise quality but add latency. The 10-second budget for simple tickets

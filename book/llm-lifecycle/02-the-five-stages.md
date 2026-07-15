@@ -25,7 +25,7 @@ flowchart TD
 | Stage | Input | Output | Dominant cost | Typical failure |
 |---|---|---|---|---|
 | 1. Data prep | raw web plus proprietary text | clean tokenized token stream | pipeline engineering, storage | eval leakage from missing decontamination |
-| 2. Pretraining | the token stream | raw base model | compute (GPU cluster, weeks) | under- or over-fitting compute budget (violating Chinchilla) |
+| 2. Pretraining | the token stream | raw base model | compute (GPU cluster, weeks) | under- or over-fitting compute budget (violating Chinchilla, the compute-optimal size-vs-tokens rule) |
 | 3. Mid-training | existing base plus domain corpus | domain or long-context base | compute (small fraction of pretrain) | catastrophic forgetting if general data is not mixed in |
 | 4. Post-training | base plus (instruction, response) pairs and preference data | aligned instruct model | data quality, labeling cost | reward hacking or alignment tax from dropping the KL leash |
 | 5. Deployment | aligned model | production serving system | ongoing GPU spend, engineering | KV cache OOM, latency blowup, hallucination without RAG |
@@ -34,8 +34,8 @@ flowchart TD
 
 Almost no product team runs stage 2. That stage is a lab-scale capital
 commitment. Most teams enter the diagram at the base model, having downloaded
-an open-weights checkpoint (Llama 3, DeepSeek-V3, OLMo, Qwen3), and they
-iterate from there.
+an open-weights checkpoint (a saved snapshot of the trained model weights; here
+Llama 3, DeepSeek-V3, OLMo, Qwen3), and they iterate from there.
 
 The expensive, rare stage (pretraining) is upstream and shared. The stages a
 product team actually owns and iterates on (mid-training, post-training,
@@ -57,10 +57,20 @@ flowchart LR
 Each stage has a different metric, and using the wrong one is a classic
 mistake:
 
-- **Pretraining:** perplexity or bits-per-byte on a held-out set, plus
+- **Pretraining:** perplexity (how surprised the model is by held-out text;
+  lower is better) or bits-per-byte on a held-out set, plus
   zero/few-shot benchmark suites (MMLU, HellaSwag, GSM8K). Perplexity tracks
   the objective but not usefulness; bits-per-byte is tokenizer-invariant so you
-  can compare across models.
+  can compare across models. Perplexity is just the exponential of the average
+  next-token loss:
+
+```python
+import numpy as np
+def perplexity(token_nll):
+    # token_nll: per-token negative log-likelihoods (natural log) on held-out text
+    return np.exp(np.mean(token_nll))
+# perplexity(np.array([0.5, 1.0, 2.0, 1.5])) -> 3.4903...  (avg NLL 1.25 -> exp)
+```
 - **Mid-training:** domain-specific benchmarks (legal, medical, code) plus the
   full general eval suite to catch forgetting.
 - **Post-training:** human preference win rate and LLM-as-judge scores

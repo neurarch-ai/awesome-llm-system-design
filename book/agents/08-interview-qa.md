@@ -48,7 +48,15 @@ per-step prefill cost from rising quadratically.
 
 A: If each loop step succeeds with probability $q$, a task requiring $n$ steps
 succeeds with probability $q^n$. At $q = 0.95$ per step, a 10-step task
-succeeds only about 60% of the time. The fix is not to use fewer steps (the
+succeeds only about 60% of the time.
+
+```python
+def task_success(q, n):    # q = per-step success prob, n = number of steps
+    return q ** n          # every one of the n independent steps must succeed
+# e.g. task_success(q=0.95, n=10) -> 0.5987369392383787
+```
+
+The fix is not to use fewer steps (the
 task may require them) but to place gates between steps so a bad result does not
 propagate. A gate that catches a bad tool result and returns a structured error
 to the model prevents one failure from corrupting every downstream decision.
@@ -98,7 +106,15 @@ cap that terminates the loop if $N$ steps have passed without the task reaching
 a terminal state. Log the repeated call pattern so you can improve the prompt or
 tool schema to make the result more clearly actionable.
 
-**Deeper:** The identity check must normalize arguments before hashing (sort JSON keys, round floats, drop volatile fields like timestamps), or semantically identical calls hash differently and slip past the dedupe. A loop that repeats even after deduping usually means the tool result does not actually answer the model's question, which is a tool-schema problem rather than a control-flow one.
+**Deeper:** The identity check must normalize arguments before hashing (sort JSON keys, round floats, drop volatile fields like timestamps), or semantically identical calls hash differently and slip past the dedupe.
+
+```python
+def call_key(name, args):                          # dedupe identity for a proposed tool call
+    import json, hashlib
+    norm = json.dumps(args, sort_keys=True)        # sort keys so argument order does not matter
+    return hashlib.sha256((name + norm).encode()).hexdigest()[:8]
+# e.g. call_key("get", {"a": 1, "b": 2}) == call_key("get", {"b": 2, "a": 1}) -> True
+``` A loop that repeats even after deduping usually means the tool result does not actually answer the model's question, which is a tool-schema problem rather than a control-flow one.
 
 ---
 

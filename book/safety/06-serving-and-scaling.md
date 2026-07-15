@@ -28,6 +28,13 @@ The expected cost of the cascade:
 
 $$\mathbb{E}[C] = c_{\text{cheap}} + p_{\text{escalate}} \cdot c_{\text{guardLLM}}$$
 
+```python
+def expected_cost(c_cheap, p_escalate, c_guard):   # per-request cost; p_escalate in [0, 1]
+    # every request pays the cheap tier; only the escalated fraction also pays the guard-LLM
+    return c_cheap + p_escalate * c_guard
+# expected_cost(15, 0.05, 120) -> 21.0
+```
+
 When $p_{\text{escalate}}$ is small (most traffic clears the cheap tier), the
 expensive guard barely registers in aggregate cost. When $p_{\text{escalate}}$ is
 large, the cascade design is wrong: either the cheap tier is miscalibrated or the

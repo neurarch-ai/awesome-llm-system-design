@@ -49,8 +49,8 @@ any automated judge to human preference scores periodically.
 
 The five rules become a pipeline when you fix their **order**. The *LLM Engineer's
 Handbook* frames curation as a funnel: cheap deterministic filters first, expensive
-model-based judgments last, so you never pay a reward model to score examples a
-one-line regex would have dropped.
+model-based judgments last, so you never pay a reward model (a model trained to
+score how good a response is) to score examples a one-line regex would have dropped.
 
 ```mermaid
 flowchart TB

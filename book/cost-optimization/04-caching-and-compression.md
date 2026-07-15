@@ -12,9 +12,19 @@ sentence twice.
 
 A **semantic cache** embeds the incoming request with a small embedding model and
 retrieves the stored response closest in embedding space if that cosine similarity
-clears a threshold $\tau$:
+(the cosine of the angle between two vectors: 1 means identical direction, 0 means
+unrelated) clears a threshold $\tau$:
 
 $$\text{serve cached response} \iff \max_k \cos(e_q, e_k) \ge \tau, \quad \tau \in (0,1)$$
+
+```python
+import numpy as np
+def should_serve_cached(e_q, keys, tau):
+    # e_q: query embedding; keys: stored key embeddings (one per row); tau: threshold
+    sims = keys @ e_q / (np.linalg.norm(keys, axis=1) * np.linalg.norm(e_q))
+    return bool(sims.max() >= tau)   # serve the nearest stored answer only if it clears tau
+# e.g. should_serve_cached(np.array([1., 0.]), np.array([[0.9, 0.1], [0., 1.]]), 0.95) -> True
+```
 
 This catches paraphrases ("what is your return policy" vs "how do I return
 something") where real hit rate lives. The threshold $\tau$ is the whole game.
@@ -38,6 +48,15 @@ If $c_{\text{model}} = 1$, $c_{\text{hit}} = 0.005$, and $c_{\text{embed}} =
 0.02$, then $h^* \approx 2\%$. Caching pays even at modest hit rates; the
 question is whether the semantic threshold can deliver them without degrading
 quality.
+
+```python
+def cache_expected_cost(h, c_hit, c_embed, c_model):
+    # h: hit rate; a hit pays only c_hit, a miss pays embedding + the full model call
+    return h * c_hit + (1 - h) * (c_embed + c_model)
+def cache_breakeven(c_hit, c_embed, c_model):
+    return c_embed / (c_model - c_hit)   # hit rate above which caching nets positive
+# e.g. cache_breakeven(0.005, 0.02, 1.0) -> 0.020100502512562814  (about 2%)
+```
 
 ![Cache hit rate vs net cost savings, with break-even marked](assets/fig-cache-hit-savings.png)
 
@@ -67,7 +86,8 @@ each appropriate in different regimes.
 
 The blunt, safe move: send fewer retrieved chunks. Most RAG pipelines over-retrieve
 (top-20 by default) and the bottom 17 chunks add noise, not signal. A good
-reranker (cross-encoder, colBERT) scores the 20 retrieved chunks and keeps only
+reranker (a model that re-scores retrieved chunks by true relevance to the query;
+here a cross-encoder or colBERT) scores the 20 retrieved chunks and keeps only
 the top 3 most relevant. This is often free quality-wise and directly cheaper,
 because the answer already lived in the top chunks and the rest were padding. Try
 trimming before any compression algorithm: it is zero-risk and the savings can be
@@ -83,6 +103,14 @@ coarse pass (whole sentences) followed by a fine pass (individual tokens) with a
 distribution-alignment step to match the target LLM's language patterns. On RAG
 benchmarks it reaches up to 20x compression with about 1.5 points of quality
 loss.
+
+```mermaid
+flowchart LR
+  IN["original prompt<br/>(long, redundant)"] --> COARSE["coarse pass<br/>drop low-info sentences"]
+  COARSE --> FINE["fine pass<br/>drop low-info tokens<br/>(by small-LM perplexity)"]
+  FINE --> ALIGN["distribution alignment<br/>match target LLM"]
+  ALIGN --> OUT["compressed prompt<br/>(large model still understands)"]
+```
 
 ![Prompt compression: quality vs tokens saved at increasing compression ratio](assets/fig-compression-quality.png)
 
@@ -100,6 +128,15 @@ $$\text{net win iff} \quad c_{\text{big}} \cdot (n_{\text{orig}} - n_{\text{comp
 which simplifies to: the per-token saving from removing tokens must exceed the
 per-token cost of the compression pass, weighted by how many tokens survive. On
 short prompts or output-dominated workloads, the small-LM pass is pure overhead.
+
+```python
+def compression_net_win(c_big, c_small, n_orig, n_comp):
+    # gain: big-model cost of the tokens removed; cost: small-LM pass over the FULL prompt
+    gain = c_big * (n_orig - n_comp)
+    cost = c_small * n_orig
+    return gain > cost
+# e.g. compression_net_win(10.0, 1.0, 1000, 200) -> True
+```
 
 ### What never to compress
 

@@ -13,6 +13,12 @@ end-to-end success rate:
 
 $$P_{\text{ok}}(10) = 0.95^{10} \approx 0.60$$
 
+```python
+def task_success(q, n):    # q = per-step success prob, n = number of steps
+    return q ** n          # every one of the n independent steps must succeed
+# e.g. task_success(q=0.95, n=10) -> 0.5987369392383787
+```
+
 The implication is not "use fewer steps" (the task may require them), but
 "place gates between steps so a bad result does not propagate to the next."
 Without a gate, one wrong lookup result can corrupt every downstream decision.
@@ -109,7 +115,13 @@ a result or a structured error it can act on.
 
 Pattern: exponential backoff with a fixed retry cap (e.g., 3 attempts). On
 persistent failure, return a structured error to the model so it can escalate
-or pick a fallback tool. The model must not hallucinate a result when a tool
+or pick a fallback tool.
+
+```python
+def backoff_delays(base, cap, attempts):   # base = first wait (s), cap = max wait (s)
+    return [min(cap, base * 2 ** i) for i in range(attempts)]   # double each retry, clamp at cap
+# e.g. backoff_delays(base=1.0, cap=10.0, attempts=3) -> [1.0, 2.0, 4.0]
+``` The model must not hallucinate a result when a tool
 times out; it must acknowledge the failure and handle it.
 
 ## Model tiering
@@ -129,7 +141,7 @@ by the agent itself.
 |---|---|---|
 | Hard step cap (in code) | Always: runaway loops are the default failure mode | A prompt instruction like "stop after 10 steps," which the model can ignore |
 | Token budget per task | Always: cost per ticket must be bounded for the economics to work | Paying per-task cost post hoc and hoping it averages out |
-| Pre-call policy gate in code | Any write action that touches money, accounts, or irreversible state | A prompt-side policy reminder, which prompt injection bypasses |
+| Pre-call policy gate in code | Any write action that touches money, accounts, or irreversible state | A prompt-side policy reminder, which prompt injection (malicious instructions hidden in untrusted input) bypasses |
 | Post-call output check (parallel) | Reply quality and compliance must be verified without adding serial latency | A serial post-check, which doubles the reply latency |
 | Exponential-backoff retry in the executor | Transient tool failures (network, timeout) | Letting the model decide whether to retry, which it handles inconsistently |
 | Model tiering (cheap for routing, expensive for reasoning) | Most loop steps are routing, not reasoning; tiering cuts per-step cost | Using the expensive model for every step, which the cost ceiling cannot sustain |

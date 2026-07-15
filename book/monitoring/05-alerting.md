@@ -5,8 +5,8 @@
 At any scale, a system that pages on-call for every single flagged answer will
 train the team to ignore pages. A single ungrounded claim, a single judge
 disagreement, a single slow request are noise. The signal is a **rate shift after
-a change**, and the right instrument is a z-score computed against a recent
-baseline.
+a change**, and the right instrument is a z-score (how many standard deviations
+the current rate sits from its baseline) computed against a recent baseline.
 
 For the ungrounded rate:
 
@@ -14,7 +14,16 @@ $$z_t = \frac{r_t - r_{\text{ref}}}{\sqrt{\,r_{\text{ref}}(1 - r_{\text{ref}}) /
 
 where $r_t$ is the ungrounded rate in the current window of $n_t$ judged traces
 and $r_{\text{ref}}$ is the baseline rate from a reference window. Page when
-$z_t$ exceeds your threshold (typically $z \geq 3$). This approach means a true
+$z_t$ exceeds your threshold (typically $z \geq 3$).
+
+```python
+import numpy as np
+def rate_zscore(r_t, r_ref, n_t):
+    # z-score for a rate shift vs a baseline proportion, using the binomial standard error
+    se = np.sqrt(r_ref * (1 - r_ref) / n_t)                # standard error of the baseline rate
+    return float((r_t - r_ref) / se)
+# rate_zscore(0.08, 0.05, 500) -> 3.0779 (above the z>=3 page threshold)
+``` This approach means a true
 hallucination spike, one that moves the rate by several percentage points, fires
 quickly while day-to-day noise does not.
 
@@ -67,9 +76,23 @@ Stratify the sampling:
 - Oversample requests where the edit or retry rate is high.
 - Oversample requests where the retrieval score was low (the model answered from
   weak or empty context).
-- Oversample requests where a guardrail fired or nearly fired.
+- Oversample requests where a guardrail (an automated safety filter) fired or
+  nearly fired.
 - Include a uniform baseline slice so you have an unbiased estimate of overall
   quality.
 
 This stratified design is what keeps the human-review queue pointed at failures
-rather than burning budget on examples that would score well anyway.
+rather than burning budget on examples that would score well anyway. Concretely,
+give each trace a weight from the criteria above and draw the sample proportional
+to those weights instead of uniformly:
+
+```python
+import numpy as np
+def stratified_sample(n, weights, k):
+    # draw k of n trace indices with probability proportional to per-trace weights;
+    # weight up the suspicious tail (low feedback, high retry, low retrieval score)
+    p = np.asarray(weights, dtype=float)
+    p = p / p.sum()                                        # normalize weights into a probability distribution
+    return np.random.choice(n, size=k, replace=False, p=p)
+# stratified_sample(1000, weights, 50) -> 50 indices biased toward high-weight (suspicious) traces
+```

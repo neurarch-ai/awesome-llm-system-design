@@ -17,7 +17,8 @@ rate?
 
 **Candidate:** What is the latency target for the search itself, not the full
 answer pipeline?
-**Interviewer:** Tens of milliseconds at p99 for a search call. Say 50ms.
+**Interviewer:** Tens of milliseconds at p99 (the 99th-percentile latency, the
+slow-tail request most users never hit but some do) for a search call. Say 50ms.
 
 **Candidate:** Is this feeding a human reading the results, or a downstream
 ranker?

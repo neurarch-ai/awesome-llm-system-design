@@ -4,7 +4,8 @@ Before designing anything, pin down what the system must do. Every question belo
 either removes work or changes the design. Notice that none of them are about
 tooling; they are all about the contract the monitoring system has to satisfy.
 
-**Candidate:** What kind of LLM application are we monitoring? A RAG system, an
+**Candidate:** What kind of LLM application are we monitoring? A RAG system (retrieval-augmented
+generation: the model retrieves documents and answers grounded in them), an
 agent with tool calls, or a single-shot completion endpoint?
 
 **Interviewer:** A RAG copilot. Each request retrieves a set of documents, builds
@@ -14,16 +15,16 @@ a prompt, and generates an answer that should be grounded in those documents.
 three-in-the-morning page, or something we review in a weekly dashboard?
 
 **Interviewer:** This is an enterprise support copilot. A confidently wrong answer
-damages customer trust. We want to catch a quality regression within hours, not
-days.
+damages customer trust. We want to catch a quality regression (a measurable quality drop versus the
+prior version) within hours, not days.
 
 **Candidate:** How often do the model and prompt change in practice?
 
 **Interviewer:** The prompt is edited several times a week. The model may be
 swapped quarterly, but we want the ability to do it more often.
 
-**Candidate:** What is our budget for observation? Running an LLM judge on every
-request roughly doubles our inference spend.
+**Candidate:** What is our budget for observation? Running an LLM judge (a second model call that scores the answer's quality) on
+every request roughly doubles our inference spend.
 
 **Interviewer:** We can spend up to fifteen percent of our serving cost on
 monitoring. We cannot judge every call.
@@ -39,8 +40,8 @@ discards it. That signal arrives with a five-to-thirty-minute lag.
 Let us summarize the problem statement. **We are asked to design the observability
 layer for a production RAG copilot** where every request retrieves documents and
 generates a grounded answer. Answers must be traceable, quality must be estimated
-continuously without pre-labeled production data, and a hallucination spike or a
-regression after a prompt edit must surface within hours. Our observation budget is
+continuously without pre-labeled production data, and a hallucination spike (a burst of confident answers not supported by the
+retrieved documents) or a regression after a prompt edit must surface within hours. Our observation budget is
 around fifteen percent of serving cost, so we must sample.
 
 Two consequences fall out of this immediately, and stating them early is most of

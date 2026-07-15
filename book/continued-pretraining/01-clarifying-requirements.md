@@ -7,10 +7,12 @@ question either removes work or changes the design.
 ---
 
 **Candidate:** Is the goal to adapt the model to a specialized domain, to extend
-its context window, or both?
+its context window (the span of text, measured in tokens, that the model can read
+at once), or both?
 
 **Interviewer:** Both, ultimately. We have a clinical-notes corpus and documents
-that run to 200 pages. The base model was trained on the general web at 8K tokens.
+that run to 200 pages. The base model was trained on the general web at 8K tokens
+(a token is a chunk of text, roughly a word or word-piece).
 
 ---
 

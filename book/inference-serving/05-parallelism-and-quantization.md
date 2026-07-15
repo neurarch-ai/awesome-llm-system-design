@@ -3,7 +3,7 @@
 When a model does not fit on one GPU, you must shard it before you can serve at
 all. When it does fit, you still have two additional levers: replicate it for more
 throughput, or shrink the bytes-per-parameter to decode faster. This section covers
-the three sharding axes and the quantization strategies that reduce the memory and
+the three sharding axes and the quantization strategies (storing each weight in fewer bits so fewer bytes move per step) that reduce the memory and
 bandwidth costs from the previous sections.
 
 ## Tensor parallelism (TP)
@@ -59,6 +59,13 @@ Fewer bytes per weight means fewer bytes moved per step, which directly translat
 to more tokens per second.
 
 $$\text{decode bytes per step} = P \cdot b_w + N \cdot \text{KV}_{\text{bytes}}$$
+
+```python
+def decode_bytes_per_step(num_params, bytes_per_weight, batch_size, kv_bytes):
+    # bytes read from HBM each step: the weights plus every sequence's KV cache
+    return num_params * bytes_per_weight + batch_size * kv_bytes  # total bytes moved
+# decode_bytes_per_step(70e9, 1, 50, 3.3e8) -> 86500000000.0
+```
 
 Reducing $b_w$ (bytes per weight parameter) from 2 (BF16) to 1 (INT8) roughly
 halves the weight-read cost, up to the bandwidth limit.

@@ -3,7 +3,7 @@
 Continuous batching and chunked prefill maximize GPU utilization, but they do not
 change the fundamental constraint of decode: one forward pass, one token. Every
 decode step reads the full model from HBM to produce a single token. Speculative
-decoding breaks that constraint by verifying several tokens in one target-model
+decoding (guessing several tokens with a cheap model, then checking them in one pass of the big model) breaks that constraint by verifying several tokens in one target-model
 pass, at the cost of running a cheaper draft model to propose them first.
 
 ## The draft-and-verify pattern

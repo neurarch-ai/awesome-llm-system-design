@@ -19,7 +19,8 @@ something different at 8k versus 200k.
 latency, or both?
 
 **Interviewer:** Users notice both. First token under 2 seconds; inter-token
-under 100 ms. Right now p99 decode latency blows past that under load.
+under 100 ms. Right now p99 decode latency (decode is the phase that generates
+output tokens one at a time) blows past that under load.
 
 **Candidate:** What is the quality floor? Specifically, are we allowed to
 quantize the KV cache, change the attention architecture, or are we serving a
@@ -49,13 +50,17 @@ eval.
 
 Two consequences fall out of this immediately:
 
-**The KV cache will dominate GPU memory, not the model weights.** At 32k tokens
-with a typical 7B model in GQA configuration, the cache for a single session
-already costs over 1 GB. At 128k and 1000 concurrent sessions, this dwarfs the
+**The KV cache (the saved keys and values from every past token, kept so the model
+does not recompute them each step) will dominate GPU memory, not the model
+weights.** At 32k tokens with a typical 7B model in GQA configuration
+(grouped-query attention, where several query heads share one set of keys and
+values to shrink the cache), the cache for a single session already costs over 1 GB. At 128k and 1000 concurrent sessions, this dwarfs the
 weight footprint. Understanding why is the entire cost model, and it is covered in
 the next section.
 
 **The 4k shared system prompt is a gift.** Every request that reuses that prefix
-can skip its prefill entirely if the serving stack supports prefix caching. That
+can skip its prefill (the one-time forward pass that builds the KV cache for all
+prompt tokens) entirely if the serving stack supports prefix caching (reusing a
+shared prefix's already-cached KV instead of recomputing it). That
 one fact alone changes first-token latency more than almost any other lever.
 Naming it early is a strong signal that you have built or studied these systems.

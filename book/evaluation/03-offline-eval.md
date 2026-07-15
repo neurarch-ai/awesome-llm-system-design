@@ -48,17 +48,19 @@ knowledge work (GDPval). Because no single benchmark captures "intelligence,"
 independent aggregators now publish a **composite index** built from many of these
 at once, notably the [Artificial Analysis Intelligence Index](https://artificialanalysis.ai/),
 which also charts the two tradeoffs a system designer actually cares about: quality
-versus price per token, and quality versus output speed. Three things worth
+versus price per token (a token is the chunk of text, roughly a few characters, that
+a model reads and bills by), and quality versus output speed. Three things worth
 borrowing from how they report:
 
 - **A composite index over many evals** is more robust than any single benchmark, since gaming one eval barely moves the aggregate.
 - **Serving is a provider choice, not just a model choice.** The same open-weight model varies several-fold in output tokens per second and in price across hosting providers; independent trackers report the median (for example P50 over a rolling window) per provider, which is the number to quote when you compare serving options (see the [inference-serving](../inference-serving/) and [cost-optimization](../cost-optimization/) chapters).
-- **Report an interval, not a point.** Benchmark scores carry sampling noise; a 1-point difference inside overlapping 95 percent confidence intervals is not a real difference. State the interval.
+- **Report an interval, not a point.** Benchmark scores carry sampling noise; a 1-point difference inside overlapping 95 percent confidence intervals (the range the true score plausibly falls in, given the sample) is not a real difference. State the interval.
 
 Use these as the coarse capability filter and the live-numbers reference; then run
 your own task-specific eval, because a public number never gates your feature.
 
-The reason is contamination. If eval cases or near-duplicates leaked into a
+The reason is contamination (benchmark items, or near-copies of them, leaking into
+the model's training data). If eval cases or near-duplicates leaked into a
 model's training data, its scores look inflated on public benchmarks while the
 model fails in production on real user queries. The inflation is systematic and
 invisible: you cannot detect it from benchmark scores alone.
@@ -80,8 +82,17 @@ These are distinct evaluation problems and often use different datasets, differe
 metrics, and different gate thresholds.
 
 **Capability evaluation** asks: does the model do the task correctly? Metrics are
-task-specific: exact match for extraction, F1 for question answering, test pass
+task-specific: exact match for extraction, F1 for question answering (F1 is the
+harmonic mean of precision and recall, high only when both are high), test pass
 rate for code generation, relevance score for search.
+
+```python
+def f1(precision, recall):                 # precision and recall, each in [0, 1]
+    if precision + recall == 0:            # model got nothing right -> avoid divide-by-zero
+        return 0.0
+    return 2 * precision * recall / (precision + recall)   # harmonic mean punishes a lopsided pair
+# f1(precision=0.6, recall=1.0) -> ~0.75, sitting below the 0.8 arithmetic mean
+```
 
 **Safety evaluation** asks: does the model stay within policy? Metrics are
 typically binary (refused/complied, policy-violating/clean) over a dataset of

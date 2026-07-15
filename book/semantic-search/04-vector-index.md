@@ -66,9 +66,10 @@ def greedy_search(graph, dist, entry, query):    # graph: node -> list of neighb
 
 IVF-PQ clusters vectors into `nlist` cells (Voronoi partition). At query time,
 only the `nprobe` closest cluster centroids are searched, reducing the scan to
-`nprobe / nlist` of the corpus. Product quantization then compresses each
-vector into a short code by splitting it into `m` subspaces and quantizing
-each independently. The code size in bytes is `m * ceil(b / 8)` where `b`
+`nprobe / nlist` of the corpus. Product quantization (quantization means
+replacing exact float values with a small set of approximate codes to save
+memory) then compresses each vector into a short code by splitting it into `m`
+subspaces and quantizing each independently. The code size in bytes is `m * ceil(b / 8)` where `b`
 is the bits per subspace code.
 
 The math for sizing:
@@ -82,6 +83,17 @@ $$\text{PQ compression ratio} = \frac{d \times 4}{m \times \left\lceil b / 8 \ri
 With `d = 384`, `m = 24`, `b = 8` (one byte per subspace), each vector
 compresses from 1536 bytes to 24 bytes, a 64x reduction. Meta's Faiss uses
 this structure to serve billion-scale indexes in manageable RAM budgets.
+
+```python
+import math
+
+def pq_sizes(n, d, m, b):            # n vectors, d dims, m PQ subspaces, b bits per subspace code
+    raw = n * d * 4                   # float32 raw index size in bytes
+    code = m * math.ceil(b / 8)       # PQ code size per vector in bytes
+    ratio = (d * 4) / code            # compression ratio vs one float32 vector
+    return raw, code, ratio
+# pq_sizes(100_000_000, 384, 24, 8) -> (153600000000, 24, 64.0)
+```
 
 The cost of IVF-PQ is recall loss from quantization: compressed scores are
 approximate, so a rescoring step (paging back the true vectors for the
@@ -122,6 +134,18 @@ $r_{\perp}$ the orthogonal component. Penalizing $r_{\parallel}$ more
 preserves the high inner products that rank first. ScaNN achieves the best recall-vs-QPS on ann-benchmarks for CPU-bound serving.
 **Reusing a Euclidean-tuned quantizer for inner-product search quietly loses
 recall; ScaNN's anisotropic loss is the fix.**
+
+```python
+import numpy as np
+
+def anisotropic_loss(x, x_hat, q, eta=4.0):   # x: true vec, x_hat: quantized vec, q: query direction, eta>1
+    r = x - x_hat                              # quantization residual
+    q_unit = q / np.linalg.norm(q)             # unit vector along the query
+    r_par = np.dot(r, q_unit) * q_unit         # residual component parallel to the query
+    r_perp = r - r_par                         # orthogonal remainder
+    return eta * r_par @ r_par + r_perp @ r_perp   # parallel error weighted eta times more
+# anisotropic_loss(np.array([1.,0.]), np.array([0.,0.]), np.array([1.,0.]), 4.0) -> 4.0
+```
 
 ## When to use which index
 

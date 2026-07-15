@@ -47,7 +47,7 @@ run. Illustrative values.*
 The tokenizer is fit before pretraining, on a representative sample of the final
 mixture. Changing it later means retraining from scratch.
 
-**Byte-level BPE** (GPT-2 onward) starts from raw bytes and greedily merges the
+**Byte-level BPE** (byte-pair encoding, which builds tokens by repeatedly merging the most frequent adjacent pair; GPT-2 onward) starts from raw bytes and greedily merges the
 most frequent adjacent pair until reaching the target vocabulary size. Because it
 starts from bytes, it can represent any string with no out-of-vocabulary token
 ever, which is why it is the default for English-primary models.
@@ -78,7 +78,7 @@ the default for multilingual models and languages without whitespace delimiters
 **Vocabulary size is a fertility tradeoff, not a free win.** A larger vocabulary
 means each token covers more text, so sequences are shorter, training and
 inference cost per document drop, and effective context stretches. But a larger
-vocabulary means a bigger embedding matrix and output softmax (parameters and
+vocabulary means a bigger embedding matrix (the lookup table mapping each token id to a vector) and output softmax (parameters and
 compute that scale with vocabulary size), rarer tokens that are undertrained, and
 worse fallback on unseen strings.
 
@@ -102,6 +102,12 @@ Before choosing model size or architecture, spend the compute budget on paper.
 Training FLOPs are well approximated by:
 
 $$C \approx 6 N D$$
+
+```python
+def training_flops(N, D):              # N: non-embedding params, D: training tokens
+    return 6 * N * D                   # ~6 FLOPs per parameter per token (forward + backward)
+# Chinchilla-optimal sets D ~ 20 * N; e.g. training_flops(7e9, 20 * 7e9) -> 5.88e21
+```
 
 where $N$ is non-embedding parameters and $D$ is training tokens. The achievable
 loss follows a power law in both:
@@ -135,7 +141,7 @@ matter at pretraining time:
 **Attention variant.** Multi-head attention (MHA) is the original; it has
 $n_{\text{heads}}$ query, key, and value heads, all of dimension
 $d_{\text{head}}$. Multi-query attention (MQA) collapses key and value to a
-single head per layer, drastically shrinking the KV cache at serving time at
+single head per layer, drastically shrinking the KV cache (the stored keys and values reused across generation steps) at serving time at
 some quality cost. Grouped-query attention (GQA, used in Llama 3 and most modern
 bases) is the compromise: $n_{\text{kv}}$ key/value head groups, fewer than
 $n_{\text{heads}}$ query heads, shrinking the KV cache by
@@ -165,6 +171,13 @@ The failure mode is routing collapse: all tokens pile onto a few experts, leavin
 the rest idle. The classic fix adds an auxiliary load-balancing loss:
 
 $$\mathcal{L}_{\text{aux}} = \lambda E \sum_{i=1}^{E} f_i P_i$$
+
+```python
+def moe_aux_loss(f, P, lam=0.01):      # f: token fraction per expert; P: mean gate mass per expert
+    E = len(f)                         # number of experts
+    return lam * E * sum(fi * Pi for fi, Pi in zip(f, P))   # penalizes imbalanced routing
+# balanced routing (f = P = 1/E) gives lam; e.g. moe_aux_loss([0.5, 0.5], [0.5, 0.5], lam=0.01) -> 0.01
+```
 
 where $f_i$ is the fraction of tokens routed to expert $i$ and $P_i$ is the mean
 gate mass for expert $i$. DeepSeek-V3 instead uses auxiliary-loss-free balancing

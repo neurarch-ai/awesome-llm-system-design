@@ -45,7 +45,8 @@ When it is not enough: you need to pick one correct answer from two plausible on
 or align the model on a safety axis, or suppress a tempting-but-wrong style that
 SFT alone cannot reliably rule out.
 
-**Rung 4: Preference optimization (DPO or RLHF).** Train on comparisons: "this
+**Rung 4: Preference optimization (DPO, direct preference optimization, or RLHF,
+reinforcement learning from human feedback).** Train on comparisons: "this
 response is better than that one for this prompt." Teaches the model to *prefer*
 one acceptable answer over another, which SFT (which only imitates positive
 examples) cannot express. Details in the methods chapter.
@@ -79,7 +80,9 @@ and naming it explicitly is one of the clearest signals in this question.
 an eval harness to check the baseline. RAG is served by retrieval and orchestration
 stacks such as LlamaIndex, LangChain, and Haystack over a vector store. SFT and
 preference tuning both run on Hugging Face TRL (its SFTTrainer and DPOTrainer),
-usually with PEFT for LoRA or QLoRA adapters, and higher-level wrappers like Axolotl
+usually with PEFT (parameter-efficient fine-tuning, which trains a small add-on
+instead of all the weights) for LoRA or QLoRA (low-rank adapter methods, defined in
+the methods chapter) adapters, and higher-level wrappers like Axolotl
 and Unsloth make the training config declarative. DeepSpeed (Microsoft) backs the
 distributed training when a run outgrows a single GPU.
 

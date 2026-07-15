@@ -2,7 +2,9 @@
 
 ## Why RoPE is the key
 
-Modern bases use Rotary Position Embeddings (RoPE). Each dimension pair $i$ in a
+Modern bases use Rotary Position Embeddings (RoPE, which encode a token's position
+by rotating its query and key vectors by an angle that grows with the position).
+Each dimension pair $i$ in a
 head is rotated by an angle proportional to the token position times a
 per-dimension frequency. The query-key dot product then depends only on the
 relative offset between positions, not their absolute values, which is what makes
@@ -49,6 +51,13 @@ frequency dimensions (small $i$) move less:
 
 $$b' = b \cdot s^{d/(d-2)}, \qquad \theta_i^{\text{ABF}} = (b')^{-2i/d} = \theta_i \cdot s^{-2i/(d-2)}$$
 
+```python
+def rope_freqs_abf(d, s, base=10000.0):        # d: per-head dim, s = L_new / L_orig
+    b2 = base * s ** (d / (d - 2))             # ABF raises the base instead of dividing positions
+    return [b2 ** (-2 * i / d) for i in range(d // 2)]   # non-uniform: high-freq (small i) move least
+# rope_freqs_abf(4, s=8)[0] -> 1.0  (i=0 high-freq dim preserved, unlike PI which gives 0.125)
+```
+
 Code Llama raises the base from 10000 to 1000000. Trained on 16K-token sequences,
 the model then extrapolates usably to inputs up to 100K tokens, because the
 non-uniform rescale preserves local resolution better than uniform PI. Little or
@@ -65,11 +74,26 @@ band:
 
 $$\theta_i^{\text{YaRN}} = \gamma_i \cdot \theta_i + (1 - \gamma_i) \cdot \frac{\theta_i}{s}, \qquad \gamma_i \in [0,1]$$
 
+```python
+def rope_freq_yarn(theta_i, gamma_i, s):   # gamma=1 keep (high-freq), gamma=0 interpolate (low-freq)
+    return gamma_i * theta_i + (1 - gamma_i) * (theta_i / s)   # per-dim blend of keep vs divide-by-s
+# rope_freq_yarn(theta_i=1.0, gamma_i=0.0, s=8) -> 0.125  (low-freq dim fully interpolated)
+```
+
 where $\gamma_i = 1$ keeps the dimension unscaled (high frequency) and
-$\gamma_i = 0$ fully interpolates it (low frequency). YaRN then adds a softmax
-temperature correction to counter the entropy increase a longer sequence causes:
+$\gamma_i = 0$ fully interpolates it (low frequency). YaRN then adds a
+softmax-temperature correction (softmax is the function that turns raw attention
+scores into probabilities; its temperature is a scalar that flattens or sharpens
+that distribution) to counter the entropy increase a longer sequence causes:
 
 $$\text{Attn} = \text{softmax}\!\left(\frac{q^{\top} k}{t \sqrt{d}}\right), \qquad \frac{1}{\sqrt{t}} = 0.1 \ln s + 1$$
+
+```python
+import math
+def yarn_logit_scale(s):          # softmax-temperature factor 1/sqrt(t) = 0.1 ln s + 1
+    return 0.1 * math.log(s) + 1  # scales attention logits before softmax; 1.0 means no change
+# yarn_logit_scale(s=1) -> 1.0  (no length increase -> no temperature correction)
+```
 
 The payoff: context extension to 64K and 128K at roughly 0.1 percent of the
 original pretraining tokens, with far less short-context quality loss than uniform

@@ -2,7 +2,7 @@
 
 A frontier model does not fit on one GPU, and training one on a single device
 would take centuries. The objective is one line; the systems problem is fitting
-the model across thousands of GPUs, keeping them busy (high MFU), and keeping
+the model across thousands of GPUs, keeping them busy (high MFU, model FLOPs utilization: the fraction of a GPU's peak compute actually used), and keeping
 the run alive for weeks on hardware that fails every few hours.
 
 ## Why FLOPs are not the bottleneck
@@ -38,6 +38,12 @@ micro-batches per step:
 
 $$\text{bubble fraction} = \frac{p - 1}{m + p - 1}$$
 
+```python
+def bubble_fraction(p, m):             # p: pipeline stages, m: micro-batches per step
+    return (p - 1) / (m + p - 1)       # idle fraction while the pipe fills and drains
+# many micro-batches shrink it; e.g. bubble_fraction(p=8, m=64) -> 0.0986 (approx)
+```
+
 Using many micro-batches ($m \gg p$) keeps the bubble small. Interleaved
 schedules (1F1B) reduce it further.
 
@@ -59,6 +65,12 @@ footprint on every GPU. **ZeRO** (DeepSpeed) partitions that footprint instead:
 Per-GPU memory in ZeRO-3 falls toward:
 
 $$M_{\text{gpu}} \approx \frac{16\,\Psi}{N_d}$$
+
+```python
+def zero3_mem_bytes(psi, n_d):         # psi: total params, n_d: data-parallel ranks
+    return 16 * psi / n_d              # 16 B/param (fp16 weights + grads + fp32 master + Adam moments), sharded
+# e.g. a 70B model over 64 ranks: zero3_mem_bytes(70e9, 64) -> 1.75e10  (~17.5 GB/GPU)
+```
 
 where $\Psi$ is total parameters and $N_d$ is the number of data-parallel ranks.
 The cost is extra all-gather and reduce-scatter communication each step, which

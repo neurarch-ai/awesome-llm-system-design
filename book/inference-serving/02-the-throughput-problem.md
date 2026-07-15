@@ -2,27 +2,36 @@
 
 Understanding why LLM serving is hard requires understanding that a request has
 two distinct phases with opposite hardware appetites. Mixing them naively is where
-throughput collapses and latency spikes.
+throughput (output tokens produced per second) collapses and latency spikes.
 
 ## Prefill and decode: two phases, two bottlenecks
 
 **Prefill** processes the entire prompt in one parallel forward pass. Every prompt
 token attends to every other token simultaneously, so the GPU executes a dense
-matrix multiply over the full sequence. This is **compute-bound**: the FLOPs
-performed greatly outweigh the bytes moved from HBM. Arithmetic intensity is high,
+matrix multiply over the full sequence. This is **compute-bound** (limited by how fast the GPU can do math, not by memory speed): the FLOPs
+performed greatly outweigh the bytes moved from HBM. Arithmetic intensity (the ratio of math operations to bytes read from memory) is high,
 the GPU is busy, and the step finishes quickly relative to the amount of work done.
 The cost scales with prompt length and is paid once per request.
 
 **Decode** generates one output token per forward pass. At each step the model
-reads its full weight matrix and the growing KV cache, just to emit a single token.
-FLOPs are tiny relative to the bytes fetched. This is **memory-bandwidth-bound**:
+reads its full weight matrix and the growing KV cache (the saved keys and values from every earlier token, reused so they are not recomputed each step), just to emit a single token.
+FLOPs are tiny relative to the bytes fetched. This is **memory-bandwidth-bound** (limited by how fast bytes can be read from memory, not by compute):
 arithmetic intensity is near 1, meaning roughly one floating-point operation per
 byte moved from HBM. The GPU is mostly waiting for data, not computing. The cost
 scales with output length and is paid at every token step.
 
-The roofline model captures this precisely:
+The roofline model (a view of peak compute versus memory bandwidth that shows which one caps performance) captures this precisely:
 
 $$\text{throughput ceiling} = \min\!\left(\frac{\text{peak FLOPs}}{\text{FLOPs per token}},\; \frac{\text{HBM bandwidth}}{\text{bytes per token}}\right)$$
+
+```python
+def throughput_ceiling(peak_flops, flops_per_token, hbm_bandwidth, bytes_per_token):
+    # roofline: capped by whichever runs out first, compute or memory bandwidth
+    compute_limit = peak_flops / flops_per_token       # tokens/s if compute-bound
+    bandwidth_limit = hbm_bandwidth / bytes_per_token  # tokens/s if bandwidth-bound
+    return min(compute_limit, bandwidth_limit)         # the binding ceiling
+# throughput_ceiling(1e15, 2e11, 3e12, 6e5) -> 5000.0
+```
 
 Prefill lands on the compute side of the min. Decode lands on the bandwidth side.
 No amount of arithmetic optimization helps decode; you need to move fewer bytes
@@ -34,6 +43,13 @@ The KV cache is what accumulates during decode and is the binding memory
 constraint at high concurrency. Its size per token is:
 
 $$\text{KV bytes per token} = 2 \cdot L \cdot n_{\text{kv}} \cdot d_{\text{head}} \cdot b_{\text{kv}}$$
+
+```python
+def kv_bytes_per_token(num_layers, num_kv_heads, head_dim, bytes_per_elem):
+    # the leading 2 counts both tensors cached per layer: keys and values
+    return 2 * num_layers * num_kv_heads * head_dim * bytes_per_elem  # bytes per token
+# kv_bytes_per_token(80, 8, 128, 2) -> 327680
+```
 
 where $L$ is the number of transformer layers, $n_{\text{kv}}$ is the number of KV
 heads (MQA/GQA reduce this significantly), $d_{\text{head}}$ is the head dimension,
@@ -50,6 +66,14 @@ together.
 The decode step time follows directly:
 
 $$\text{decode step time} \approx \frac{P \cdot b_w + N \cdot \text{KV}_{\text{bytes}}}{\text{HBM bandwidth}}$$
+
+```python
+def decode_step_time_s(num_params, bytes_per_weight, batch_size, kv_bytes, hbm_bandwidth):
+    # decode is bandwidth-bound: time = bytes read from HBM / bandwidth
+    bytes_moved = num_params * bytes_per_weight + batch_size * kv_bytes  # weights + all KV
+    return bytes_moved / hbm_bandwidth  # seconds per decode step
+# decode_step_time_s(7e9, 2, 10, 1e9, 1.2e12) -> 0.02
+```
 
 where $P$ is the number of weight parameters, $b_w$ is bytes per weight, and $N$
 is the number of concurrently batched sequences. Increasing $N$ raises throughput

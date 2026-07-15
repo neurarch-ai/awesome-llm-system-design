@@ -7,7 +7,8 @@ Before writing a single line of evaluation code, name what you are measuring.
 independently:
 
 - **Accuracy / groundedness.** Is the answer factually correct, and is it
-  supported by the context or retrieved evidence?
+  supported (grounded, meaning every claim traces back to the provided context)
+  by the context or retrieved evidence?
 - **Relevance.** Does the answer address what was actually asked?
 - **Helpfulness.** Does the answer move the user toward their goal, beyond just
   being technically correct?

@@ -37,7 +37,7 @@ reference corpus.
 
 **Perplexity-based (CCNet style).** Train a small language model on a trusted
 reference (Wikipedia or books) for each target language, then keep web documents
-that score low perplexity under that model. Low perplexity means the text looks
+that score low perplexity (a measure of how surprised the model is by the text; low means it looks familiar) under that model. Low perplexity means the text looks
 like the reference, which is a cheap proxy for being well-formed and informative.
 CCNet uses this per language, which is what makes multilingual quality filtering
 tractable.
@@ -66,13 +66,21 @@ cheap (a hash set or a suffix-array pass) and catches the easy cases. It is not
 sufficient alone because most web near-duplicates differ by a timestamp, header,
 or minor edit.
 
-**Fuzzy (near-duplicate) deduplication** uses MinHash with LSH. The idea in
+**Fuzzy (near-duplicate) deduplication** uses MinHash (compact per-document fingerprints) with LSH (locality-sensitive hashing, which buckets similar fingerprints together). The idea in
 three steps:
 
-Represent each document as a set of $n$-gram shingles. The overlap between two
-documents is their Jaccard similarity:
+Represent each document as a set of $n$-gram shingles (overlapping slices of $n$ consecutive words or characters). The overlap between two
+documents is their Jaccard similarity (the overlap of two sets, from 0 to 1):
 
 $$J(A, B) = \frac{\lvert A \cap B \rvert}{\lvert A \cup B \rvert}$$
+
+```python
+def jaccard(a, b):                     # a, b: sets of n-gram shingles
+    if not (a or b):                   # two empty docs: define overlap as 0
+        return 0.0
+    return len(a & b) / len(a | b)     # shared shingles over total distinct shingles
+# e.g. jaccard({1, 2, 3}, {2, 3, 4}) -> 0.5
+```
 
 A **MinHash** signature approximates $J$ cheaply. Apply $k$ independent hash
 functions to the shingle set and keep the minimum under each. The probability
@@ -81,6 +89,17 @@ so the fraction of matching entries estimates $J$ without comparing the full
 shingle sets:
 
 $$\Pr[\min h(A) = \min h(B)] = J(A, B)$$
+
+```python
+def minhash_estimate(a, b, seeds):     # a, b: shingle sets; seeds: k independent hash multipliers
+    P = 2_147_483_647                  # a large prime modulus for the hash x -> (m * x) % P
+    agree = 0
+    for m in seeds:                    # one min-hash entry per seed
+        if min((m * s) % P for s in a) == min((m * s) % P for s in b):
+            agree += 1                 # this min-hash entry matches between the two docs
+    return agree / len(seeds)          # matching fraction estimates Jaccard J(A, B)
+# identical sets agree on every entry: minhash_estimate({1, 2, 3}, {1, 2, 3}, [7, 11, 13]) -> 1.0
+```
 
 **LSH banding** turns the estimate into a scalable candidate search. Split the
 $k$-entry signature into $b$ bands of $r$ rows each. Two documents become a

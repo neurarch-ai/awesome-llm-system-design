@@ -2,7 +2,8 @@
 
 ## The context window is a balance sheet
 
-Every token in the context window costs money at prefill time on every
+Every token in the context window costs money at prefill time (when the model
+reads the whole prompt before it generates anything) on every
 subsequent step. Short-term working state (the ticket, tool results so far) must
 live there because the model needs it to decide what to do next. Long-term facts
 (customer history, company policy, past resolutions) should not live there by
@@ -31,7 +32,8 @@ the context limit. A dedicated compression model (Cognition's approach) can be
 more faithful than a heuristic trim.
 
 **Prefix caching.** The system prompt and the initial ticket are stable for many
-steps. If the model provider supports KV-cache prefix reuse, the static prefix
+steps. If the model provider supports KV-cache prefix reuse (reusing the model's cached
+computation for an unchanged prompt prefix), the static prefix
 is paid for once and the incremental cost per step is only the new tokens.
 Anthropic's extended prompt caching applies here; cache reads are typically
 much cheaper than cache writes.
@@ -48,7 +50,8 @@ The right approach is retrieval: store the facts externally and pull in only the
 relevant pieces for each step, rather than stuffing the whole store into the
 context at the start.
 
-This is exactly RAG applied at the agent level. For our support agent, the
+This is exactly RAG (retrieval-augmented generation: fetch relevant text from an
+external store and add it to the prompt) applied at the agent level. For our support agent, the
 knowledge base (policy documents, FAQ) is the long-term memory. At the start of
 a ticket the agent retrieves the policy sections relevant to the ticket type and
 adds them to the working context. Customer history is fetched by the

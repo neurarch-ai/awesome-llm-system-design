@@ -88,7 +88,7 @@ must run concurrently and cannot share context. That is rare in support.
 | Narrow, typed tools | The gate needs to validate calls deterministically | Wide tools that accept arbitrary JSON, where validation becomes guesswork |
 | Reflexion self-critique | There is a clear success signal the agent can learn from across retries | One-shot planning, when retries add cost without a verifiable stopping criterion |
 
-**Provenance.** The reactive loop is ReAct (Princeton and Google, 2022), whose interleaved reason-then-act step builds on chain-of-thought prompting (Google, 2022). Model-driven tool calling traces to Toolformer (Meta, 2023), and the typed-tool interface here follows the Model Context Protocol (Anthropic, 2024).
+**Provenance.** The reactive loop is ReAct (Princeton and Google, 2022), whose interleaved reason-then-act step builds on chain-of-thought prompting (having the model write out intermediate reasoning steps before its answer) (Google, 2022). Model-driven tool calling traces to Toolformer (Meta, 2023), and the typed-tool interface here follows the Model Context Protocol (Anthropic, 2024).
 
 **Tools.** Both planning styles are expressible in the common agent frameworks: LangGraph and LangChain model plan-then-execute and ReAct loops explicitly, LlamaIndex offers agent runners for either, and multi-agent orchestration with parallel subagents is the core of AutoGen (Microsoft) and CrewAI. Tool schemas are typically JSON Schema definitions, and the Model Context Protocol (MCP) is a shared way to expose typed tools to a model with descriptions and enums the gate can validate. Reflexion-style self-critique is a prompting pattern layered on top rather than a separate library.
 

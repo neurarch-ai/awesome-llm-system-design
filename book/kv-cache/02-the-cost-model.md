@@ -23,12 +23,28 @@ The arithmetic makes this concrete. For a decode step with a 7B model in FP16:
 
 $$I_{\text{decode}} \approx \frac{2 N_{\text{active}}}{2 N_{\text{active}} + \text{kv-bytes}} \quad \text{FLOPs/byte}$$
 
+```python
+def decode_arithmetic_intensity(n_active, kv_bytes, bytes_per_param=2):
+    # FLOPs = 2 per active param; bytes read = params (bytes_per_param each) + KV cache bytes
+    flops = 2 * n_active
+    bytes_read = bytes_per_param * n_active + kv_bytes
+    return flops / bytes_read
+# decode_arithmetic_intensity(7_000_000_000, 0) -> 1.0   (tiny cache: ~1 FLOP/byte, deeply memory-bound)
+```
+
 When the KV cache is small, $I_{\text{decode}} \approx 1$ FLOPs/byte. A modern GPU
 needs roughly 150 FLOPs/byte of memory bandwidth to stay compute-bound. Decode
 never gets there; it is always in the memory-bound zone. For prefill processing
 $S$ tokens at once:
 
 $$I_{\text{prefill}} \approx S \cdot \frac{2 N_{\text{active}}}{2 N_{\text{active}}} = S \quad \text{FLOPs/byte}$$
+
+```python
+def prefill_arithmetic_intensity(seq_len):
+    # prefill amortizes one weight read across seq_len tokens, so intensity scales with S
+    return seq_len
+# prefill_arithmetic_intensity(200) -> 200   (already past the ~150 FLOPs/byte roofline)
+```
 
 At $S = 200$ tokens the arithmetic intensity already crosses the roofline.
 At $S = 4000$ tokens prefill is heavily compute-bound.
@@ -97,12 +113,21 @@ $d_{\text{head}}=128$, $b=2$ (FP16), $B=1$ sequence:
 
 $$\text{kv-bytes} = 2 \times 32 \times 100\,000 \times 8 \times 128 \times 2 \approx 13.1 \text{ GB}$$
 
+```python
+def kv_cache_bytes(num_tokens, num_layers, num_kv_heads, head_dim, bytes_per_elem=2, batch=1):
+    # 2 tensors (K and V) per layer, each num_kv_heads*head_dim elements per token
+    return 2 * num_tokens * num_layers * num_kv_heads * head_dim * bytes_per_elem * batch
+# kv_cache_bytes(100000, 32, 8, 128, 2) -> 13107200000   (about 13.1 GB for one 100k-token session)
+```
+
 A single 100k-token session costs more than 13 GB of KV cache. At 100 concurrent
 sessions that is 1.3 TB: far beyond any single GPU. And the model weights for a
 7B model in FP16 are only 14 GB. **The cache, not the weights, is the binding
 constraint for long-context serving.**
 
 The levers all attack this formula. They either shrink $h_{\text{kv}}$ (GQA,
-MQA), replace the whole $h_{\text{kv}} \cdot d_{\text{head}}$ term with a smaller
-latent (MLA), shrink $b$ (KV quantization), or reduce the effective $S$ per
-request by reusing cached work across requests (prefix caching).
+MQA, the extreme with a single shared KV head), replace the whole
+$h_{\text{kv}} \cdot d_{\text{head}}$ term with a smaller latent (MLA, multi-head
+latent attention), shrink $b$ (KV quantization, storing each cached number in
+fewer bits), or reduce the effective $S$ per request by reusing cached work across
+requests (prefix caching).

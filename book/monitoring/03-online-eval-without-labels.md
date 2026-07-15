@@ -36,6 +36,13 @@ second, smaller model reformats the reasoning into structured output. Separating
 reasoning from formatting avoids the accuracy hit of forcing strict JSON structure
 mid-reasoning.
 
+```mermaid
+flowchart LR
+  IN["question + retrieved context + answer"] --> R["call 1: reasoning model<br/>(free-form: finds disagreements,<br/>extracts supporting quotes)"]
+  R --> F["call 2: small model<br/>(reformats the reasoning into<br/>structured JSON scores)"]
+  F --> OUT["faithfulness score + relevance score"]
+```
+
 The biases are real and must be named: LLM judges favor verbose answers, favor
 their own outputs (self-preference), and favor answers that appear early in the
 prompt (position bias). A judge is a number that lies until it is calibrated
@@ -49,6 +56,17 @@ chance. $\kappa = 1$ is perfect agreement; $\kappa = 0$ is chance. Datadog
 reports $F_1 = 0.810$ on HaluBench and RAGTruth using a GPT-4o judge; note that
 the score on the human-labeled RAGTruth set is the honest number, not the
 synthetic one.
+
+```python
+import numpy as np
+def cohen_kappa(a, b):
+    # chance-corrected agreement between two 0/1 label sets a (judge) and b (human)
+    a, b = np.asarray(a), np.asarray(b)
+    po = np.mean(a == b)                                    # observed agreement
+    pe = np.mean(a) * np.mean(b) + np.mean(1 - a) * np.mean(1 - b)  # agreement expected by chance
+    return float((po - pe) / (1 - pe))
+# cohen_kappa([1,1,0,0], [1,1,0,1]) -> 0.5
+```
 
 ![Quality proxy trend over 30 days](assets/fig-quality-proxy-trend.png)
 
@@ -71,6 +89,14 @@ where $C(a)$ is the set of atomic claims in answer $a$, and the indicator is 1
 when the retrieved context entails claim $c$. The ungrounded rate per response is
 $1 - G(a)$. Trend that rate per day and alert on the delta after any retrieval or
 model change.
+
+```python
+import numpy as np
+def groundedness(claim_supported):
+    # fraction of one answer's atomic claims entailed by the retrieved context
+    return float(np.mean(claim_supported))                 # claim_supported[i] = 1 if context entails claim i
+# groundedness([1, 1, 0, 1]) -> 0.75  (ungrounded rate = 1 - 0.75 = 0.25)
+```
 
 Two categories of failure to distinguish: **contradiction** (the claim opposes
 the context) and **unsupported** (the claim is absent from the context). An answer

@@ -4,7 +4,7 @@
 
 A metric tells you something is wrong. A trace tells you where. The foundation of
 LLM observability is a **trace per request**, structured as a distributed trace
-with one span per step in the chain. Aggregate metrics are derived from span
+with one span per step (one timed record per operation) in the chain. Aggregate metrics are derived from span
 attributes; dashboards, alerts, and judge scores all live downstream of this one
 instrumentation point. Get the trace wrong or incomplete and everything built on
 top of it lies.
@@ -71,12 +71,24 @@ retry behavior across exchanges.
 ![Token and cost distribution per request](assets/fig-token-cost-distribution.png)
 
 *Token counts and cost per request follow a long right tail. The mean understates
-typical tail cost by a large factor; always track p95 and p99. Illustrative data,
+typical tail cost by a large factor; always track p95 and p99 (the values below
+which 95 percent and 99 percent of requests fall). Illustrative data,
 log-normal distribution.*
 
 This distribution matters for budgeting the observation layer itself: a judge that
 costs roughly the same as generation multiplies into a right-tail tail cost that
 is much higher than the average judge call cost.
+
+The percentile dashboards above (p50/p95/p99) are computed directly from the
+`latency_ms` and `cost_usd` span attributes:
+
+```python
+import numpy as np
+def percentiles(values, ps=(50, 95, 99)):
+    # p50/p95/p99: the value below which that percent of requests fall
+    return {p: float(np.percentile(values, p)) for p in ps}
+# percentiles([100, 200, 300, 400, 500]) -> {50: 300.0, 95: 480.0, 99: 496.0}
+```
 
 ## Privacy: redaction and retention
 

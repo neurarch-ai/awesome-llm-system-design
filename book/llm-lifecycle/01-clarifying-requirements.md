@@ -2,7 +2,8 @@
 
 Before sizing anything, pin down which stage you are actually being asked about.
 The most common mistake in an LLM system design is treating every question as a
-pretraining question. It almost never is.
+pretraining question (the from-scratch, trillions-of-tokens training run that
+produces a raw base model). It almost never is.
 
 Here is a typical exchange. Notice that every question either removes a whole
 stage from scope or fundamentally changes the design.
@@ -51,10 +52,12 @@ following, not consumer-grade safety hardening.
 ---
 
 Let us summarize the problem. We need to take a capable open-weights base
-model, adapt it to legal domain text and vocabulary (mid-training on 50B
-domain tokens), turn it into an instruction-following model that cites sources
-correctly (post-training), and serve it under interactive latency at modest
-concurrency with cost discipline.
+model, adapt it to legal domain text and vocabulary (mid-training, meaning continued
+pretraining on domain data, on 50B domain tokens), turn it into an
+instruction-following model that cites sources correctly (post-training, the
+SFT-plus-preference-tuning stage that makes a base model follow instructions),
+and serve it under interactive latency at modest concurrency with cost
+discipline.
 
 **Two consequences fall out immediately:**
 
@@ -62,13 +65,16 @@ concurrency with cost discipline.
   pretrain.** A from-scratch pretrain of a model large enough to matter costs
   hundreds of millions of dollars and weeks of compute. The leverage for this
   team is in adapting an open base (Llama 3, Qwen3, OLMo) on the 50B domain
-  tokens, then running SFT and preference optimization. The base model's general
+  tokens, then running SFT (supervised fine-tuning on instruction-response pairs)
+and preference optimization. The base model's general
   language ability is free; you are only paying for the delta.
 
 - **The serving constraint rules out the largest models at full precision.** Two
   seconds time-to-first-token at p95 with 500 concurrent users means the model
-  must be small enough to serve under budget, which requires quantization (INT8
-  at minimum), and the KV cache size per user sets how many concurrent requests
+  must be small enough to serve under budget, which requires quantization
+  (storing weights in lower-precision integers to shrink memory, INT8
+  at minimum), and the KV cache (the saved keys and values for past tokens)
+  size per user sets how many concurrent requests
   fit on each GPU. The serving design is not a detail; it determines which model
   size is even viable.
 

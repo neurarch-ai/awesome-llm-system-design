@@ -58,7 +58,7 @@ and stops wasted compute on repeated tokens. Two approaches, both needed (covere
 in depth in section 3).
 
 **PII scrub and safety.** Named-entity recognizers and pattern matchers flag
-personal names, email addresses, phone numbers, and other personal information
+personal names, email addresses, phone numbers, and other personal information (PII, personally identifiable information)
 for removal or masking. What the model never sees it cannot regurgitate, which
 is both a product safety and a legal requirement.
 
@@ -72,8 +72,26 @@ in depth in section 3).
 books, papers, and math each carry different qualities; each is given a domain
 weight. High-value but scarce domains (code, math, papers) are upsampled above
 their natural frequency; noisy web text is downsampled. Near the end of
-training, the mixture is annealed toward the highest-quality, most-on-target
+training, the mixture is annealed (gradually shifted) toward the highest-quality, most-on-target
 data, which cheaply sharpens the base before post-training.
+
+Concretely, "domain weight" just means the probability of drawing the next
+document from each domain, which you can implement as a weighted draw:
+
+```python
+import random
+random.seed(0)
+
+def sample_domain(weights):            # weights: {domain: sampling probability}, must sum to 1
+    r = random.random()                # draw a point in [0, 1)
+    cumulative = 0.0
+    for domain, w in weights.items():  # walk the weighted intervals in order
+        cumulative += w
+        if r < cumulative:             # r landed in this domain's interval
+            return domain
+# upsample scarce high-value domains above natural frequency:
+# sample_domain({"web": 0.6, "code": 0.25, "math": 0.15}) -> "code"  (with seed 0)
+```
 
 **Tokenization.** The tokenizer is fit once, on a representative sample of the
 final mixture, before any pretraining runs. Changing it later means training

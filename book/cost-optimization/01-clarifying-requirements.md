@@ -8,13 +8,16 @@ a bulk job like nightly summarization?
 **Interviewer:** Interactive chat. Users expect a response in under two seconds.
 
 **Candidate:** Do we have a quality metric today, or are we working from vibes?
-**Interviewer:** We have an LLM-as-a-judge eval set, about 500 labeled examples
-with expected answer quality scores.
+**Interviewer:** We have an LLM-as-a-judge eval set (an LLM scores each answer's
+quality instead of a human), about 500 labeled examples with expected answer
+quality scores.
 
 **Candidate:** Where does the money go right now? Is the bill driven by long
 input prompts, long generations, or sheer request volume?
-**Interviewer:** Mostly input tokens. We do RAG and we pull 20 retrieved chunks
-into every prompt, most of which turn out irrelevant.
+**Interviewer:** Mostly input tokens (tokens are the sub-word pieces the API
+bills per). We do RAG (retrieval-augmented generation: we pull documents into
+the prompt) and we pull 20 retrieved chunks into every prompt, most of which
+turn out irrelevant.
 
 **Candidate:** Is the traffic uniform, or do some queries clearly need the
 frontier model while others would be fine with a smaller one?
@@ -35,10 +38,11 @@ Let us summarize. **We need to cut the input-token bill on a mixed-intent
 interactive RAG product.** The input cost driver suggests context trimming and
 prompt compression as first-order levers. The mixed-intent traffic suggests a
 router or cascade to direct simple queries to a cheap model. The latency SLO
-rules out a two-call cascade on the hot path unless the first call is fast
-enough; a pre-call router may fit better. API-only pricing means quantization
-and batching are off the table: the levers are routing, caching, compression,
-and right-sizing.
+(service level objective, the response-time target we promise) rules out a
+two-call cascade on the hot path unless the first call is fast enough; a pre-call
+router may fit better. API-only pricing means quantization (storing model weights
+in fewer bits per number) and batching are off the table: the levers are routing,
+caching, compression, and right-sizing.
 
 Two consequences fall out immediately, and stating them early is most of the
 signal in this interview question:

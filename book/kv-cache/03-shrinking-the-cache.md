@@ -26,6 +26,13 @@ same key and value:
 
 $$r_{\text{GQA}} = \frac{h_{\text{kv}}}{h_q} = \frac{8}{32} = \frac{1}{4}$$
 
+```python
+def gqa_cache_ratio(h_kv, h_q):
+    # cache shrinks in proportion to KV heads kept vs total query heads
+    return h_kv / h_q
+# gqa_cache_ratio(8, 32) -> 0.25   (GQA cache is one quarter of MHA)
+```
+
 The KV cache shrinks to one quarter of MHA's with negligible quality loss on most
 benchmarks. This is why GQA is the default in Llama 3, Mistral, Gemma, and most
 production models: the group size $g = h_q / h_{\text{kv}}$ is a direct
@@ -80,6 +87,13 @@ The compression ratio is:
 $$r_{\text{MLA}} = \frac{d_c}{2 \cdot h_{\text{kv}} \cdot d_{\text{head}}}
   \approx \frac{512}{2 \times 32 \times 128} \approx 0.063 \quad (\approx 93\% \text{ smaller})$$
 
+```python
+def mla_compression_ratio(d_c, h_kv, head_dim):
+    # cached latent of size d_c replaces the 2*h_kv*head_dim K and V elements per token
+    return d_c / (2 * h_kv * head_dim)
+# mla_compression_ratio(512, 32, 128) -> 0.0625   (about 94% smaller than MHA)
+```
+
 The tradeoff: a small matrix multiply is paid every decode step to expand the
 latent. In practice this cost is small relative to the memory bandwidth saved.
 
@@ -127,6 +141,13 @@ The memory reduction is:
 
 $$r_{\text{quant}} = \frac{b_{\text{low}}}{b_{\text{high}}} \quad \Rightarrow \quad
   \frac{4}{8} = \frac{1}{2} \Rightarrow 2\times \text{ context, batch, or concurrency (FP8 to NVFP4)}$$
+
+```python
+def quant_memory_ratio(bits_low, bits_high):
+    # cache memory scales linearly with bits stored per element
+    return bits_low / bits_high
+# quant_memory_ratio(4, 8) -> 0.5   (FP8 to NVFP4: half the memory, 2x the context)
+```
 
 ![KV quantization: memory saved vs quality retained](assets/fig-kv-quant-tradeoff.png)
 

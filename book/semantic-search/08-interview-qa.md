@@ -104,6 +104,17 @@ to amortize document encoding. Reach for it when you need better-than-bi-encoder
 quality at a candidate volume a cross-encoder cannot afford; keep the cross-encoder
 for the small final shortlist where its full cross-attention pays off.
 
+MaxSim in code makes the "sum of per-query-token best matches" concrete:
+
+```python
+import numpy as np
+
+def maxsim(query_tok, doc_tok):              # query_tok, doc_tok: arrays of shape (n_tokens, dim)
+    sims = query_tok @ doc_tok.T             # every query-token vs every doc-token dot product
+    return sims.max(axis=1).sum()            # for each query token take its best doc match, then sum
+# maxsim(np.eye(2), np.array([[1.,0.],[0.,1.],[0.5,0.5]])) -> 2.0
+```
+
 ## Commonly answered wrong (the traps)
 
 **Q: Should you apply a score correction for compression bias at query time?**

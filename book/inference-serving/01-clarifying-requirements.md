@@ -6,11 +6,11 @@ removes work, changes the design, or changes where the bottleneck sits.
 
 **Candidate:** What is the latency target, and is it on first token or on each
 subsequent token?
-**Interviewer:** Both matter. We want p99 time-to-first-token (TTFT) under 500 ms
+**Interviewer:** Both matter. We want p99 time-to-first-token (TTFT, how long a user waits before the first output token appears) under 500 ms
 and p99 inter-token latency (also called TPOT, time per output token) under 50 ms.
 They are separate SLOs.
 
-**Candidate:** What is the expected QPS, and does traffic spike?
+**Candidate:** What is the expected QPS (queries per second, the request arrival rate), and does traffic spike?
 **Interviewer:** Average around 500 requests per second, with spikes up to 3x that.
 Traffic is bursty around certain hours.
 
@@ -45,15 +45,15 @@ cost per million output tokens.**
 Two consequences fall out immediately, and stating them early is most of the signal
 in this question:
 
-**TTFT and TPOT are different knobs.** A long prefill occupying the GPU for a
+**TTFT and TPOT are different knobs.** A long prefill (the one-shot pass that processes the whole prompt before any output token) occupying the GPU for a
 full step blocks all in-flight decode requests for that step, spiking TPOT. A
-packed batch with many decode steps in flight delays new requests waiting to start
+packed batch with many decode steps (each producing one output token) in flight delays new requests waiting to start
 their prefill, spiking TTFT. Optimizing one without hurting the other requires
 either chunking prefill or disaggregating the two phases onto separate pools.
 Which choice you make is the first design decision.
 
 **The model does not fit on one GPU.** A 70B dense model in BF16 is about 140 GB
-of weights alone. A single H100 has 80 GB of HBM. Before you can think about
+of weights alone. A single H100 has 80 GB of HBM (high-bandwidth memory, the GPU's on-package RAM). Before you can think about
 batching or scheduling, you must shard the model across at least two GPUs. Tensor
 parallelism (splitting each layer across GPUs) or pipeline parallelism (splitting
 layers across stages) is not optional; it is a prerequisite. This also means you

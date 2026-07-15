@@ -69,9 +69,18 @@ Let the per-request expected cost be:
 $$\mathbb{E}[C] = h \cdot c_{\text{hit}} + (1-h)\bigl(c_{\text{embed}} + f_{\text{small}} \cdot c_{\text{small}} + f_{\text{big}} \cdot c_{\text{big}}\bigr)$$
 
 where $h$ is the cache hit rate, $c_{\text{hit}}$ is the (tiny) cost of a cache
-lookup, $c_{\text{embed}}$ is the cost of computing the query embedding on a
-miss, and $f_{\text{small}} + f_{\text{big}} = 1 - h$ is how the remaining
-traffic splits across the two tiers.
+lookup, $c_{\text{embed}}$ is the cost of computing the query embedding (a numeric
+vector standing in for the query's meaning) on a miss, and $f_{\text{small}} +
+f_{\text{big}} = 1 - h$ is how the remaining traffic splits across the two tiers.
+
+```python
+def expected_cost(h, c_hit, c_embed, f_small, c_small, f_big, c_big):
+    # h: cache hit rate; a hit pays only the tiny lookup cost c_hit
+    # on a miss (prob 1-h) we embed the query, then split across the two tiers
+    miss = c_embed + f_small * c_small + f_big * c_big
+    return h * c_hit + (1 - h) * miss
+# f_small + f_big must equal 1 - h; e.g. expected_cost(0.5, 0.25, 0.5, 0.25, 2.0, 0.25, 8.0) -> 1.625
+```
 
 The formula shows the order to attack: raise $h$ (caching) before tuning
 $f_{\text{small}}$ (routing), and reduce $c_{\text{small}}$ or

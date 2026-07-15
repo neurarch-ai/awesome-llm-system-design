@@ -69,6 +69,12 @@ length. A trial is counted correct if the model's response contains the planted 
 
 $$\text{NIAH recall}(L,\, d) = \frac{\text{correct retrievals at length } L \text{ and depth } d}{N}$$
 
+```python
+def niah_recall(correct, n):   # correct retrievals out of n trials at a fixed (length L, depth d) cell
+    return correct / n         # fraction recalled in this grid cell
+# e.g. niah_recall(correct=17, n=20) -> 0.85
+```
+
 Report as a two-dimensional heatmap. A single averaged number hides the mid-context
 dip that is the primary failure mode, and any long-context claim that omits the
 recall-by-depth plot is concealing the distribution.
@@ -122,9 +128,18 @@ task evals before production launch.
 
 Long-context perplexity on held-out long documents is cheap to compute during
 training and gives a useful continuous signal for detecting obvious failures.
-Perplexity is the exponentiated mean negative log-likelihood per token:
+Perplexity is the exponentiated mean negative log-likelihood per token (roughly,
+how surprised the model is by each token; lower means less surprised):
 
 $$\text{PPL} = \exp\!\left(-\frac{1}{N}\sum_{i=1}^{N}\log p(x_i \mid x_{\lt i})\right)$$
+
+```python
+from math import exp
+def perplexity(nll_per_token):        # nll_per_token: list of -log p(x_i | x_<i), in nats
+    mean_nll = sum(nll_per_token) / len(nll_per_token)
+    return exp(mean_nll)              # exp of the mean negative log-likelihood
+# e.g. perplexity([0.5, 1.0, 1.5]) -> 2.718281828459045  (mean nll = 1.0, so exp(1) = e)
+```
 
 Input: a held-out token sequence at the target length. Output: per-token
 log-probabilities. Lower is better. For cross-tokenizer comparison use
@@ -132,6 +147,12 @@ log-probabilities. Lower is better. For cross-tokenizer comparison use
 bytes and is tokenizer-invariant:
 
 $$\text{BPB} = \frac{1}{B}\sum_{i=1}^{N}\bigl(-\log_2 p(x_i \mid x_{\lt i})\bigr)$$
+
+```python
+def bits_per_byte(nll_bits, n_bytes):   # nll_bits: list of -log2 p(x_i | x_<i), one per token
+    return sum(nll_bits) / n_bytes      # total bits of the sequence / its UTF-8 byte count
+# e.g. bits_per_byte([2.0, 3.0, 3.0], n_bytes=4) -> 2.0
+```
 
 where $B$ is the total UTF-8 byte count of the sequence. But it saturates: a model can have fine long-context perplexity and still fail RULER,
 because next-token loss is dominated by local prediction (predicting the next word

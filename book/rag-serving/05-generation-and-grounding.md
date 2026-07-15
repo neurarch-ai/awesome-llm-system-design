@@ -38,11 +38,19 @@ tokens, $T_{\text{query}}$ is the query length, and $T_{\text{sys}}$ is the
 system instruction length. Reducing $m$ via harder reranking cuts cost and
 dilution simultaneously.
 
+```python
+def prompt_tokens(m, s, t_query, t_sys):   # m chunks kept, s avg chunk tokens, query/system tokens
+    # retrieved chunks dominate: m * s, plus the fixed query and system-instruction lengths
+    return m * s + t_query + t_sys
+# prompt_tokens(5, 400, 20, 80) -> 2100
+```
+
 ## The generator
 
 The generator is a standard decoder-only LLM. It is separate from the embedding
 model and has nothing to do with retrieval. Its key property for RAG is that
-long retrieved contexts make the **prefill** phase large, which raises time-to-first-token
+long retrieved contexts make the **prefill** phase (the model reading the whole
+prompt before it writes its first output token) large, which raises time-to-first-token
 and cost more than a short-prompt chat use case.
 
 Open the validated Llama-3 8B graph to see how grouped-query attention (GQA)
@@ -63,7 +71,7 @@ Three controls, each necessary:
 the system replies "I could not find a reliable source for this." A confident
 wrong answer grounded in an irrelevant chunk is worse than an honest abstention.
 In a regulated internal domain, abstentions are expected and safe; hallucinations
-are not.
+(fluent, confident claims the sources do not actually support) are not.
 
 **Verify citations before returning.** After generation, confirm every cited
 source ID exists in the assembled prompt. If not, the model fabricated a
@@ -88,10 +96,21 @@ the retrieved context rather than hallucinated from parametric knowledge.
 - **Input and output.** The evaluator receives the generated answer and the assembled
   context (the same chunks the model saw). Output: a score in [0, 1].
 - **How it is computed.** Decompose the answer into atomic claims (one verifiable
-  assertion per claim). For each claim, apply an LLM judge or an NLI classifier to
-  the (context, claim) pair and label it entailed or not-entailed.
+  assertion per claim). For each claim, apply an LLM judge or an NLI classifier
+  (natural-language inference: a model that decides whether the context entails,
+  contradicts, or is neutral toward the claim) to the (context, claim) pair and
+  label it entailed (supported by the context) or not-entailed.
 
 $$\text{groundedness} = \frac{\text{entailed claims}}{\text{total claims}}$$
+
+```python
+def groundedness(claim_entailed):          # claim_entailed: list of bools, one per atomic claim
+    if not claim_entailed:                  # no claims -> nothing to ground, treat as 1.0
+        return 1.0
+    # fraction of answer claims that the retrieved context supports (entails)
+    return sum(claim_entailed) / len(claim_entailed)
+# groundedness([True, True, False, True]) -> 0.75
+```
 
 A score near 1 means the model stayed within the sources. A grounded-but-wrong answer
 means the retrieved context itself was incorrect (a retrieval quality problem). A

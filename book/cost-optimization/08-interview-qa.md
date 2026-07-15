@@ -34,6 +34,14 @@ can simultaneously increase the fraction of served responses that are wrong.
 
 **Q: Estimate the savings from a router.**
 A: Router savings per request: $S = f_{\text{weak}} \cdot (c_{\text{big}} - c_{\text{small}}) - c_{\text{router}}$.
+
+```python
+def router_savings(f_weak, c_big, c_small, c_router):
+    # savings = big-vs-small gap captured on the weak-handled fraction, minus router cost
+    return f_weak * (c_big - c_small) - c_router
+# e.g. router_savings(0.5, 10.0, 2.0, 0.25) -> 3.75
+```
+
 Start with a measured $f_{\text{weak}}$ from a sample of traffic (what fraction
 of queries would a small model answer at bar?), not a hoped-for one. A common
 trap is assuming the cheap model handles 70% of traffic when the actual number,
@@ -60,6 +68,13 @@ know, and that is a problem."
 
 **Q: Everyone uses semantic caching. Should you always deploy one?**
 A: Only if the hit rate clears the break-even: $h^{\ast} = c_{\text{embed}} / (c_{\text{model}} - c_{\text{hit}})$.
+
+```python
+def cache_breakeven(c_hit, c_embed, c_model):
+    return c_embed / (c_model - c_hit)   # hit rate above which caching nets positive
+# e.g. cache_breakeven(0.005, 0.02, 1.0) -> 0.020100502512562814  (about 2%)
+```
+
 On typical numbers this is around 2%, but on traffic that is nearly all unique
 free-text queries (e.g., a general-purpose assistant), even a tuned semantic
 cache may not reach break-even. Measure the organic hit rate on a sample before
@@ -81,6 +96,14 @@ fleet must be evaluated, monitored, and updated.
 **Q: When does LLMLingua compression actually net out as a win?**
 A: When the input-token saving exceeds the compression pass cost: $c_{\text{big}}
 \cdot (n_{\text{orig}} - n_{\text{comp}}) \gt c_{\text{small}} \cdot n_{\text{orig}}$.
+
+```python
+def compression_net_win(c_big, c_small, n_orig, n_comp):
+    # gain from tokens removed on the big model vs cost of the small-LM pass over the full prompt
+    return c_big * (n_orig - n_comp) > c_small * n_orig
+# e.g. compression_net_win(10.0, 1.0, 1000, 200) -> True
+```
+
 On short prompts or output-dominated workloads the small-LM pass is pure overhead.
 On long, verbose, redundant RAG context (20 retrieved chunks with lots of
 repeated boilerplate) it can pay 5-10x. Profile the bill before applying

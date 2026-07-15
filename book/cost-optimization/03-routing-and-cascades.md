@@ -32,6 +32,14 @@ quality bar, and $c_{\text{router}}$ is the router's own per-call cost. The
 router must be strictly cheaper than the cheapest model it gates; a frontier call
 just to route eats the savings.
 
+```python
+def router_savings(f_weak, c_big, c_small, c_router):
+    # f_weak: fraction of traffic the weak model handles at the quality bar
+    # savings = big-vs-small gap captured on that fraction, minus router overhead
+    return f_weak * (c_big - c_small) - c_router
+# router cost must stay well below c_small; e.g. router_savings(0.5, 10.0, 2.0, 0.25) -> 3.75
+```
+
 The router's **honest limitation**: it decides once, blind, before seeing any
 answer, so it cannot know when it was wrong. A router tuned on old traffic will
 mis-route newly-hard queries silently: cost looks great, quality quietly drops on
@@ -79,8 +87,9 @@ of trustworthiness:
    answer is correct (what FrugalGPT trains). Better than raw log-probabilities.
 3. **Model self-consistency or self-critique.** Sample the cheap model twice and
    compare; low agreement suggests low confidence. Softer signal.
-4. **Log-probabilities.** Reported by the model but often miscalibrated on
-   open-ended text. The weakest signal; treat with caution.
+4. **Log-probabilities.** (The model's own token-level confidence scores, the
+   log of each predicted token's probability.) Reported by the model but often
+   miscalibrated on open-ended text. The weakest signal; treat with caution.
 
 The failure mode is a miscalibrated cutoff: too eager to accept quietly degrades
 quality; too eager to escalate and you pay for both models on everything.

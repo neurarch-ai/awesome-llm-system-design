@@ -3,7 +3,8 @@
 Before designing anything, pin down what the problem actually is. The most common
 interview mistake here is hearing "the model is not good enough" and immediately
 proposing a training run. The real work is to ask five questions that either kill
-the need for fine-tuning entirely or sharply scope what it must do.
+the need for fine-tuning (further training a base model on your own examples so it
+learns your task) entirely or sharply scope what it must do.
 
 Here is a typical exchange.
 
@@ -44,11 +45,13 @@ signal in this question.
 First, **this is a behavior problem, not a knowledge problem.** The model already
 knows the domain facts; it just does not behave the way we want. That points
 directly at supervised fine-tuning (or at better prompt engineering), and rules
-out retrieval-augmented generation as the primary fix. The distinction matters
+out retrieval-augmented generation (RAG: fetching relevant documents at query time
+and adding them to the prompt) as the primary fix. The distinction matters
 because it tells the interviewer you know what each tool is for.
 
 Second, **fine-tuning is the last lever, not the first.** The honest ordering is:
-prompt engineering, retrieval, supervised fine-tuning, preference alignment. We
+prompt engineering, retrieval, supervised fine-tuning, preference alignment
+(tuning on comparisons of answers, not just single correct answers). We
 should try the earlier, cheaper rungs before committing to a training run, and we
 should be ready to argue why we skipped them. The next section covers this ladder
 in detail.

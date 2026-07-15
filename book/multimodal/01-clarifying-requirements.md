@@ -4,8 +4,8 @@ Before designing anything, pin down what the system must do. Here is a typical
 exchange between a candidate and an interviewer. Notice that every question either
 removes work or changes the design, especially around the image-token budget.
 
-**Candidate:** What modalities are in scope? Images only, or also video, audio, or
-documents?
+**Candidate:** What modalities (the input types, such as image, video, audio, or
+text) are in scope? Images only, or also video, audio, or documents?
 **Interviewer:** Start with images. We can discuss video if we have time.
 
 **Candidate:** What is the typical image resolution, and how many images per

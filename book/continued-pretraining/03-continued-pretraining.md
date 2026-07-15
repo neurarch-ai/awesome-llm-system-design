@@ -50,6 +50,16 @@ learning rate. Three options, and only one works:
   move. The modest peak is a fraction of the original pretraining peak, large
   enough to make progress but small enough to protect converged representations.
 
+```python
+import math
+def rewarm_lr(step, warmup, total, peak):   # modest peak = a fraction of the original pretrain peak
+    if step < warmup:
+        return peak * step / warmup                    # linear re-warm up from the decayed floor
+    p = (step - warmup) / (total - warmup)             # 0..1 progress through the re-decay phase
+    return 0.5 * peak * (1 + math.cos(math.pi * p))    # cosine re-decay back toward zero
+# e.g. rewarm_lr(step=100, warmup=100, total=1100, peak=3e-5) -> 3e-05 (peak reached at warmup end)
+```
+
 The re-warm peak is the single most important hyperparameter: it is the direct
 knob trading forgetting against domain learning. The Mila work shows that
 re-warming plus re-decaying plus a small replay fraction lets continued pretraining
@@ -62,7 +72,8 @@ here at smaller scale.
 
 ## Adapters as a bounded alternative
 
-LoRA and QLoRA freeze the base and learn a low-rank delta added to the weight
+LoRA and QLoRA (the Q is quantization: storing the frozen base weights in fewer
+bits to save memory) freeze the base and learn a low-rank delta added to the weight
 matrices. Because the base weights literally cannot move, forgetting is bounded
 by construction. This is their key advantage over full continued pretraining.
 

@@ -46,12 +46,27 @@ API price per token. Above QPS $Q^{\ast}$, the fixed GPU cost beats per-token AP
 pricing; below it, the API wins and you are paying for idle GPU time. Do the
 arithmetic before self-hosting.
 
+```python
+def selfhost_breakeven_qps(c_gpu_hour, t_tok, c_api_tok):
+    # QPS above which one GPU/hour is cheaper than paying the API per token
+    return c_gpu_hour / (3600 * t_tok * c_api_tok)   # 3600 converts per-hour to per-second
+# e.g. selfhost_breakeven_qps(3.0, 500, 2e-6) -> 0.8333333333333334
+```
+
 ## Distillation: bake the frontier model's knowledge into a small one
 
 Knowledge distillation trains a small student model to mimic a large teacher's
 outputs on your specific task distribution. On a well-defined, stable task (a
 classification, a template-fill, a constrained extraction) the student often
-matches 95-98% of the teacher's quality at a tenth of the cost. The upfront
+matches 95-98% of the teacher's quality at a tenth of the cost.
+
+```mermaid
+flowchart LR
+  TRAF["your task traffic<br/>(unlabeled inputs)"] --> TEACH["large teacher model"]
+  TEACH --> LABELS["teacher outputs<br/>(training labels)"]
+  LABELS --> TRAIN["train small student<br/>to mimic teacher"]
+  TRAIN --> STUDENT["small student model<br/>~1/10 cost, serves traffic"]
+``` The upfront
 investment is a labeled dataset (teacher outputs on your traffic) and a training
 run; the ongoing savings can be large if QPS is high.
 
@@ -90,7 +105,7 @@ subtasks are stable and the quality eval per model is automated.
 | Small cross-encoder reranker | Reranking a retrieved shortlist (50-100 items) for relevance | A full generative model scoring each chunk individually |
 | Quantization (FP8, INT8, INT4) | Self-hosted model above the QPS break-even $Q^{\ast}$ where fixed GPU cost beats API price | API pricing, where the lever does not exist on your side |
 | Distillation | High-QPS stable task where a training run is justified by the volume of calls | A one-off or low-QPS task where the training investment never pays back |
-| Mixture-of-Experts (Mixtral style) | You want large-model capacity but can control your own serving: only 2-3 experts fire per token | Dense models where every parameter pays for every token |
+| Mixture-of-Experts (Mixtral style) | You want large-model capacity but can control your own serving: only 2-3 experts (specialized sub-networks selected per token) fire per token | Dense models where every parameter pays for every token |
 | Batch API (provider-side) | Bulk work with no user waiting (backfills, nightly summarization, offline eval generation) | Interactive endpoint, which charges online prices for offline work |
 
 **Provenance.** The small-model fine-tunes commonly use LoRA (Microsoft, 2021) adapters; the reranker can be a ColBERT (Stanford, 2020) late-interaction model; and the Mixtral-style sparse routing descends from GShard and Switch Transformer MoE (Google).

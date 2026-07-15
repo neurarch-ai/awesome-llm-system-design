@@ -13,6 +13,13 @@ labeled adversarial eval set, not on production traffic (which is mostly benign)
 
 $$\text{ASR} = \frac{\text{harmful completions}}{\text{attack attempts}}$$
 
+```python
+def asr(harmful_completions, attack_attempts):   # counts over a labeled adversarial eval set
+    # attack success rate: fraction of attack attempts that produced a policy-violating output
+    return harmful_completions / attack_attempts
+# asr(44, 1000) -> 0.044
+```
+
 **Input and output.** Each item in the adversarial eval set is a crafted prompt whose
 intent is to elicit a policy-violating completion. The model generates a response; a
 human reviewer or an automated classifier labels that response as policy-violating or
@@ -23,10 +30,21 @@ each independent layer:
 
 $$\text{ASR}_{\text{layered}} = \prod_{i=1}^{L} \bigl(1 - r_i\bigr)$$
 
+```python
+def asr_layered(catch_rates):        # catch_rates: per-layer catch rate r_i, each in [0, 1]
+    residual = 1.0
+    # each independent layer lets a (1 - r_i) fraction slip through; the slips multiply
+    for r in catch_rates:
+        residual *= (1.0 - r)
+    return residual
+# asr_layered([0.8, 0.7, 0.5]) -> 0.03
+```
+
 where $r_i$ is the catch rate of layer $i$. This multiplicative relationship is
 why layering matters: each additional independent guard compounds the others.
 Anthropic's Constitutional Classifiers demonstrated this concretely, dropping the
-ASR from 86% to 4.4% across a 183-person, 3,000-hour red-team exercise.
+ASR from 86% to 4.4% across a 183-person, 3,000-hour red-team exercise (a red team
+is a group paid to actively probe the system for ways to break its safety).
 
 ![ASR vs defense layers](assets/fig-asr-vs-layers.png)
 
@@ -42,6 +60,13 @@ incorrectly blocked. It is measured on a labeled benign eval set, or approximate
 from production logs by sampling blocked requests and having humans judge them.
 
 $$\text{FRR} = \frac{\text{blocked benign requests}}{\text{total benign requests}}$$
+
+```python
+def frr(blocked_benign, total_benign):    # both counts over a labeled benign eval set
+    # false-refusal rate: fraction of legitimate requests the safety layer wrongly blocked
+    return blocked_benign / total_benign
+# frr(38, 10000) -> 0.0038
+```
 
 **Input and output.** Each item in the benign eval set is a legitimate user request
 that the model should serve. The model or safety layer either answers or refuses. A
@@ -80,6 +105,13 @@ families. For each family $f$ with $n_f$ attempts and $c_f$ policy-violating
 completions:
 
 $$\text{ASR}_f = \frac{c_f}{n_f}$$
+
+```python
+def asr_by_family(family_counts):    # family_counts: {family: (violating_completions, attempts)}
+    # per-family attack success rate; a low average can hide one badly failing family
+    return {f: c / n for f, (c, n) in family_counts.items()}
+# asr_by_family({"direct": (2, 100), "cipher": (45, 100)}) -> {'direct': 0.02, 'cipher': 0.45}
+```
 
 A system is robust only if $\text{ASR}_f$ is acceptably low for every family, not
 just on average. A low aggregate ASR can hide a 90 percent failure rate on cipher

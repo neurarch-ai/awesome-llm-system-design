@@ -1,6 +1,6 @@
 # 3. Batching
 
-Batching is the single highest-leverage decision in LLM serving. It determines
+Batching (grouping multiple requests so the GPU processes them together) is the single highest-leverage decision in LLM serving. It determines
 how efficiently you amortize the fixed cost of reading the model weights across
 requests. Getting it wrong wastes GPU cycles; getting it right is the difference
 between 8x and 23x throughput over a naive baseline.
@@ -27,6 +27,13 @@ every iteration, and the GPU stays saturated.
 The per-step throughput is approximately:
 
 $$\text{tokens/s/GPU} \approx \frac{N \cdot \text{step time}^{-1}}{1}$$
+
+```python
+def decode_tokens_per_sec(num_live_sequences, step_time_s):
+    # each step emits one token per live sequence; throughput = sequences / step time
+    return num_live_sequences / step_time_s  # tokens per second per GPU
+# decode_tokens_per_sec(50, 0.02) -> 2500.0
+```
 
 where $N$ is the number of live sequences. With static batching $N$ falls as
 requests finish and the batch is not refilled. With continuous batching $N$ stays
@@ -55,6 +62,17 @@ advance without interruption, TPOT stays smooth, and the new request still makes
 steady prefill progress. The chunk size is a tuning knob: smaller chunks protect
 TPOT more, larger chunks complete prefill faster (better TTFT). Sarathi-Serve is
 the research paper that formalized this approach.
+
+```mermaid
+flowchart LR
+  subgraph without["Without chunked prefill"]
+    d1["decode step"] --> big["full 8k prefill<br/>(all decodes stall here)"] --> d2["decode step"]
+  end
+  subgraph withchunk["With chunked prefill"]
+    a1["decode + prefill chunk 1"] --> a2["decode + prefill chunk 2"] --> a3["decode + prefill chunk 3"]
+  end
+```
+
 
 ## Disaggregated prefill and decode: separate pools
 

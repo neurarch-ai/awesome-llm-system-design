@@ -6,13 +6,14 @@ to remember to look.
 
 ## Two kinds of drift
 
-Drift comes in two flavors that predict and confirm trouble in sequence:
+Drift (a shift in the data distribution over time) comes in two flavors that
+predict and confirm trouble in sequence:
 
 **Input drift** is the traffic changing under you: new topics, languages, longer
 documents, or user populations that were not in your training distribution. It
 predicts trouble but does not confirm quality has dropped. The check is a cosine
-distance between the mean embedding of the current request window and a reference
-window:
+distance between the mean embedding (a numeric vector capturing a query's meaning)
+of the current request window and a reference window:
 
 $$d_t = 1 - \frac{\bar{e}_t \cdot \bar{e}_{\text{ref}}}{\lVert \bar{e}_t \rVert\, \lVert \bar{e}_{\text{ref}} \rVert}$$
 
@@ -53,6 +54,14 @@ the groundedness score of answer $a_i$. $r_t$ is the ungrounded rate: the
 fraction of sampled answers that contain at least one claim not supported by the
 retrieved context.
 
+```python
+import numpy as np
+def ungrounded_rate(grounded_scores):
+    # windowed hallucination rate: mean of (1 - G) over judged traces in the window
+    return float(np.mean([1 - g for g in grounded_scores]))
+# ungrounded_rate([1.0, 0.75, 1.0, 0.5]) -> 0.1875
+```
+
 Alert on the **delta in this rate**, not on single flagged events. A single
 ungrounded answer is noise at any scale. The signal is a rate shift after a
 model or retrieval change. See the alerting chapter for the z-score mechanism.
@@ -76,7 +85,8 @@ set goes stale. Refresh it by promoting flagged production traces with bad judge
 or grounding scores into the labeled set. This is how the monitoring loop stays
 honest as the product evolves.
 
-**Canary deployment** routes a small fraction (five to ten percent) of live traffic
+**Canary deployment** (testing a change on a small slice of live traffic before
+full rollout) routes a small fraction (five to ten percent) of live traffic
 to the candidate model or prompt and compares its proxy scores, feedback, latency,
 and cost against the control in real time. A regression that hides from the frozen
 set (perhaps because the eval set is stale or the failure is input-distribution

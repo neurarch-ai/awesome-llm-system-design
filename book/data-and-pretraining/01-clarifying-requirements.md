@@ -11,18 +11,18 @@ bases do not cover it adequately.
 
 **Candidate:** Good. I will say upfront that pretraining from scratch is almost
 never the right call outside a research lab: a new language, a new modality, a
-new tokenizer, or a genuine capability gap in every open base are the only
+new tokenizer (the component that splits raw text into the integer tokens a model reads), or a genuine capability gap in every open base are the only
 situations that justify it. I'll proceed assuming one of those applies, but I'll
 note the alternative at the end. What is the compute budget?
 
 **Interviewer:** Roughly 10,000 GPU-days of A100s. Call it about
-$6 \times 10^{22}$ FLOPs.
+$6 \times 10^{22}$ FLOPs (floating-point operations, the raw count of arithmetic used to measure compute).
 
 **Candidate:** That pins the model size and token count before I pick any
 architecture. What data do we have rights to, and what languages must the model
 cover?
 
-**Interviewer:** We have access to web crawl (Common Crawl), a licensed book
+**Interviewer:** We have access to web crawl (Common Crawl, a free periodic snapshot of the public web), a licensed book
 corpus, code repositories, and academic papers. Target is primarily English with
 some multilingual capability.
 
@@ -35,7 +35,7 @@ some code and reasoning.
 
 **Candidate:** How will we know it worked, and how do we protect against fooling
 ourselves on the eval? Specifically: which benchmarks, and how will we
-decontaminate training data against them?
+decontaminate training data against them (remove any training text that overlaps the benchmark questions)?
 
 **Interviewer:** Standard suite: MMLU, ARC, HellaSwag, HumanEval. You choose
 the decontamination approach.
@@ -61,7 +61,7 @@ long before it is bounded by architecture or optimizer. A petabyte of raw
 Common Crawl is mostly boilerplate, spam, and near-duplicates; training on it
 directly gives a worse model than training on the small, clean fraction that
 survives a proper pipeline. The keep rate after extraction, language filtering,
-quality filtering, and deduplication is commonly single-digit percentages of
+quality filtering, and deduplication (removing repeated and near-repeated documents) is commonly single-digit percentages of
 the raw bytes. That is not a failure; it is the design.
 
 **Almost no one should pretrain from scratch.** The right answer to most

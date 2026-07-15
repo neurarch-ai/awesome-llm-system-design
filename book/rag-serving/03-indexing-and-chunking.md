@@ -29,6 +29,19 @@ its meaning when retrieved without context.
 precision but expand the retrieved chunk at read time to its surrounding section
 for richer context. This separates the retrieval unit from the context unit.
 
+```mermaid
+flowchart TD
+  DOC["parent section:<br/>Q3 billing design"] --> C1["child chunk 1<br/>(embedded, precise)"]
+  DOC --> C2["child chunk 2<br/>(embedded, precise)"]
+  Q["query"] --> M["match on child chunk 1"]
+  C1 -.-> M
+  M --> EXP["expand to parent section<br/>(fed to the LLM)"]
+  DOC -.-> EXP
+```
+
+*The small child chunk wins the match on precision, but the LLM reads the whole
+parent section: retrieval and context are two different units.*
+
 ![Recall vs chunk size](assets/fig-recall-vs-chunk-size.png)
 
 *Structural / recursive chunking peaks at recall@10 higher than fixed-size and
@@ -102,10 +115,12 @@ and compute at low infrastructure cost.
 ## The vector index
 
 Exact nearest-neighbor search over 50 million chunks is too slow for a 1.5-second
-first-token budget. Use an **approximate nearest-neighbor (ANN)** index.
+first-token budget. Use an **approximate nearest-neighbor (ANN)** index (one that
+trades a little accuracy for a large speedup by not scanning every vector).
 
-**HNSW (Hierarchical Navigable Small World).** A graph-based index with excellent
-recall and latency. Higher memory footprint: each vector keeps a list of graph
+**HNSW (Hierarchical Navigable Small World).** A graph-based index (vectors are
+nodes linked to their nearest neighbors, and search walks the graph greedily)
+with excellent recall and latency. Higher memory footprint: each vector keeps a list of graph
 neighbors in addition to the raw vector. Works well when the corpus is stable.
 
 **IVF-PQ (Inverted File Index with Product Quantization).** Clusters vectors

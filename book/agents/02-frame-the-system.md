@@ -43,7 +43,7 @@ observation adds tokens that the model re-reads on every subsequent step.
 | | Description |
 |---|---|
 | **Input** | A customer support ticket (text) plus any user context (account ID, session metadata) |
-| **Working state** | Ticket plus all tool results and model reasoning so far, held in the context window |
+| **Working state** | Ticket plus all tool results and model reasoning so far, held in the context window (the model's limited token-sized working memory) |
 | **Output** | A reply sent to the customer, an action taken in a back-end system, or an escalation record routed to a human |
 | **Side effects** | Append-only audit log of every step: reasoning, proposed tool call, gate decision, result |
 

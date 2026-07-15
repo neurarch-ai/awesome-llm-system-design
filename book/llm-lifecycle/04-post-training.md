@@ -13,6 +13,14 @@ masks out the prompt tokens and minimizes cross-entropy on the completion only:
 
 $$\mathcal{L}_{\text{SFT}} = -\sum_{t \in \text{completion}} \log \pi_{\theta}(y_t \mid y_{\lt t},\, x)$$
 
+```python
+import numpy as np
+def sft_loss(probs_completion):
+    # mean negative log-likelihood over completion tokens only (prompt is masked out)
+    return -np.mean(np.log(probs_completion))
+# sft_loss(np.array([0.5, 0.9, 0.3])) -> 0.6674...   (model probs for gold tokens)
+```
+
 Quality and diversity of a few tens of thousands of examples beat raw volume.
 SFT teaches format, instruction following, tool-call syntax, and basic refusal.
 It does not teach the model which of two correct answers humans prefer; that is
@@ -20,13 +28,24 @@ preference optimization's job.
 
 ## Step 2a: RLHF with a reward model (PPO)
 
-The classic recipe (InstructGPT). Train a reward model on human rankings of
+The classic recipe (InstructGPT). RLHF (reinforcement learning from human
+feedback) trains a reward model on human rankings of
 model outputs under a Bradley-Terry objective:
 
 $$\mathcal{L}_{\text{RM}} = -\mathbb{E}_{(x,\, y_w,\, y_l)}\Big[\log \sigma\big(r_{\phi}(x, y_w) - r_{\phi}(x, y_l)\big)\Big]$$
 
+```python
+import numpy as np
+def rm_loss(r_chosen, r_rejected):
+    # Bradley-Terry: push the chosen reward above the rejected one via a sigmoid
+    return -np.mean(np.log(1 / (1 + np.exp(-(r_chosen - r_rejected)))))
+# rm_loss(np.array([2.0]), np.array([1.0])) -> 0.3133   (chosen wins by 1 logit)
+```
+
 where $y_w$ is the preferred (chosen) output and $y_l$ is the rejected one.
-Then optimize the policy with PPO, adding a KL penalty to the SFT reference so
+Then optimize the policy with PPO (proximal policy optimization, the RL
+algorithm that updates the model), adding a KL penalty (a leash measuring how
+far the new policy has moved from the reference) to the SFT reference so
 the policy does not drift or reward-hack:
 
 $$\max_{\theta}\ \mathbb{E}_{x \sim \mathcal{D},\, y \sim \pi_{\theta}}\big[r_{\phi}(x, y)\big] - \beta\, \text{KL}\!\left(\pi_{\theta}(\cdot \mid x) \,\|\, \pi_{\text{ref}}(\cdot \mid x)\right)$$
@@ -34,6 +53,13 @@ $$\max_{\theta}\ \mathbb{E}_{x \sim \mathcal{D},\, y \sim \pi_{\theta}}\big[r_{\
 The KL term is often folded into a per-token reward:
 
 $$r_t = r_{\phi}(x, y) - \beta \left(\log \pi_{\theta}(y_t \mid \cdot) - \log \pi_{\text{ref}}(y_t \mid \cdot)\right)$$
+
+```python
+def kl_penalized_reward(r, logp_policy, logp_ref, beta=0.1):
+    # sequence reward minus a per-token KL penalty back to the frozen reference
+    return r - beta * (logp_policy - logp_ref)
+# kl_penalized_reward(1.0, -0.5, -0.7, beta=0.1) -> 0.98   (small drift, small penalty)
+```
 
 ```mermaid
 flowchart LR
@@ -58,6 +84,15 @@ preference pairs, with no reward model needed:
 
 $$\mathcal{L}_{\text{DPO}} = -\mathbb{E}_{(x,\, y_w,\, y_l)}\!\left[\log \sigma\!\left(\beta \log \frac{\pi_{\theta}(y_w \mid x)}{\pi_{\text{ref}}(y_w \mid x)} - \beta \log \frac{\pi_{\theta}(y_l \mid x)}{\pi_{\text{ref}}(y_l \mid x)}\right)\right]$$
 
+```python
+import numpy as np
+def dpo_loss(lp_pol_w, lp_ref_w, lp_pol_l, lp_ref_l, beta=0.1):
+    # inputs are log-probs; margin is the chosen log-ratio minus the rejected log-ratio
+    margin = beta * ((lp_pol_w - lp_ref_w) - (lp_pol_l - lp_ref_l))
+    return -np.log(1 / (1 + np.exp(-margin)))
+# dpo_loss(-0.2, -0.5, -1.0, -0.6, beta=0.1) -> 0.6587...   (chosen favored over rejected)
+```
+
 The reference model $\pi_{\text{ref}}$ is still required (it is the implicit
 reward's baseline), and $\beta$ is still the KL temperature. DPO did not remove
 the KL leash; it absorbed it into the loss. This is the most common tricky
@@ -71,9 +106,22 @@ stable and does not require an online PPO training loop.
 Replace most human harm labels with AI feedback against a written constitution
 (roughly 75 principles). The model critiques and revises its own outputs in a
 supervised phase; an AI preference model trained on these comparisons drives a
-RLAIF optimization. The result is both more helpful and more harmless than
+RLAIF (reinforcement learning from AI feedback, human labels swapped for a model
+judge) optimization. The result is both more helpful and more harmless than
 plain RLHF, with far fewer human labels. The bottleneck moves from labelers to
 constitution design, which is an auditable artifact.
+
+```mermaid
+flowchart LR
+  PROMPT["harmful prompt"] --> ANSWER["model answers"]
+  ANSWER --> CRIT["model critiques its answer<br/>against a constitution principle"]
+  CRIT --> REV["model revises the answer"]
+  REV --> SFT2["supervised fine-tune<br/>on revised answers"]
+  SFT2 --> PAIRS["model ranks response pairs<br/>(AI feedback, no human labels)"]
+  PAIRS --> PM["AI preference model"]
+  PM --> RLAIF["RLAIF optimization"]
+  RLAIF --> SAFE["more helpful and harmless model"]
+```
 
 ## Step 2d: GRPO and verifiable rewards (DeepSeek-R1)
 

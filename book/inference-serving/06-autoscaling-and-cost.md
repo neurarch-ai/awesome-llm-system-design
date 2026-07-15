@@ -2,7 +2,7 @@
 
 Maximizing throughput per GPU only matters if you are not paying for idle GPUs
 when load is low, and not letting requests miss their SLO when load spikes.
-Autoscaling is the bridge. It is also where LLM serving introduces a wrinkle that
+Autoscaling (automatically adding or removing GPU replicas as load changes) is the bridge. It is also where LLM serving introduces a wrinkle that
 CPU services do not face: the cold start is measured in minutes, not milliseconds.
 
 ## The cold-start problem
@@ -46,6 +46,16 @@ cold-start duration, and SLO tolerance. If spikes are 3x average and cold start 
 3 minutes, you need enough warm capacity to handle the difference for 3 minutes.
 Many teams keep one or two warm replicas and accept a modest idle cost.
 
+```python
+import numpy as np
+def warm_replicas_needed(spike_qps, steady_qps, qps_per_replica):
+    # pre-warmed replicas to cover the spike load above steady capacity while cold starts finish
+    gap_qps = max(spike_qps - steady_qps, 0)         # extra load a spike adds
+    return int(np.ceil(gap_qps / qps_per_replica))   # round up to whole replicas
+# warm_replicas_needed(1500, 500, 400) -> 3
+```
+
+
 **Speeding the cold start** reduces how large a warm buffer you need:
 
 - Cache the model image close to the GPUs (local NVMe, regional model registry).
@@ -88,6 +98,14 @@ $$\text{cost per million tokens} = \frac{\text{GPU hourly rate} \times 10^6}{\te
 For an H100 at \$3 per GPU-hour and 80 tokens/s/GPU throughput:
 
 $$\text{cost} = \frac{3 \times 10^6}{80 \times 3600} \approx 10.4 \text{ USD per million tokens}$$
+
+```python
+def cost_per_million_tokens(gpu_hourly_rate, tokens_per_sec_per_gpu):
+    # tokens/hour per GPU = tokens/s * 3600; cost = rate per that many tokens, scaled to 1e6
+    tokens_per_hour = tokens_per_sec_per_gpu * 3600
+    return gpu_hourly_rate * 1e6 / tokens_per_hour  # USD per million output tokens
+# cost_per_million_tokens(3, 80) -> 10.416666666666666
+```
 
 Doubling throughput per GPU halves cost. This is why continuous batching,
 quantization, and speculative decoding have disproportionate business impact: each

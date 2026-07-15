@@ -42,6 +42,19 @@ Fast, no model required, exact token matches are perfect. IDF downweights common
 terms and TF rewards dense mention. The baseline to beat in any hybrid system;
 all major search engines expose it natively.
 
+Concretely, BM25 sums one score per shared term: an IDF weight (rare terms count
+for more) times a saturating, length-normalized term frequency.
+
+```python
+import math
+
+def bm25_term(f, df, n_docs, dl, avgdl, k1=1.5, b=0.75):   # f: term freq in doc, df: docs holding the term
+    idf = math.log((n_docs - df + 0.5) / (df + 0.5) + 1)    # rarer terms (small df) score higher
+    tf = (f * (k1 + 1)) / (f + k1 * (1 - b + b * dl / avgdl))  # saturating tf, penalized for long docs
+    return idf * tf                                          # one term's contribution; sum over query terms
+# round(bm25_term(3, 10, 1000, 90, 100), 2) -> 7.79
+```
+
 **SPLADE (sparse learned model).** SPLADE is a neural model that produces
 sparse weight vectors over the vocabulary, similar in shape to BM25 but learned
 to expand queries and documents with related terms. "memory error" in a query
@@ -83,6 +96,14 @@ Alternatively, linearly interpolate the normalized scores from each channel with
 a tuned mixing weight alpha:
 
 $$s(d) = \alpha \cdot s_{\text{dense}}(d) + (1 - \alpha) \cdot s_{\text{BM25}}(d)$$
+
+```python
+def linear_fuse(dense, bm25, alpha=0.5):     # dense, bm25: {doc_id: normalized_score in [0,1]}
+    docs = set(dense) | set(bm25)            # union of docs seen by either channel
+    fused = {d: alpha * dense.get(d, 0.0) + (1 - alpha) * bm25.get(d, 0.0) for d in docs}
+    return sorted(fused, key=fused.get, reverse=True)   # best combined score first
+# linear_fuse({"a": 0.9, "b": 0.2}, {"b": 0.8, "c": 0.5}, 0.5) -> ['b', 'a', 'c']
+```
 
 This gives more control over the mix but requires calibration and normalization
 of scores across channels, and alpha may need tuning per query class.

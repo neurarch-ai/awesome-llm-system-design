@@ -18,6 +18,13 @@ This is a whiteboard sanity check, not a contract, but it lets you estimate:
 a 7B model trained on 140B tokens costs roughly $6 \times 7 \times 10^9 \times
 1.4 \times 10^{11} \approx 5.9 \times 10^{21}$ FLOPs.
 
+```python
+def training_flops(num_params, num_tokens):
+    # standard estimate: ~6 FLOPs per parameter per token (fwd + bwd + update)
+    return 6 * num_params * num_tokens
+# training_flops(7e9, 1.4e11) -> 5.88e+21   (7B params on 140B tokens)
+```
+
 ## The scaling law
 
 Loss follows a power law in both model size and training tokens:
@@ -29,6 +36,13 @@ where $E$ is the irreducible entropy floor of the data, and $\alpha, \beta
 
 - Neither $N$ nor $D$ alone determines loss; both matter.
 - Gains are diminishing; the floor $E$ cannot be reduced by scale.
+
+```python
+def scaling_law_loss(N, D, E=1.69, A=406.4, B=410.7, alpha=0.34, beta=0.28):
+    # Chinchilla power-law fit: irreducible floor E plus size and data terms
+    return E + A / N**alpha + B / D**beta
+# scaling_law_loss(7e9, 1.4e11) -> 2.1835...   (7B params, 140B tokens)
+```
 
 ![Scaling law: loss as a power of compute](assets/fig-scaling-law.png)
 
@@ -108,7 +122,9 @@ datasets and tokenizers libraries plus dedup tooling.
 (DeepMind, 2022), which corrected the earlier power-law tradeoffs of the original
 scaling laws (OpenAI, 2020); the "overtrain past the optimal ratio when inference
 dominates" logic is the practical inversion of that result. The distributed-training
-tooling traces to Megatron-LM (NVIDIA) for tensor and pipeline parallelism and to
+tooling traces to Megatron-LM (NVIDIA) for tensor and pipeline parallelism
+(splitting one model across many GPUs, within a layer's tensors and across
+layers respectively) and to
 ZeRO (Microsoft), which DeepSpeed implements.
 
 **Worked example.** A domain-LLM team needs a model fluent in a specialized corpus but

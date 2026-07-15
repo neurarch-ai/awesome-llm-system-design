@@ -12,16 +12,27 @@ them.
 FLOPs grow quadratically (red), so extending from 8K to 128K multiplies attention
 compute by 256x. Both are normalized to 4K = 1x. Illustrative.*
 
-**Prefill attention is quadratic in length.** Self-attention computes an
+**Prefill attention is quadratic in length.** (Prefill is the initial pass that
+processes the whole input prompt in parallel, before any output token is generated.)
+Self-attention computes an
 $L \times L$ score matrix, so both compute and, naively, memory scale as $L^2$.
 FlashAttention makes the memory linear by never materializing the full matrix in
 HBM, but the compute stays quadratic. An 8x longer prefill is roughly 64x the
 attention FLOPs. Long prompts are prefill-bound even before decoding begins.
 
-**The KV cache is linear in length.** During decoding you cache $K$ and $V$ for
+**The KV cache is linear in length.** (The KV cache is the stored keys and values
+for every past token, kept so they are not recomputed at each decoding step.)
+During decoding you cache $K$ and $V$ for
 every past token, so KV-cache memory grows as:
 
 $$M_{\text{kv}} = 2 \cdot n_{\text{layers}} \cdot n_{\text{kv}} \cdot d_{\text{head}} \cdot L \cdot b \cdot s_{\text{bytes}}$$
+
+```python
+def kv_cache_bytes(n_layers, n_kv, d_head, seq_len, batch, bytes_per_elem=2):
+    # 2 tensors (K and V) cached per layer, per kv-head, per token
+    return 2 * n_layers * n_kv * d_head * seq_len * batch * bytes_per_elem
+# e.g. kv_cache_bytes(n_layers=32, n_kv=8, d_head=128, seq_len=128000, batch=1) -> 16777216000
+```
 
 where $b$ is batch size and $s_{\text{bytes}}$ is bytes per element. At 128K tokens
 this memory cost dominates VRAM and caps batch size. Grouped-query attention (GQA,

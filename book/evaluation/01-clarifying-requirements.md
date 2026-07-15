@@ -42,7 +42,8 @@ evaluation, but not thousands.
 
 Let us summarize the problem statement. **We are asked to design an evaluation
 system for a customer-facing LLM assistant.** The output is open-ended natural
-language; no exact-match metric exists. The system must automatically gate every
+language; no exact-match metric (a check that the output equals a reference string
+exactly) exists. The system must automatically gate every
 prompt or model change before it ships, catch regressions per segment, run cheaply
 enough to trigger on every change, and distinguish factual accuracy from general
 helpfulness. Human review is reserved for the uncertain cases; everything else must

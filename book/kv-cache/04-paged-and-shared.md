@@ -14,6 +14,14 @@ Second, freed buffers leave gaps that cannot accommodate other sizes (external
 fragmentation). Under a mixed workload of varying lengths this fragmentation can
 waste 20% to 40% of GPU memory.
 
+```python
+def internal_fragmentation(num_tokens, block_size):
+    # fraction of the last block that sits empty when the cache is stored in fixed blocks
+    slots = ((num_tokens + block_size - 1) // block_size) * block_size
+    return (slots - num_tokens) / slots
+# internal_fragmentation(70, 16) -> 0.125   (5 blocks = 80 slots hold 70 tokens, 12.5% wasted)
+```
+
 **PagedAttention** (the idea at the core of vLLM) solves this by managing the KV
 cache exactly as an operating system manages virtual memory:
 
