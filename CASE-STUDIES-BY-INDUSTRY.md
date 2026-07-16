@@ -274,7 +274,7 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | --- | --- | --- |
 | Airbnb | [Applying Embedding-Based Retrieval to Airbnb Search](https://arxiv.org/abs/2601.06873) | Semantic Search And Embeddings |
 | Airbnb | [Automation Platform v2: improving conversational AI](https://medium.com/airbnb-engineering/automation-platform-v2-improving-conversational-ai-at-airbnb-d86c9386e0cb) | Agent Orchestration |
-| Booking.com | [LLM Evaluation: practical tips at Booking.com](https://booking.ai/llm-evaluation-practical-tips-at-booking-com-1b038a0d6662) | Evaluation System |
+| Booking.com | [LLM Evaluation: practical tips at Booking.com](https://mlops.community/blog/llm-evaluation-practical-tips-at-bookingcom) | Evaluation System |
 
 ## Professional, legal, and education (6)
 

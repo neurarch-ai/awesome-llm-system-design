@@ -356,7 +356,7 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 
 ### Booking.com (1)
 
-- [LLM Evaluation: practical tips at Booking.com](https://booking.ai/llm-evaluation-practical-tips-at-booking-com-1b038a0d6662) *(Evaluation System)*
+- [LLM Evaluation: practical tips at Booking.com](https://mlops.community/blog/llm-evaluation-practical-tips-at-bookingcom) *(Evaluation System)*
 
 ### Cartesia (1)
 
