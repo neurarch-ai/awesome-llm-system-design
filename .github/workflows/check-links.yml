@@ -1,0 +1,20 @@
+name: Check external links
+
+# Runs monthly (and on demand) to catch link rot in book/ citations.
+# Not part of the push/PR gate: external sites rate-limit and bot-block, which would
+# make a required check flaky. Fails only on genuinely DEAD links (404 / DNS / TLS).
+on:
+  schedule:
+    - cron: "0 6 1 * *" # 06:00 UTC on the 1st of each month
+  workflow_dispatch:
+
+jobs:
+  check-links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Check external links in book/
+        run: node tools/check-links.mjs
