@@ -95,6 +95,14 @@ one step drifts over a long imagined rollout as small errors feed back on
 themselves. This is why short horizons with frequent replanning usually beat long
 open-loop predictions, and why section 5 measures multi-step rollout drift directly.
 
+![Compounding model error vs replanning](assets/fig-compounding-error.png)
+
+*Illustrative, with a 5 percent per-step model error: an open-loop rollout compounds
+multiplicatively (the red curve is $(1.05)^t - 1$), while model-predictive control
+re-anchors on a fresh real observation every few steps, resetting the drift (blue
+sawtooth). The area between the curves is why planners keep horizons short and
+replan often.*
+
 ## Implementation and training pitfalls
 
 A world model can look excellent on one-step held-out prediction and still be
