@@ -70,6 +70,12 @@ new replicas cannot help, the only protection is SLO-aware admission: shed load
 with a 429-style signal rather than admitting requests that will miss their target
 anyway.
 
+**Why:** TTFT is a lagging signal because it is only measured after a request finishes
+queueing and prefill, so by the time p99 TTFT moves, the queue has already been building
+for many seconds. Queue depth rises the instant arrivals exceed service rate, which is
+exactly the condition you want to scale on, and it moves minutes before the latency
+percentiles reflect it.
+
 **Q: A team claims speculative decoding gives 4x throughput. Is that credible?**
 
 A: It depends on the workload. Speculative speedup follows:
@@ -80,6 +86,12 @@ heavily echoes the prompt, so n-gram drafts get very high acceptance. On free-fo
 creative generation, acceptance collapses and a generic draft can make inference
 1.5x slower (Fireworks measured exactly this). The claim is credible for that
 workload; it would not hold for arbitrary text generation.
+
+**Why it can go below 1x:** the draft cost $ck$ is paid on every step regardless of
+outcome. When acceptance is low, the target model keeps roughly one token per
+verification pass, which is the same one-token-per-step progress plain decode delivers,
+except you also paid for the draft and the wasted verification of rejected tokens.
+The overhead has no matching payoff, so the net is a slowdown.
 
 **Q: When does increasing batch size stop helping throughput?**
 
@@ -119,6 +131,25 @@ version is confirmed healthy. For disaggregated setups, also verify the prefill
 and decode pools are updated together and that KV cache format is compatible between
 versions.
 
+**Why the canary specifically protects p99:** freshly booted replicas start with cold
+prefix caches and un-warmed kernels (CUDA graph capture, JIT compilation), so their
+first requests run measurably slower than steady state. Routing only a small traffic
+fraction lets the new replicas warm up before they carry p99-visible load, and keeping
+the old replicas hot preserves a rollback path that does not itself incur a cold start.
+
+**Q: Tensor parallelism and adding replicas look similar; both are "give the model more GPUs." When does the difference actually matter?**
+
+A: Replication scales throughput nearly linearly because each replica serves independent
+requests and shares nothing, but it cannot make any single request faster and cannot fit
+a model that exceeds one replica's memory. Tensor parallelism splits every weight matrix
+across GPUs, so it does both of those things: per-GPU memory drops by the TP degree and
+each token's matmuls finish sooner. The price is an all-reduce at every layer for every
+token, which burns interconnect bandwidth and makes throughput-per-GPU sublinear. The
+difference matters at exactly two boundaries: when the model does not fit on one GPU
+(TP is forced), and when per-token latency misses SLO even at batch size 1 (only TP
+helps, because replication never touches the critical path of a single token).
+Everywhere else, replicas are the better buy per GPU.
+
 ## Commonly answered wrong (the traps)
 
 **Q: Should you always pick the biggest batch size to maximize throughput?**
@@ -128,6 +159,12 @@ KV cache and the scheduler starts preempting running sequences, which hurts both
 throughput and latency. The right target is the batch size where the GPU is
 saturated without exceeding KV cache budget. Profile and set a hard limit; do not
 assume "more is more."
+
+**Why preemption hurts so much:** a preempted sequence must either have its KV blocks
+swapped out to CPU memory over PCIe and paged back later, or be dropped and recomputed
+with a redundant prefill pass. Both options duplicate work the GPU already did, so past
+the KV ceiling each extra admitted sequence consumes more total compute than it
+contributes, and throughput falls even though utilization looks high.
 
 **Q: Speculative decoding changes the output distribution, so you need extra eval before shipping?**
 
@@ -139,6 +176,13 @@ misconfigured verification can silently regress quality. Measure parity on a hel
 set before shipping, then treat it as a correctness check rather than a quality
 trade.
 
+**Why the distribution is preserved:** the accept rule keeps a drafted token $x$ with
+probability $\min(1, p(x)/q(x))$ where $p$ is the target and $q$ the draft
+distribution, and on rejection resamples from the normalized positive part of
+$p - q$. Summing the two cases recovers exactly $p$, the same argument as classical
+rejection sampling, so any drift you observe in practice is a bug, not an
+approximation error.
+
 **Q: Disaggregated prefill and decode is the right solution for any large-scale deployment.**
 
 A: Only when prefill and decode SLOs genuinely conflict and fast interconnect is
@@ -147,6 +191,12 @@ latency, and sufficient for most workloads. Disaggregation adds the KV transfer
 cost as a potential new bottleneck: without NVLink-speed interconnect between the
 prefill and decode pools, the handoff dominates and you lose the win. Size the
 interconnect first, or do not disaggregate.
+
+**Why the handoff can dominate:** the transfer must move the entire prompt's KV cache
+(hundreds of KB per token, so gigabytes for a long prompt) from the prefill pool to
+the decode pool inside the TTFT budget. Over a slow fabric that copy takes longer
+than the prefill it was meant to isolate, so the split adds latency instead of
+removing interference.
 
 **Q: You can apply quantization at serving time to any model without retraining.**
 

@@ -45,6 +45,30 @@ world model (imagine) with a fine-tuned action head (act). Strength: end-to-end,
 directly deployable. Weakness: without an explicit predictive model, it plans less
 and reacts more.
 
+## Compare and contrast: world model vs VLA policy
+
+The two get conflated because from the outside both are "a big pretrained model
+that makes a robot act," both consume the same observations, and both lean on
+large-scale video pretraining. The mechanics of how an action comes out are
+opposite: one predicts futures and selects an action by comparing them, the
+other maps straight from observation to action with no future ever computed.
+
+| Dimension | World model (predict, then plan) | VLA policy (direct mapping) |
+|---|---|---|
+| Inputs at run time | current observation (plus goal for the planner) | same: current observation plus a goal, often in language |
+| Pretraining diet | large passive video, then action-conditioned adaptation | large vision-language corpora plus teleoperation demonstrations |
+| What the network outputs | a predicted next state (pixels, latent, or embedding) | an action, directly |
+| Where the action comes from | a planner scores candidate actions by their imagined outcomes | the forward pass is the decision; no candidate futures exist |
+| Handling a situation outside the training data | can still evaluate novel actions by simulating their consequences | must interpolate from demonstrated behavior; nothing scores unseen actions |
+| Run-time cost per control step | model rollouts times candidate actions, so latency scales with planning effort | one forward pass, fixed and fast |
+| Failure mode | model error is exploited by the planner (plans that work only in imagination) | distribution shift: confident actions in states no demonstration covered |
+
+The difference changes the design when the deployment demands either tight
+latency (a fixed forward pass fits a control loop; a planning loop may not) or
+generalization beyond the demonstration set (imagination can rank actions no
+one ever demonstrated); the production trend of coupling a pretrained world
+model with a VLA-style action head exists precisely to buy both.
+
 ## When to use which
 
 | Reach for | When | Instead of |

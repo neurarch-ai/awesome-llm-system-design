@@ -72,6 +72,13 @@ must be baked in at training time, and the up-projection adds a small compute co
 per decode step. If you serve a fixed off-the-shelf model and cannot retrain, MLA
 is not on the table; GQA uptraining or KV quantization is.
 
+**Why MLA's compression is independent of head count:** the cache stores one shared
+latent per token instead of per-head keys and values, so the saving comes from the
+latent width $d_c$, not from how many heads read it. The up-projection that
+reconstructs per-head keys can be algebraically absorbed into the query projection,
+which is why reading the latent directly does not add a per-head reconstruction cost
+at decode time.
+
 **Q: You serve a cluster of GPU nodes, not one. How does prefix caching break?**
 
 A: Single-node prefix caches do not span nodes. If request A builds the cache for
@@ -82,6 +89,13 @@ than the single-node rate would suggest. The fix is cache-aware routing: route
 requests that share a prefix to the node holding that prefix's blocks. This is
 what llm-d's cache-aware scheduling does. It adds routing complexity but recovers
 the hit rate benefit of prefix caching at multi-node scale.
+
+**Why this is a real tradeoff rather than a free fix:** cache-aware routing pins every
+request sharing a popular prefix to the node that holds it, which concentrates load
+instead of spreading it. The router therefore has to weigh a cache hit (cheap prefill)
+against queueing behind everyone else who wants the same node, and past some
+popularity threshold it is faster to replicate the prefix onto a second node and pay
+one extra prefill than to keep piling onto the hot one.
 
 **Q: Estimate the KV cache for a Llama 3 8B serving 1000 concurrent sessions at
 32k tokens.**
@@ -125,6 +139,22 @@ small separate part that carries RoPE and is cached directly. Interviewers probe
 this because "just RoPE the latent" is the natural wrong guess and shows whether you
 understand why MLA is a training-time change rather than a serving overlay.
 
+**Q: GQA and KV-cache quantization look similar; both shrink the cache by a constant
+factor. When does the difference actually matter?**
+
+A: They attack different terms of the same formula, and that difference decides who
+can use them. GQA shrinks $h_{\text{kv}}$, which is an architectural property: it must
+be trained (or uptrained) into the checkpoint, because query heads have to learn to
+read shared KV projections. Quantization shrinks $b$, the bytes per element, and is a
+storage format: it can be applied at serving time to any checkpoint with no training.
+The error modes also differ mechanically: GQA reduces head diversity but stores exact
+values at full precision, while quantization keeps every head but perturbs every
+stored entry, and key error can flip which tokens win the softmax. The difference
+matters in two situations: when you serve a fixed third-party model, quantization is
+the only lever available; and when you control training, the two multiply (8 KV heads
+at FP8 is 8x times 2x), so the right question is not "which one" but how far down
+each axis you can go before your long-context evals move.
+
 ## Commonly answered wrong (the traps)
 
 **Q: Does PagedAttention speed up individual request latency?**
@@ -135,6 +165,12 @@ latency for any individual request is not improved; if anything, the block-table
 indirection adds a tiny overhead to the attention kernel. The win is concurrency,
 not per-request speed. Report its benefit in fleet-wide tokens per second, not in
 single-request decode latency.
+
+**Why more concurrency means more throughput:** decode is bandwidth-bound, and each
+step's fixed model-weight read is shared by every live sequence in the batch. Packing
+more sequences into memory means each weight read produces more tokens, so aggregate
+tokens per second rises even though each individual sequence still advances at the
+same per-step pace.
 
 **Q: Is the logQ correction (or any calibration offset) applied at serving time
 to adjust KV cache attention scores?**
@@ -178,3 +214,10 @@ and values at attention time. The cache stores a vector of size $d_c$ (say 512)
 instead of $2 \times h_{\text{kv}} \times d_{\text{head}}$ (say $2 \times 32 \times 128 = 8192$)
 values. Describing it as "fewer heads" mis-states the mechanism and misses the RoPE
 complication entirely.
+
+**Why a learned latent can compress that hard without wrecking quality:** the
+compression is trained end to end, so the model learns projections that pack what
+attention actually needs into $d_c$ dimensions, rather than approximating already
+trained full-rank heads after the fact. That is also why MLA cannot be bolted onto an
+existing checkpoint at serving time: the latent only means something to query heads
+that were optimized against it during training.

@@ -61,6 +61,11 @@ that it barely moves; you have essentially re-run SFT with extra bookkeeping.
 Anyscale used beta=0.03; the sweet spot is typically 0.03 to 0.1. This is the
 same leash that RLHF's KL penalty imposes, just expressed in closed form inside
 DPO's loss.
+**Why the reward-hacking happens:** the loss only ever sees the margin between
+chosen and rejected on the preference pairs, so any text pattern that widens that
+margin counts as improvement, including degenerate repetition no annotator ever
+compared; the reference anchor is the single term tying the policy back to fluent,
+on-distribution language, and beta sets how strongly it pulls.
 
 **Q: Anyscale found that LoRA rank 64 underperformed full fine-tuning on their DPO
 task. Why would that happen, and when does it happen?**
@@ -71,6 +76,11 @@ log-likelihoods out of distribution: the adapter gets the right direction but
 cannot reach the right magnitude within its rank budget. Increasing rank helps
 marginally but rarely closes the gap; full fine-tune is the correct call when the
 shift is large. The tell is when loss converges but downstream accuracy plateaus.
+**Why raising rank rarely fixes it:** rank is a hard cap on how many independent
+directions the weight update can span, and a large behavior shift spreads its
+energy across many directions with a slowly decaying tail; each added rank buys
+only the next small increment while the tail carrying the rest of the shift stays
+unreachable.
 
 **Q: How does Shopify's LLM-judge flywheel avoid the circularity of training on
 what the model itself generated?**
@@ -82,6 +92,11 @@ only conversations the judge rates above a threshold are used, and the quarantin
 threshold is set to match the human calibration. A judge that drifts away from
 humans is caught in the periodic calibration step and retrained or replaced before
 it poisons the training set.
+**Why this breaks the circularity:** the calibration signal (human labels and live
+activation rate) originates outside the model-judge loop, so any drift between
+judge and reality becomes an observable, measurable gap instead of a silent
+feedback amplification; a closed loop is only dangerous when nothing external ever
+re-grounds it.
 
 **Q: A model passes the offline eval gate but activation rate in the 1% traffic
 slice is 35 points lower than expected. What happened and what do you do?**
@@ -94,6 +109,10 @@ distribution (near-contamination that was not caught). Steps: diff the offline e
 set against live samples to find the gap, add representative production examples to
 the eval set, fix the format/representation mismatch, and close the flywheel so
 the next training run sees the live distribution.
+**Why offline gates miss this:** an offline set is a frozen, curated sample, so a
+model can score well by matching the curation rather than the live inputs; the
+gate measured the wrong population, not the wrong model, and no amount of
+offline-metric improvement can reveal that until live traffic does.
 
 **Q: GRPO drops the value network that PPO relies on. What replaces it, and why is
 that safe here?**
@@ -107,6 +126,24 @@ critic and stays unbiased within the group, which is exactly why it fits
 verifiable-reward tasks (math, code, retrieval rank) where every sample can be
 scored cheaply. The cost it moves elsewhere: you must draw G samples per prompt, so
 training-time inference scales with the group size.
+**Why the batch baseline is safe:** subtracting any baseline that does not depend
+on the sampled action leaves the policy gradient unbiased in expectation, and the
+group mean is exactly such a baseline within each prompt; GRPO therefore gets the
+variance reduction a critic would provide without a second learned network that
+can itself be wrong.
+
+**Q: Training SFT on only the chosen responses and running DPO on (chosen,
+rejected) pairs look similar; when does the difference actually matter?**
+A: Both push probability toward the responses you like, and when the rejected
+responses are obviously bad (broken format, wrong language) SFT on the winners is
+usually enough, because the model already assigns the losers low probability. The
+difference matters when the failure mode is plausible-but-worse: a confident
+hallucination, a sycophantic agreement, a subtly unsafe answer. SFT's
+cross-entropy loss never sees a negative example, so it can raise the chosen
+response while leaving the tempting wrong one exactly as likely as before; DPO's
+contrastive margin explicitly pushes the rejected response down relative to the
+reference. Reach for preference pairs precisely when "what not to say" is the
+hard part of the task, not just "what to say."
 
 ## Commonly answered wrong (the traps)
 
@@ -117,6 +154,11 @@ tool for knowledge that changes is retrieval (RAG): put the facts in context, ci
 sources, update instantly. Fine-tuning teaches behavior and skill; retrieval
 teaches knowledge. They compose well: tune for style, retrieve for facts, on the
 same base.
+**Why the confident hallucination:** weights store facts as distributed
+statistical associations, not as a lookup table, so a fact seen a handful of times
+in fine-tuning creates a fluent completion pathway without a reliable one; the
+model interpolates smoothly between neighboring facts and the interpolations read
+exactly as confidently as the memorized ones.
 
 **Q: Should you run RLHF on a format-and-tone problem to get the highest quality?**
 A: No. RLHF is a five-component pipeline (SFT model, reward model, reference model,
@@ -125,6 +167,11 @@ over-steering the model into sycophancy or excessive refusal. For format and ton
 good SFT is almost always sufficient and far cheaper to run and debug. Proposing
 RLHF for a problem SFT already solves is the most common over-engineering mistake
 in this domain.
+**Why the over-steering risk is inherent:** the reward model is an imperfect proxy
+trained on a finite set of comparisons, and PPO optimizes hard enough to find its
+blind spots; flattery and hedging tend to score well under such a proxy, so the
+policy drifts toward them unless the KL leash and the eval gate hold it back. You
+take on that failure mode for zero benefit when SFT already reaches the target.
 
 **Q: Does LoRA need to run on a separate adapter server from the base?**
 A: No. Multi-LoRA serving loads the base once and batches requests across different
@@ -133,6 +180,11 @@ millisecond-scale matrix add/subtract. The base is always warm; the adapters loa
 on demand from cache or object storage. Running a separate server per adapter
 throws away the entire economic case for LoRA, and it is the reflex answer that
 reveals a lack of production experience.
+**Why cross-adapter batching is cheap:** the expensive matmuls are against the
+shared base weights, identical for every request regardless of adapter, while
+each adapter adds only a skinny low-rank matmul; grouping those per adapter is
+what the SGMV kernel does, so the GPU stays as busy as a single-model server and
+the base cost is amortized across every tenant.
 
 **Q: Can you skip the regression check and just measure task accuracy on the new
 model?**
@@ -142,6 +194,11 @@ tone, or a secondary capability by five points should fail the gate. Without a
 comparison to the current production model on the same eval set, "newer" quietly
 ships "worse" and you find out from user complaints. The regression check is not
 optional.
+**Why regressions happen at all:** fine-tuning moves shared weights, so gains on
+the target task are bought by shifting parameters that other behaviors also rely
+on (interference, catastrophic forgetting in the extreme); nothing in the
+optimization of metric A even attempts to preserve metric B, so only an explicit
+measurement can.
 
 **Q: QLoRA stores the base in 4-bit, so the adapter you train is 4-bit too, right?**
 A: No, and the split is the whole point. QLoRA (University of Washington, 2023)

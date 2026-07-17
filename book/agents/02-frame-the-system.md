@@ -14,6 +14,29 @@ proposed actions must pass before execution. "Loop" means the model sees the
 result of its last action before deciding on the next. "Tool" means the model
 can reach outside its own weights to read from or write to real systems.
 
+## Compare and contrast: workflow vs agent
+
+The pair most often blurred in interviews. Both are systems built from LLM
+calls plus tools, and from the outside both take a ticket in and produce a
+resolution out. The difference is who owns control flow: in a workflow, the
+engineer fixes the sequence of calls at design time; in an agent, the model
+chooses the next step at run time based on what it just observed.
+
+| Dimension | Workflow (fixed pipeline of LLM calls) | Agent (model-driven loop) |
+|---|---|---|
+| Uses LLM calls and tools | Yes | Yes |
+| Needs eval, guardrails, cost bounds | Yes | Yes |
+| Who picks the next step | Code: the graph of calls is written by the engineer | Model: chosen per iteration from observed results |
+| Cost and latency shape | Fixed and predictable (N calls, known sizes) | Variable per task; bounded only by step cap and token budget |
+| Failure mode | A stage produces bad output that flows downstream | The loop wanders: repeats steps, stalls, or compounds errors |
+| Debugging | Replay a stage in isolation with fixed inputs | Replay the whole trajectory; earlier steps change later ones |
+
+The difference changes the design the moment the task's shape is not known in
+advance: if every ticket needs the same three lookups, a workflow gives you
+the same quality with deterministic cost and far easier debugging, and the
+agent loop only earns its overhead when the required steps genuinely vary per
+input.
+
 ## Kinds of agents by capability
 
 "Agent" covers a range of systems that share the loop above but differ in what the

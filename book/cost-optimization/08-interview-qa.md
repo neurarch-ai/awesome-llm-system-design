@@ -112,6 +112,24 @@ achieves most of the input-token reduction.
 
 **Deeper:** The compression pass is itself a small-LM forward over the full original context to score token importance, so its cost scales with $n_{\text{orig}}$, not $n_{\text{comp}}$. That is the mechanism behind the break-even: on short-input or output-dominated workloads the pass is pure overhead because the tokens it removes were cheap to begin with; the win only materializes when the removed input tokens were both numerous and expensive on the big model.
 
+**Q: Context trimming and LLMLingua-style compression look similar, both shrink
+the prompt; when does the difference actually matter?**
+
+A: Both reduce input tokens before the big-model call, and on a padded RAG
+prompt either one lowers the bill. The mechanics differ in granularity and in
+what they cost. Trimming drops whole retrieved chunks using a relevance score
+that the pipeline often already computes, so it is near-free and the surviving
+text is untouched. Compression pays a small-LM forward pass over the entire
+original context to score every token, then deletes low-information tokens
+inside the text the model will actually read. The difference matters in two
+regimes. If the waste is between chunks (top-20 retrieval where 17 chunks are
+padding), trimming captures almost all the saving at zero quality risk and
+compression adds cost for little extra gain. If the waste is inside the chunks
+(verbose boilerplate the answer must be extracted from), trimming cannot touch
+it, and only token-level compression helps, at the price of the scoring pass
+and the risk of deleting the one token the answer hinged on. That risk profile
+is why trimming is safe on extraction tasks and compression is not.
+
 ## Commonly answered wrong (the traps)
 
 **Q: Can you add a frontier model call to the router to make it more accurate?**

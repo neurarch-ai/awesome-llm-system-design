@@ -99,6 +99,25 @@ run starts.
 
 **Deeper:** A rollback-and-skip works because spikes usually come from a specific pathological batch interacting with a large adaptive-optimizer step, so resuming from just before it with that batch removed avoids re-triggering the divergence. Rolling back only the weights while keeping the optimizer state can re-diverge, because the second-moment estimates are already corrupted; the checkpoint has to restore optimizer state too.
 
+**Q: Deduplication and decontamination look similar, both remove overlapping
+text; when does the difference actually matter?**
+
+A: Both scan the corpus for repeated spans and drop documents, often with the
+same n-gram machinery, which is why pipelines sometimes treat one as covering
+the other. But they compare against different references and protect different
+things. Dedup compares training documents against each other and protects
+model quality: it removes pathological repetition that wastes compute and
+drives memorization. Decontamination compares training documents against the
+evaluation sets and protects measurement: it removes text whose presence would
+inflate benchmark scores without changing the model's real ability. The
+difference matters at the design level because their tolerances point in
+opposite directions. Dedup must be tuned, since over-removal strips useful
+repetition and can hurt downstream quality; decontamination should be
+near-exhaustive against a tiny fixed target, since any residual overlap can
+only bias scores upward. A pipeline that "already dedups" has done nothing
+about contamination: eval sets are not in the training corpus's comparison
+set unless you explicitly put them there.
+
 ## Commonly answered wrong (the traps)
 
 **Q: "We'll just train on all of Common Crawl."**

@@ -57,6 +57,11 @@ quality drop in the reranker because the retrieved set distribution changed.
 Third, the query split for offline eval was not time-based, so the improvement
 was from leakage (memorizing future interactions), not generalization. Diagnose
 by measuring coverage and tail-item retrievability alongside recall.
+**Why the aggregate metric hides the first cause:** recall@k is an average over
+the labeled query set, and labeled queries skew toward head content; a model can
+therefore win the average by improving on popular items while losing the tail,
+so the number goes up while the experience of exactly the queries not in the
+label set goes down.
 
 **Q: A team says "just use a bigger embedding model for better recall." Is that
 right?**
@@ -68,6 +73,11 @@ found a large MRR gap between models via MTEB, suggesting model fit matters, but
 they also constrained dimension for the 4KB storage cap. Measure the gap with
 and without the lexical channel first; if hybrid search closes it, a bigger
 encoder is unnecessary.
+**Why size does not fix a domain gap:** scaling improves the quality of
+representations for content the training distribution covers; a token or concept
+absent from that distribution has no grounded representation at any parameter
+count, so the failure is about what the model saw, not how big it is, and the
+lexical channel fixes identity matching that no amount of capacity learns.
 
 **Q: HNSW is popular; when would you not use it?**
 A: Two cases. First, when the corpus does not fit in RAM: HNSW stores the full
@@ -77,6 +87,26 @@ storage. Second, when you need very aggressive filtering: HNSW graph traversal
 does not naturally skip filtered nodes efficiently. An IVF or partitioned index
 can restrict search to the relevant partition before scanning, which is far
 cheaper for highly selective filters.
+**Why filtering fights the graph:** HNSW reaches the target region by walking
+edges through intermediate nodes, and many of those stepping-stones fail the
+filter; skip them and the path to the answer can disconnect, keep them and the
+search wastes its budget visiting nodes it can never return. A partitioned index
+avoids the dilemma by shrinking the search space before any traversal begins.
+
+**Q: HNSW's ef and IVF's nprobe look similar (both widen the search to buy
+recall); when does the difference actually matter?**
+A: Both are the recall-versus-latency knob for their index, and on a uniform
+corpus tuning either looks the same from the outside. The mechanics differ: ef
+widens a best-first beam over the graph, so the extra work is adaptive and stays
+concentrated in the immediate neighborhood of the query; nprobe adds whole
+precomputed cells, so the extra work comes in coarse, fixed-size increments and
+is spent scanning everything in each added cell whether promising or not. The
+difference matters when the query lands near a cell boundary (its true neighbors
+are split across cells, so recall climbs in steps only as whole cells are added,
+while ef's frontier crosses the boundary naturally) and when cluster sizes are
+skewed, where one added cell can double the scan cost. It also shapes filtered
+search: restricting cells is easy for IVF, while restricting graph traversal is
+the case where HNSW struggles.
 
 **Q: What is the difference between MIPS and Euclidean nearest neighbor, and
 why does it matter for quantization?**
@@ -125,6 +155,12 @@ by paging the original vectors back and recomputing exact scores. There is no
 magic correction term to apply to compressed scores; you need the real vectors.
 The rescore is cheap because it runs over only the shortlist (say 200
 candidates), not the whole corpus.
+**Why no correction term can exist:** quantization error is per-vector and
+direction-dependent, so two documents with identical compressed scores can carry
+true errors of opposite sign; any scalar or per-query correction shifts both
+scores the same way and cannot swap their order. Recovering the true ranking
+requires the information the codes discarded, which only the original vectors
+still hold.
 
 **Q: Can you add term-level features from BM25 into the embedding model so you
 need only one retrieval channel?**
@@ -134,6 +170,12 @@ replicate the recall behavior of a lexical inverted index for rare tokens. The
 production answer is two channels that run in parallel and fuse: dense for
 semantics, lexical for exact match. Trying to learn both from one embedding
 model produces a model that does neither as well.
+**Why one vector cannot carry both signals:** an embedding compresses text into
+a fixed number of dimensions, while exact-match recall requires distinguishing
+the identity of every rare token, an amount of information that grows with the
+vocabulary; the compression must discard precisely the rare-token identity that
+lexical matching depends on, whereas an inverted index stores that identity
+exactly by construction.
 
 **Q: The corpus is 100M but only 1M documents are in the "active" category.
 Should you post-filter the ANN results?**
@@ -145,6 +187,12 @@ its top candidates, and recall craters. The fix is to partition the index by
 category and route filtered queries to the 1M-document sub-index directly,
 or use an IVF index that restricts which clusters are searched based on the
 filter before scanning.
+**Why the arithmetic is brutal at low pass rates:** the ANN search ranks by
+similarity with no knowledge of the filter, so passers appear in the candidate
+list at roughly the filter's base rate; at a 1% pass rate a few hundred
+candidates contain only a handful of passers in expectation, and asking the
+index for enough candidates to guarantee k of them multiplies latency by the
+inverse of the pass rate.
 
 **Q: Embeddings capture meaning, so isn't hybrid search just a band-aid for
 weak embedding models?**
@@ -153,6 +201,10 @@ a query for a product code that was minted after training. Any token the model
 has not seen maps to a vector in a neighborhood that reflects its rare occurrence
 statistics, not its actual identity. Lexical search is structurally complementary
 to semantic search, not a substitute for a weaker model.
+**Why the unseen token lands in the wrong place:** the tokenizer falls back to
+subword pieces, so a new product code is embedded near other strings that share
+its character fragments; that is spelling similarity masquerading as meaning,
+and no training objective on past data can assign the code its true identity.
 
 **Q: Adding more shards to the ANN index improves recall, right?**
 A: No; it usually costs recall unless you compensate. Sharding splits the corpus

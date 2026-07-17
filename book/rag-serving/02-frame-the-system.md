@@ -80,6 +80,29 @@ constraint as a retrieval problem not a post-processing problem, and names
 retrieval recall as the quality ceiling has already answered the hardest part
 of the question before touching a single component.
 
+## Compare and contrast: RAG vs long-context stuffing
+
+Both approaches solve the same problem the same way at the final step: put the
+relevant documents into the prompt so the model can answer from them rather than
+from its weights. The confusion is treating a million-token context window as a
+replacement for retrieval. The mechanics differ in who selects the evidence and
+when the cost is paid.
+
+| Dimension | RAG | Long-context stuffing |
+|---|---|---|
+| Where evidence ends up | in the prompt, as retrieved chunks | in the prompt, as raw documents |
+| Grounding story | same: the model answers from provided text and can cite it | same: the model answers from provided text and can cite it |
+| Who selects the relevant evidence | the retrieval stack, before the LLM sees anything | the model's attention, during generation |
+| When the selection cost is paid | mostly at index build time, amortized over all queries | at every query, as prefill compute over the full stuffed context |
+| Scaling behavior | per-query cost roughly flat as the corpus grows | per-query cost and latency grow with everything you stuff |
+| Failure mode | relevant chunk never retrieved (a measurable recall miss) | relevant span present but lost among distractors (an attention miss, invisible to any retrieval metric) |
+
+The difference changes the design at corpus scale and query volume: for a
+handful of documents read once, stuffing is simpler and skips the whole indexing
+pipeline, but the moment the corpus outgrows the window or the same corpus
+serves many queries, selection must move out of the model and into an index that
+pays its cost once.
+
 ## The RAG paradigm ladder
 
 Naive "embed, retrieve top-k, stuff into the prompt" is the bottom rung. When it

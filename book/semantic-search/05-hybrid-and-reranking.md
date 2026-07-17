@@ -65,6 +65,29 @@ Elasticsearch). The cost is that SPLADE expands posting lists, increasing index
 size, and it requires running the SPLADE model at index time (write path) and at
 query time.
 
+## Compare and contrast: BM25 vs dense embedding retrieval
+
+From the outside the two channels are interchangeable: each takes a query,
+consults an index built offline, and returns a ranked list of documents with a
+relevance score. That surface similarity is why teams assume one can replace the
+other. The scores are produced by fundamentally different mechanisms, which is
+why they fail on different queries.
+
+| Dimension | BM25 (lexical) | Dense embedding (bi-encoder) |
+|---|---|---|
+| Interface | query in, ranked list with scores out | same: query in, ranked list with scores out |
+| Index built offline, queried online | yes (inverted lists) | yes (ANN over precomputed vectors) |
+| What the score measures | weighted overlap of exact terms (IDF times saturating TF) | angle between two learned vectors summarizing meaning |
+| Paraphrase behavior | "OOM" and "out of memory" share no term, so no match | trained to map paraphrases near each other, so it matches |
+| Unseen-token behavior | a new SKU is just another posting list; exact match is perfect | subword fallback lands the token near strings with similar spelling, not similar identity |
+| Score properties | unbounded, corpus-dependent scale | bounded cosine range, model-dependent scale |
+| What changes when the corpus grows | IDF statistics update cheaply per term | vectors are fixed per model; a model swap forces re-embedding everything |
+
+The difference changes the design as soon as the query mix contains both
+natural-language questions and exact identifiers: neither mechanism subsumes the
+other, so the production answer is to run both and fuse on rank, which is what
+the rest of this section builds.
+
 ## Fusing dense and lexical results
 
 The two channels return separate ranked lists. The simplest and most robust

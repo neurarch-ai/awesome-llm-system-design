@@ -21,6 +21,29 @@ answer can be more helpful and less efficient. A model upgrade can improve accur
 while adding verbosity. Evaluating only one dimension and ignoring the rest gives
 a misleading picture.
 
+## Compare and contrast: benchmark eval vs LLM-as-judge vs human eval
+
+All three produce "a quality score for a model output," get reported on the
+same dashboards, and get casually called "the eval," which hides how different
+the instruments are. They differ in what the score actually measures and in
+what kind of agreement backs it.
+
+| Dimension | Benchmark eval | LLM-as-judge | Human eval |
+|---|---|---|---|
+| Produces a comparable quality number | Yes | Yes | Yes |
+| Needs a defined task and inputs | Yes | Yes | Yes |
+| What the score measures | Match against fixed reference answers on a public task | One model's opinion of the output under a rubric | A person's opinion of the output under a rubric |
+| Agreement structure | Deterministic: same output, same score, every run | Validated against human labels (kappa); noisy across runs and judge versions | Inter-rater agreement between people; two raters routinely disagree |
+| Scales to every change | Yes, cheap to rerun | Yes, at token cost | No; the scarce resource |
+| Characteristic failure | Contamination: training data included the answers | Bias: verbosity, position, self-preference | Inconsistency and fatigue; small samples miss slice regressions |
+
+The differences change the design because the three are not interchangeable
+scores but a calibration chain: human judgment defines what "good" means, the
+LLM judge is trusted only to the degree it agrees with those human labels, and
+benchmarks sit outside the chain entirely, measuring general capability
+rather than your task, which is why a system that gates deploys on benchmarks
+or on an unvalidated judge is measuring something other than its own quality.
+
 ## Offline vs online: two loops, not one
 
 The eval system is not a single pipeline. It is two loops that serve different

@@ -110,6 +110,23 @@ adaptation is a tiny fraction of the original pretrain budget.
 
 **Deeper:** The reason it is so cheap is that RoPE encodes position relatively and the semantic weights are already trained, so the run only has to teach attention to read the rescaled angles rather than re-learn language. Most of the loss recovery happens in the first few hundred steps; the long tail buys diminishing returns, which is why staged extension can stop each stage early.
 
+**Q: Lowering the re-warm peak and raising the replay fraction look similar,
+both reduce forgetting; when does the difference actually matter?**
+
+A: They act through different mechanisms. The re-warm peak controls the size of
+every weight update, so lowering it shrinks the perturbation to all
+capabilities at once: less forgetting, but also proportionally less domain
+learning. Replay changes the direction of the updates, mixing general-data
+gradients into each step so the optimizer is pulled toward weights that fit
+both distributions, while the domain gradient keeps its full step size. The
+difference matters when you need a large domain shift: cutting the peak far
+enough to protect MMLU also stalls the domain gain, whereas keeping a moderate
+peak and adding ten percent replay lets domain learning proceed at speed while
+the replayed gradient holds the general minimum. If instead the domain is
+close to the pretraining distribution, the two knobs are nearly
+interchangeable and the cheaper one (no extra data pipeline, so lower peak)
+wins.
+
 ## Commonly answered wrong (the traps)
 
 **Q: To get a clinical model, fine-tune on our clinical documents.**

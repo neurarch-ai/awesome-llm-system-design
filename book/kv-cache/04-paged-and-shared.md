@@ -122,6 +122,29 @@ new edge at the first mismatch. Eviction under memory pressure uses LRU, preserv
 the most recently accessed paths. Cross-request cache sharing happens automatically
 without any user API change.
 
+## Compare and contrast: prefix caching vs. KV-cache eviction
+
+Both techniques make the KV cache cheaper, and both are often described with the
+same phrase ("we keep less in the cache"), which is why they get confused. The
+mechanics point in opposite directions: prefix caching avoids recomputing entries
+the model will need again, while eviction throws away entries and accepts that the
+model can never read them again.
+
+| Dimension | Prefix caching | KV-cache eviction (StreamingLLM, H2O, SnapKV) |
+|---|---|---|
+| Shared goal | Reduce KV-cache cost per request | Reduce KV-cache cost per request |
+| What it removes | Redundant prefill compute for tokens already cached | Stored entries for tokens judged unimportant |
+| Effect on model output | None; the reused blocks are bit-identical to a recompute, so this is lossless | Lossy; a later question about an evicted token cannot be answered |
+| What it needs to win | Cross-request redundancy: shared system prompts, documents, or conversation history | Attention sparsity: most old tokens receiving near-zero weight |
+| Failure mode | All-unique traffic means the cache never hits and you pay bookkeeping for nothing | The workload asks about the dropped middle and quality silently degrades |
+| Memory behavior | Memory can grow (cached prefixes are kept around for reuse) | Memory is bounded by construction |
+
+The difference changes the design when you must decide what happens under memory
+pressure: a workload with strict recall requirements (retrieval over a long
+document) can use prefix caching but never eviction, whereas an unbounded streaming
+chat that only needs recent context can cap memory with eviction and treat prefix
+caching as an optional accelerator on top.
+
 **When to use which paging or sharing technique.**
 
 | Reach for | When | Skip it when |

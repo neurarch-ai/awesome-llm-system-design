@@ -124,6 +124,24 @@ re-baseline against the new judge version before the next gate.
 
 **Deeper:** The calibration set works because the judge is the only variable that changes between re-scorings, so any score movement is attributable to it, the same controlled-variable logic as a regression test. For that to catch real drift it must include examples near the decision boundary, where a small score shift flips a verdict, not just easy extremes that stay correctly ranked no matter how the judge moves.
 
+**Q: The golden set and the judge calibration set look similar, both are fixed
+labeled datasets; when does the difference actually matter?**
+
+A: They look interchangeable: both are versioned collections of inputs with
+known-good reference labels, held fixed across runs. But they measure opposite
+sides of the same experiment. On the golden set, the candidate varies and the
+judge is held fixed: you feed golden inputs to a new prompt or model and ask
+the judge to score the outputs, so score movement means the candidate changed.
+On the calibration set, the candidate is held fixed and the judge varies: the
+(input, output) pairs are frozen, so score movement can only mean the
+instrument changed. The difference matters the day scores move and you must
+attribute the cause: if you have only a golden set, a judge-model update and a
+real candidate regression are indistinguishable, because both show up as the
+same score drop. Keeping the two sets separate is what makes drift detection
+possible at all, and it is also why calibration pairs must include stored
+outputs, not just inputs: re-generating outputs would reintroduce the
+candidate as a variable and destroy the controlled comparison.
+
 ## Commonly answered wrong (the traps)
 
 **Q: Can I use a public benchmark like MMLU or HumanEval as the quality gate for

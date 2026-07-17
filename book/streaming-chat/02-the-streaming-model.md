@@ -118,6 +118,28 @@ for exactly this reason). WebSockets are heavier to operate, do not traverse all
 proxies transparently, and require explicit correlation ids when many streams
 share one socket.
 
+### Compare and contrast: SSE vs WebSocket
+
+The two are easy to conflate because from the client's point of view they do
+the same thing for chat: hold one long-lived connection open and push tokens as
+they are produced, no polling. The mechanics underneath diverge in
+directionality, protocol identity, and what happens when the connection breaks.
+
+| Dimension | SSE | WebSocket |
+|---|---|---|
+| Push model | server pushes events over a held-open connection | same: server pushes frames over a held-open connection |
+| Starts as an HTTP request | yes, and stays plain HTTP (a chunked response) | yes, but upgrades away from HTTP into a distinct framed protocol |
+| Directionality | server to client only; client input needs a separate plain HTTP request | full duplex on one socket; client can signal mid-stream |
+| Reconnection | built into the standard: `EventSource` auto-reconnects and resends `Last-Event-ID` | none in the protocol; you build reconnect, backoff, and resume yourself |
+| Infrastructure path | anything that speaks HTTP (proxies, load balancers, CDNs) passes it unmodified | intermediaries must support the upgrade; some proxies and corporate middleboxes do not |
+| Message framing | text events with `data:` lines; text-oriented | binary or text frames; multiplexing many streams needs your own correlation ids |
+
+The difference changes the design at two moments: when the client must talk
+during generation (barge-in, live interrupt, audio frames), the duplex socket
+stops being optional; and when flaky networks matter, SSE's standardized
+resume-by-id means the recovery story is mostly server-side buffering, while a
+WebSocket product must design that entire loop from scratch.
+
 **When to use which.**
 
 | Reach for | When | Instead of |

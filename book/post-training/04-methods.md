@@ -215,6 +215,28 @@ coefficient.*
 five components. The simplicity of DPO is why it is the common first choice when
 preference tuning is needed.*
 
+### Compare and contrast: DPO vs RLHF
+
+Both are preference alignment: the same human comparison data, the same goal of
+shifting the policy toward preferred behavior, and the same KL leash to a frozen
+reference. The common confusion is treating DPO as "RLHF, but cheaper." The
+mechanics differ in where the reward lives and what data the policy learns from.
+
+| Dimension | DPO | RLHF (PPO) |
+|---|---|---|
+| Training signal | human preference pairs (chosen, rejected) | the same human preference pairs |
+| Anchor against drift | KL to the frozen reference, expressed via beta inside the closed-form loss | KL to the frozen reference, as an explicit penalty term |
+| Reward model | implicit: the policy-to-reference log-ratio acts as the reward | explicit $r_\phi$, trained separately before the RL step |
+| Data the policy learns from | offline: only the fixed labeled pairs, reweighted | online: fresh samples drawn from the current policy, scored by $r_\phi$ |
+| Models held during training | 2 (policy + reference) | 4 to 5 (policy, reference, reward model, value network) |
+| Reward reusability | none: the preference signal is baked into the loss | the reward model is a standalone artifact, reusable for data filtering, rejection sampling, and future runs |
+
+The difference changes the design when the policy must move far from where the
+labeled pairs sit: RLHF's reward model scores the policy's own fresh samples, so
+the training signal follows the policy as it moves, while DPO can only reweight
+the fixed pairs; long alignment campaigns and teams that want reusable reward
+infrastructure favor RLHF, single-shot preference nudges favor DPO.
+
 ## When to use which
 
 | Reach for | When | Instead of |

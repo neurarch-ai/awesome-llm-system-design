@@ -38,6 +38,26 @@ ungrounded rate, falling judge scores, more retries, more discards. It confirms
 that something changed in the system. The connection between the two: input drift
 is a leading indicator you should watch to predict when output drift is coming.
 
+## Compare and contrast: input drift vs. output regression
+
+Both are distribution shifts detected the same way (trend a windowed statistic
+against a reference and alert on the delta), which is why teams wire them into the
+same alert channel and treat them as interchangeable. They are not: one predicts
+trouble, the other proves it.
+
+| Dimension | Input drift | Output regression |
+|---|---|---|
+| What both are | A distribution shift caught by comparing a current window to a reference | A distribution shift caught by comparing a current window to a reference |
+| What shifted | The queries users send you | The quality of what your system returns |
+| What it proves | The model may be operating off its familiar distribution; nothing about quality yet | Users are actually receiving worse output |
+| Detection cost | Cheap: embed queries with a small encoder, no labels or judge needed | Expensive: needs a quality proxy (sampled judge, grounding score, or behavioral signals) |
+| Actionable alone | No: a benign topic shift and a harmful one look identical in embedding space | Yes: a confirmed quality drop justifies gating a rollout or rolling back |
+| Typical trigger | Seasonality, marketing launches, new user segments | A model, prompt, or retrieval change; a provider-side swap; or input drift finally biting |
+
+The difference changes the design in the alert wiring: input drift should expand
+eval coverage and sharpen attention but page no one, while a confirmed output
+regression is the signal that is allowed to page on-call and trigger a rollback.
+
 ## Hallucination detection
 
 Hallucination in a RAG system is best framed as a grounding problem: does the

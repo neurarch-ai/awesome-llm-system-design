@@ -98,6 +98,27 @@ Microsoft Splitwise, and DistServe all use this pattern. For a single small mode
 at moderate QPS, chunked prefill on one pool is simpler and usually sufficient;
 disaggregate when the two SLOs genuinely conflict at fleet scale.
 
+## Compare and contrast: chunked prefill vs. disaggregated prefill/decode
+
+These two are easy to conflate because they attack the same symptom: long prefills
+stalling in-flight decode streams. The mechanics are opposite. Chunked prefill keeps
+one pool and changes the schedule; disaggregation keeps the schedule simple and
+changes the hardware topology.
+
+| Dimension | Chunked prefill | Disaggregated prefill/decode |
+|---|---|---|
+| Problem attacked | Prefill-decode interference (same for both) | Prefill-decode interference (same for both) |
+| Where the fix lives | Scheduler: prefill sliced into chunks and interleaved with decode steps on the same GPUs | Topology: prefill and decode run on physically separate pools |
+| Interference after the fix | Reduced but nonzero; every mixed step still shares compute between a chunk and the decode batch | Zero by construction; decode GPUs never see a prefill step |
+| New cost introduced | Slightly slower TTFT for the chunked request; chunk-size tuning knob | KV cache transfer between pools, which needs NVLink-class fabric or it becomes the bottleneck |
+| Independent scaling of the two phases | No; one pool sizes for the blended workload | Yes; each pool sizes and picks its TP degree for its own phase |
+| Operational complexity | One flag in vLLM or SGLang | Two fleets, a KV transfer path, and cross-pool routing and health logic |
+
+The difference changes the design at the point where prefill and decode SLOs must be
+tuned independently at fleet scale and a fast interconnect exists: below that point
+chunked prefill gets most of the benefit for none of the topology cost, and above it
+only disaggregation removes the interference entirely.
+
 ## When to use which
 
 | Reach for | When | Instead of |

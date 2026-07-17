@@ -69,6 +69,13 @@ be systematically flattering by March. Report the judge-human agreement alongsid
 the score; if kappa is falling while the score rises, the instrument is lying.
 Recalibrate regularly by collecting fresh human labels on real traffic.
 
+**Why the instrument drifts:** calibration is a mapping from judge scores to human
+judgments, and that mapping is only valid on the distribution it was measured on.
+When the traffic mix shifts, the judge keeps emitting confident scores, but its
+errors are no longer the errors the calibration accounted for, so the reported
+number and the true quality quietly decouple. The score cannot flag this itself;
+only fresh human labels can.
+
 **Q: You are sampling five percent of traffic for judging. Your CEO asks if
 quality is improving. What do you tell them?**
 
@@ -78,6 +85,13 @@ the implicit behavioral signal (accept rate, retry rate) which covers all traffi
 at zero extra cost and is harder to game than a judge. If those two signals agree,
 you have corroborating evidence. If they diverge, investigate before claiming
 improvement.
+
+**Why the cross-check carries the weight:** the two signals fail independently. The
+judge can drift or be gamed by outputs that look well-formed, but it scores a
+controlled sample; behavioral signals are noisy per event, but they come from users
+who are not performing for a metric and they cover the full traffic. An error mode
+that fools one is unlikely to fool the other in the same direction, which is what
+makes agreement between them evidence rather than coincidence.
 
 **Q: How does an agent system differ from a RAG system in what you log and
 check?**
@@ -115,6 +129,28 @@ tone or format failures (too long, too technical, wrong language register), or
 outdated context (the retrieved document was accurate six months ago). Cross-check
 with explicit feedback, retry rates, and edit rates to localize the failure mode.
 
+**Why grounding is structurally blind to these:** it is a conditional check, claims
+given context, so it can only measure faithfulness to whatever the retriever
+returned. Everything upstream of that conditioning (was the right document
+retrieved, is it still true) and everything orthogonal to it (relevance, tone,
+length) sits outside the quantity being measured, so a perfect grounding score is
+compatible with a completely unhelpful answer.
+
+**Q: Shadow mode and a canary look similar; both run the candidate on live
+traffic. When does the difference actually matter?**
+
+A: The mechanical difference is who sees the output. In shadow mode the candidate
+processes real requests but its answers are discarded after diffing against control,
+so user risk is zero; in a canary a slice of users actually receives the candidate's
+answers. That one difference decides what each can measure: shadow gives you output
+divergence (how different is the new model) but no user reaction, because no user
+ever saw the output, while canary gives you the behavioral signals (accept, retry,
+edit, complaint rates) that are the closest thing to ground truth in production. The
+difference matters when the metric you need to clear the launch gate is user
+behavior: no amount of shadow traffic can produce it. It also matters in reverse
+when mistakes are irreversible (an agent that executes actions): shadow is the only
+safe option until the diff evidence justifies exposing anyone.
+
 ## Commonly answered wrong (the traps)
 
 **Q: Can you just report mean response latency on the dashboard?**
@@ -125,6 +161,12 @@ TTFT is a regression for most users even if the mean barely moves. Always report
 p50, p95, p99, and TTFT separately. TTFT is the streaming-perceived latency;
 p99 is what your worst-served users experience.
 
+**Why the mean hides the tail:** latency distributions are heavily right-skewed, so
+a small number of multi-second requests barely moves an average taken over thousands
+of fast ones. At scale even one percent of requests is a large absolute number of
+users, and because each user issues many requests over a session, the probability
+that a given user hits the p99 at least once approaches certainty.
+
 **Q: A high thumbs-up rate means quality is good, right?**
 
 A: No. Only a tiny, self-selected fraction of users ever clicks the thumbs widget,
@@ -133,6 +175,12 @@ nothing. Cross-check with implicit signals: edit rate, retry rate, and abandon
 rate cover all users. Cross-check with the judge and grounding scores. A high
 thumbs-up rate with a high retry rate is a contradiction to investigate, not a
 victory to celebrate.
+
+**Why selection bias corrupts the number:** the clickers are not a random sample, so
+the rate estimates the sentiment of people who click, not of your users. Worse, a
+change in who clicks (a UI tweak, a new user segment) moves the rate with no change
+in quality at all, which means the metric can trend in either direction for reasons
+unrelated to the thing it claims to measure.
 
 **Q: You ran the frozen eval set and scores look fine after the model swap. Ship
 it?**
@@ -143,6 +191,12 @@ new topic cluster, a language the team added support for, or a prompt pattern th
 emerged in the last month will not appear in a stale eval set. The frozen eval is
 a necessary gate, not a sufficient one. Follow it with a canary on live traffic
 before full rollout.
+
+**Why staleness is structural rather than sloppiness:** the eval set is a fixed
+sample from a moving distribution, so its coverage decays even if nobody touches it.
+And because every prior change was tuned until this same set passed, the system is
+selected to look good on exactly these cases (Goodhart's law), which biases the
+frozen score upward relative to live quality over time.
 
 **Q: My guardrail block rate is stable, so safety is fine?**
 

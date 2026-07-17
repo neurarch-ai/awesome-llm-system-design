@@ -99,6 +99,29 @@ everything after it. Put the stable content first (system prompt, schemas, stati
 context) and the volatile per-request content last, or the hit rate silently
 collapses while nothing in the output looks wrong.
 
+## Compare and contrast: semantic cache vs prefix (KV) cache
+
+Both carry the name "cache," both cut cost by reusing prior work, and both
+sit invisibly in front of the model, which is why designs regularly confuse
+them. What they reuse is different in kind: one reuses a finished answer, the
+other reuses the model's internal computation over tokens it has seen before.
+
+| Dimension | Semantic cache | Prefix (KV) cache |
+|---|---|---|
+| Cuts cost by reusing prior work | Yes | Yes |
+| Needs repeated traffic to pay off | Yes (repeated questions) | Yes (repeated prompt prefixes) |
+| What is reused | The stored response text | The key-value tensors computed during prefill |
+| Match rule | Approximate: embedding similarity above a threshold | Exact: token-for-token match from the front of the prompt |
+| Model call on a hit | Skipped entirely | Still runs; only the shared prefix's prefill is skipped |
+| Can serve a wrong answer | Yes, if the threshold admits a near-neighbor question | No; a changed token simply misses and recomputes |
+| What invalidates it | Stale or personalized content behind the stored answer | Any edit upstream in the prompt (timestamp, user id, reordered tools) |
+
+The difference changes the design when you decide what varies per request: a
+semantic cache wins when whole questions repeat in paraphrase over stable
+answers, a prefix cache wins when every request is unique but shares a long
+fixed header, and because one matches meaning and the other matches tokens,
+the standard design uses both in series rather than choosing between them.
+
 ## Prompt compression
 
 You pay per token. Tokens the model did not need are money burned. Two moves,

@@ -84,6 +84,27 @@ deeply. For a large distributional shift, want full continued pretraining with
 replay; for a lighter nudge or a strict forgetting budget, a LoRA adapter is safer
 and cheaper.
 
+## Compare and contrast: continued pretraining vs supervised fine-tuning
+
+Both are "train the model some more on my data," which is why they get
+conflated: same trainer, same hardware, often the same library. The mechanics
+that differ are the objective's target and the shape of the data, and those
+two differences drive everything else.
+
+| Dimension | Continued pretraining (DAPT) | Supervised fine-tuning (SFT) |
+|---|---|---|
+| Further gradient updates on a pretrained base | Yes | Yes |
+| Risks forgetting, needs a general-eval gate | Yes (mitigated by replay) | Yes (milder; fewer steps, narrower shift) |
+| Objective | Next-token loss on every token of raw text | Loss on the response tokens given a prompt (prompt tokens masked) |
+| Data shape | Unlabeled documents, billions of tokens | Prompt-response pairs, thousands to low millions of examples |
+| What moves in the model | The broad prior: vocabulary, register, factual density | The conditional behavior: format, style, task compliance |
+| Typical schedule | Re-warm to a modest peak, long re-decay, replay mix | Short run at a small learning rate, few epochs |
+
+The difference changes the design at one question: is the gap in what the
+model knows or in how it responds? If the model lacks the domain's prior, no
+volume of SFT pairs will supply it, and if the model merely answers in the
+wrong format, a DAPT run is an expensive way to not fix that.
+
 ## When to use which
 
 | Reach for | When | Instead of |

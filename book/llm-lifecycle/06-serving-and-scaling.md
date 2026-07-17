@@ -29,6 +29,27 @@ LLM-product mistake.
 | The model does not follow our output JSON schema | SFT | schema is a format/behavior, stable enough to teach |
 | The model hallucinates company facts | RAG with grounding + citations | facts change; retrieval with citation is the verifiable path |
 
+## Compare and contrast: RAG vs. fine-tuning as knowledge-injection mechanisms
+
+The table above says which to pick per symptom. This one explains why they behave
+so differently despite the identical pitch ("make the model know our stuff"): both
+inject knowledge the base model lacks, but one stores it in retrievable tokens and
+the other dissolves it into weights.
+
+| Dimension | RAG | Fine-tuning |
+|---|---|---|
+| Shared goal | Make the model use knowledge it was not pretrained on | Make the model use knowledge it was not pretrained on |
+| Where knowledge lives | External index; enters the model as prompt tokens at inference time | Model weights; distributed across parameters at training time |
+| Cost to update one fact | Re-embed and re-index the changed document; no model change | A new training run, eval pass, and redeploy |
+| Provenance | Can point to the retrieved passage; citation is structural | None; the model cannot tell a stored fact from a plausible interpolation |
+| Per-query cost | Retrieval latency plus longer prompts on every single request | Zero marginal cost; the knowledge is amortized into the forward pass |
+| Knowledge capacity | Corpus can be unbounded, but only what fits in the context window is usable per query | Bounded by model capacity, but everything learned is available on every query |
+| Failure mode | Retrieval miss: the model answers without the fact it needed | Staleness: the model confidently states the version of the fact it was trained on |
+
+The difference changes the design at the update-rate boundary: the moment your
+knowledge changes faster than your retrain-and-redeploy cadence, weights are
+structurally always stale and retrieval is the only mechanism that can keep up.
+
 ## The serving architecture
 
 The serving design splits traffic into two shapes:

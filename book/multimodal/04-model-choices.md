@@ -43,6 +43,28 @@ modalities requires careful data balancing. Late fusion lets you reuse a
 pre-trained vision encoder (CLIP, SigLIP) and a pre-trained LLM, reducing the
 training budget substantially.
 
+## Compare and contrast: late fusion vs. early fusion
+
+From the outside the two look interchangeable: both end with one transformer
+consuming a single interleaved sequence of image and text tokens, and both answer
+questions about images. The confusion comes from that shared surface. Underneath,
+one is an assembly of pre-trained parts and the other is a single jointly trained
+model, and that changes what each can do.
+
+| Dimension | Late fusion (LLaVA-style) | Early fusion (Chameleon-style) |
+|---|---|---|
+| What the decoder sees | One interleaved token sequence mixing image and text | One interleaved token sequence mixing image and text |
+| How image becomes tokens | Continuous patch features projected into the embedding space; never discretized | Quantized by a VQ tokenizer into discrete codebook entries in the shared vocabulary |
+| How the model is built | Assembled: pre-trained encoder plus pre-trained LLM, glued by a small trained projector | Trained jointly from the start over the unified vocabulary |
+| Training cost | Small; mostly the projector or light adapters | A full pretraining run with careful modality balancing |
+| Can it generate images | No; the output head only covers the text vocabulary | Yes; it can sample visual tokens and decode them through the codebook |
+| Detail bottleneck | The projector's token budget (MLP vs. resampler) | The codebook: continuous detail squeezed through discrete quantization |
+
+The difference changes the design at one question: must the model produce images or
+mixed-modal output? If yes, only early fusion works, and you accept the pretraining
+bill; if the product only reads images, late fusion delivers the capability for a
+fraction of the training cost.
+
 ## Vision encoder families
 
 The choice of vision encoder sets the resolution, the token count, and what kinds

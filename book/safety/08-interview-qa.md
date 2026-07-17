@@ -64,6 +64,11 @@ action can leak before the guard verdict lands. The async pattern is safe only w
 generation is fully side-effect-free. For agent systems with tool use, the guard
 must run before tool calls are dispatched, or tool calls must be gated in code
 regardless of the generation verdict.
+**Why the race breaks specifically here:** the async pattern is a bet that the
+guard verdict lands before anyone acts on the output, which holds when the only
+consumer is a user reading tokens. A tool call is an actor inside the stream, so
+the bet's premise fails; and because a dispatched action is irreversible,
+detecting the harm after the fact is no longer a defense, only an audit.
 
 **Q: Your classifier catches 95% of attacks. A new attack family emerges that it
 misses. What does the system do?**
@@ -74,6 +79,12 @@ regardless of whether either classifier caught the prompt. The policy router can
 log and allow borderline cases while the new attack pattern is being added to the
 adversarial eval set and the classifier is being retrained. The layered design
 degrades gracefully under partial failures; a single-layer system does not.
+**Why the output guard tends to catch what the input guard missed:** a novel
+attack family usually works by disguising intent in the prompt (encoding,
+role-play, fragmentation), but to succeed it must still make the model emit
+plainly harmful content; the output guard scores that completion, which the
+attacker does not directly write, so the obfuscation that fooled the input layer
+is absent from the artifact the output layer inspects.
 
 **Q: Why is an LLM-judge guardrail less robust than a trained classifier?**
 
@@ -83,6 +94,11 @@ into a passing score using the same technique. A trained classifier is a separat
 architecture trained on a separate objective; it does not share the base model's
 persuadability. For adversarial robustness, the independence of the guard from the
 main model is the property that matters.
+**Why the shared weakness is structural:** the judge is itself an
+instruction-following model, so the same token stream that steers the base model
+has a channel into the judge; a discriminative classifier exposes no
+instruction-following channel at all, only a learned decision boundary, so there
+is nothing in its input interface to persuade.
 
 **Q: Roblox escalates only a small fraction of traffic to the expensive tier. How does that shape their cascade design?**
 
@@ -91,6 +107,26 @@ cheap tier is calibrated correctly. The expected cost is approximately equal to 
 cheap tier cost for the overwhelming majority of requests. The distilled classifiers dominate the
 economics and the latency profile. The expensive model can be larger and slower
 than you would ever tolerate at full throughput, because it almost never runs.
+**Why the cascade can be calibrated this way at all:** real traffic is heavily
+skewed toward clearly benign inputs, so the cheap tier's job is not to decide
+hard cases but to recognize easy ones and pass them; it escalates on uncertainty
+rather than on verdict. The expected cost per request is then the cheap tier
+plus the escalation fraction times the expensive tier, which is why driving that
+fraction down is the entire economic design.
+
+**Q: Refusal training and an external guard classifier both end in the model
+refusing a harmful request; when does the difference actually matter?**
+A: They look interchangeable because the user sees the same refusal either way.
+The difference is where the decision lives. Refusal training bakes the policy
+into the generator's weights, so the decision sits inside the same next-token
+distribution the attacker is allowed to condition with their prompt; jailbreak
+pressure is precisely the art of moving that distribution. The guard classifier
+is a separate decision that never reads the conversation as instructions, so it
+cannot be argued with, but it adds latency and its fixed boundary can be probed
+with encodings. The difference matters under sustained adversarial pressure
+(the external, unpersuadable decision is what holds) and at policy-update time:
+changing what counts as harmful means retraining or re-prompting a small guard
+versus re-running preference training on the production model.
 
 **Q: What makes Constitutional Classifiers more robust to novel jailbreaks than a
 fixed-taxonomy toxicity classifier?**
@@ -117,6 +153,12 @@ They do not run independently of the model; they share all the model's failure
 modes. Every safety answer that ends at "I added a strong system prompt" is missing
 the classifier layer and the code-enforcement layer, which are the ones that hold
 when the prompt fails.
+**Why the prompt is persuadable by construction:** a system-prompt rule is
+enforced only through the model's learned tendency to follow instructions, and
+that same tendency is the attacker's interface; attack and defense compete inside
+one next-token distribution, so a sufficiently crafted context can always shift
+the balance. Classifiers and code gates sit outside that distribution, which is
+the entire point of them.
 
 **Q: If a jailbreak is detected on the input, you can skip the output guard, right?**
 
@@ -124,6 +166,12 @@ A: No. A benign prompt can still produce a harmful completion. The input guard a
 the output guard are checking different things at different points. Some attacks are
 undetectable on the input and only become visible in the output. A safe input
 verdict does not license skipping the output check; they are independent gates.
+**Why a clean input can still yield a harmful output:** generation is stochastic
+and compositional, so harm can be assembled at generation time from pieces no
+input filter could flag (an innocuous question plus retrieved context, or a
+request spread across turns so no single message crosses the line); the harmful
+artifact literally does not exist until the model produces it, so only a check
+that runs after production can see it.
 
 **Q: Should the safety layer block aggressively to maximize catch rate?**
 
@@ -133,6 +181,11 @@ point on the safety-helpfulness frontier, not to maximize catch rate in isolatio
 Measure and report the false-refusal rate on benign traffic alongside the catch rate
 on adversarial traffic. Anthropic explicitly held the FRR increase to 0.38%
 production; that constraint was as important as the jailbreak reduction.
+**Why base rates make this unforgiving:** benign requests outnumber attacks by
+orders of magnitude in production, so even a small false-refusal rate means the
+absolute count of blocked legitimate users can dwarf the count of blocked
+attackers; a threshold chosen by catch rate alone optimizes the rare class while
+silently taxing the common one.
 
 **Q: Does making the system prompt longer and more detailed increase safety?**
 
@@ -141,6 +194,11 @@ by making them specify more to override. It does not prevent a sophisticated att
 and it is not a substitute for independent classifiers or code-side gates. Investing
 in classifier quality and structural isolation produces much larger safety gains than
 investing in system-prompt engineering.
+**Why length cannot change the outcome:** every added instruction still lives in
+the same channel the attacker writes to and is enforced by the same persuadable
+next-token process; more text raises the effort to override it but never changes
+the enforcement mechanism from persuasion to code, and only a mechanism change
+stops a sufficiently patient attacker.
 
 **Q: A high-accuracy prompt-injection classifier means you can safely put retrieved
 content in the prompt, right?**

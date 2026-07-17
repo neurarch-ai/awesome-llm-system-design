@@ -148,6 +148,32 @@ ticket text as untrusted user input in the prompt (separate it from the system
 prompt with clear delimiters), and run a content moderation pass on ticket text
 before feeding it to the agent.
 
+**Why:** The model has no channel-level notion of trust: system prompt, ticket
+text, and tool results all arrive as tokens in one context, and attention
+weights do not distinguish "instruction from my operator" from "instruction
+quoted inside data." That is why delimiters and moderation only lower the
+probability of a hijack, while a code gate removes the consequence entirely:
+even a fully hijacked model can only propose actions, and the proposal still
+has to pass a check that never read the attacker's text.
+
+---
+
+**Q: A step cap and a token budget look similar; when does the difference
+actually matter?**
+
+A: Both are hard loop bounds enforced by the orchestrator, and on a typical
+ticket either one alone would eventually stop a runaway agent. But they bound
+different resources: the step cap bounds the number of actions (side effects,
+tool executions, chances to do damage), while the token budget bounds context
+growth and spend. The difference matters at the extremes. An agent reading one
+huge document can blow the token budget in two steps, so a step cap alone lets
+cost explode; an agent making many tiny, cheap calls (polling a status
+endpoint) can loop dozens of times under the token budget, so a budget alone
+lets side effects and wall-clock time explode. You need both because tokens
+per step is not a constant: prefill grows with the transcript, so late steps
+cost far more than early ones, and neither bound can be derived from the
+other.
+
 ---
 
 ## Commonly answered wrong (the traps)

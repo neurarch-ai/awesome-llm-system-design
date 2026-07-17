@@ -82,6 +82,30 @@ and language-independent, without relying on whitespace pre-tokenization. It is
 the default for multilingual models and languages without whitespace delimiters
 (Chinese, Japanese, Thai).
 
+### Compare and contrast: byte-level BPE vs SentencePiece unigram
+
+These two get conflated because from the outside they look identical: both
+learn a subword vocabulary of a chosen size from a corpus sample, both then
+map any text to a sequence of ids, and both are fit once before pretraining.
+The difference is how the vocabulary is built and how a string is segmented at
+encode time.
+
+| Dimension | Byte-level BPE | SentencePiece unigram |
+|---|---|---|
+| Learns a fixed-size subword vocabulary from a corpus sample | Yes | Yes |
+| Covers arbitrary input | Yes, by construction from bytes | Yes, with character or byte fallback enabled |
+| Vocabulary construction | Bottom-up: start from bytes, greedily add the most frequent adjacent merge | Top-down: start from a large candidate set, prune tokens that least reduce corpus likelihood |
+| Encoding a string | Deterministic replay of the learned merge rules in order | Pick the most probable segmentation under per-token probabilities (Viterbi) |
+| One string, one tokenization? | Yes, always the same output | No; alternative segmentations exist and can be sampled |
+| Token probabilities | None; merges carry no scores | Each token has a learned probability, enabling subword regularization |
+
+The difference changes the design when you want tokenization to be a training
+signal rather than a fixed preprocessing step: unigram's ability to sample
+alternative segmentations of the same word (subword regularization) acts as
+data augmentation that can help low-resource languages, while BPE's
+deterministic greedy merges make that impossible but keep encoding simple and
+reproducible.
+
 **Vocabulary size is a fertility tradeoff, not a free win.** A larger vocabulary
 means each token covers more text, so sequences are shorter, training and
 inference cost per document drop, and effective context stretches. But a larger

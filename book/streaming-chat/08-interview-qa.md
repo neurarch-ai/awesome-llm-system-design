@@ -68,6 +68,11 @@ correctness is not affected (the session store has the transcript), and the next
 turn on the new replica warms its cache. You monitor the cache hit rate and
 alert if it drops persistently (which would signal a routing bug, not a
 rebalancing event).
+**Why persistence is the tell:** a rebalancing miss is self-healing, since the
+very turn that misses also warms the new replica, so the hit rate dips once and
+recovers within a turn or two; a routing bug sends the same session to a
+different replica on every turn, so each turn misses again and the rate stays
+low. The shape of the curve over time distinguishes the two causes.
 
 **Q: You have 10,000 concurrent streams. One user is on turn 200 of a very long
 conversation. Their generation is slow because the context is huge. Does it
@@ -76,7 +81,13 @@ hurt other users?**
 A: Under continuous batching, the scheduler interleaves decode steps across all
 in-flight streams, so a single slow stream does not starve others. The slow
 stream's issue is that its prefill is expensive (long context), which delays its
-TTFT on each turn. The other 9,999 streams are not blocked. The mitigation for
+TTFT on each turn. The other 9,999 streams are not blocked.
+**Why the isolation holds:** the batch is re-formed at every decode step, so no
+stream ever holds the GPU for its whole generation; the one risk point is the
+long prefill burst, which modern engines bound by splitting a large prefill into
+chunks interleaved with everyone else's decode steps, so the huge context slows
+that user's own first token rather than inflating inter-token latency across the
+fleet. The mitigation for
 the slow user is server-side summarization to bound their context length, or
 explicit per-session rate limiting to prevent one user from claiming
 disproportionate GPU time on each turn.
@@ -92,6 +103,11 @@ trust: if the client sends the history, the server must validate it on every
 request (the client could truncate or tamper with it). Server-side state is
 the right call for products with long sessions, resumability requirements, or
 security constraints.
+**Why tampering is more than a billing nuisance:** the transcript is the model's
+entire grounding for the turn, so a client that edits history can fabricate
+earlier assistant commitments ("you already agreed to waive the fee") or smuggle
+in instructions the moderation layer never saw on any real turn; trusting
+client-held history turns every past message into an unauthenticated input.
 
 **Q: Your voice product has 600ms end-to-end latency. Where do you cut it?**
 
@@ -103,6 +119,25 @@ if the user resumes), which shaves 200 to 400ms off the turn-detection wait;
 (c) moving to a fused speech-to-speech model if you can give up the inspectable
 intermediate transcript. Cutting network means multi-region deployment with
 traffic routed to the nearest region.
+**Why eager turn detection is the biggest single cut:** a turn detector can only
+be sure the user finished by waiting through a silence threshold, and that wait
+is pure dead time added to every single turn; starting the LLM speculatively
+overlaps the dead time with useful compute, and the gamble is cheap because a
+wrong guess is cancelled before anything was spoken back to the user.
+
+**Q: Time-to-first-token and inter-token latency both measure streaming speed;
+when does the difference actually matter?**
+A: Both show up in "the stream feels slow," and dashboards often blur them into
+one latency number. They are produced by different phases with different
+bottlenecks. TTFT is dominated by queueing plus prefill: it grows with context
+length and admission delay, and it is what prefix caching, sticky routing, and
+chunked prefill improve. Inter-token latency is set by decode throughput: it
+grows with batch size and model size, and it is what batching policy and
+hardware choice improve. The difference matters the moment you tune anything:
+raising the batch ceiling improves cost per token while worsening ITL and
+leaving TTFT roughly alone, while a prefix cache improves TTFT and does nothing
+for ITL. A single blended latency metric hides which knob to turn; the fix for
+one phase routinely makes the other slightly worse.
 
 **Q: The user's network blips mid-stream and the SSE connection drops. How does the
 standard help you resume without replaying the whole answer?**
@@ -141,6 +176,12 @@ displayed wait, shed beyond a threshold with a clear retry signal (HTTP 429 with
 a `Retry-After` header), and fall back to a smaller model to raise the slot
 capacity under a spike. Silent indefinite queueing looks like a hang to the
 user and amplifies load from retries.
+**Why the amplification happens:** users and client libraries time out and
+retry, so every silently queued request spawns duplicates that join the same
+queue behind it; arrival rate rises just as effective capacity is exhausted, and
+much of what the queue eventually serves belongs to users who already gave up,
+which is pure wasted GPU time. Shedding early keeps the work the system does
+aligned with users still waiting for it.
 
 **Q: I will add more context to the session store and include it in every prompt
 to make the model smarter about long conversations.**
@@ -151,6 +192,11 @@ design bounds context growth with summarization or a sliding window, and invests
 in prefix caching plus sticky routing so the re-read cost stays low for the
 stable head. Adding more context without a bound is how you arrive at a product
 that errors out mid-conversation when it hits the context limit.
+**Why more context does not even buy the quality it promises:** old turns
+compete with the current question for the model's attention, and retrieval of a
+relevant detail degrades as the transcript grows around it; a bounded,
+summarized context often answers better, not just cheaper, because the signal
+the model needs is no longer buried in turns that stopped mattering.
 
 **Q: I will use session affinity in the load balancer to make prefix caching
 work.**
@@ -162,6 +208,12 @@ session lands on a cold replica. The correct design treats stickiness as
 best-effort: attempt to route to the warm replica, but accept that cache misses
 happen and make sure the cold-cache path is correct and merely slower, not
 broken.
+**Why the cold path must be first-class:** the session-to-replica mapping lives
+in the load balancer and is not durable, while the events that break it
+(restarts, scale-ups, failovers) cluster at exactly the moments of highest
+stress; a design that is only correct on the warm path therefore fails
+preferentially during incidents. Correctness has to live in the session store,
+with the cache changing only latency.
 
 **Q: Streaming reduces the total time to generate the answer, right?**
 

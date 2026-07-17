@@ -55,6 +55,12 @@ tiling selectively only for tasks that need fine detail, and expose resolution a
 per-request or per-task knob rather than a global constant. Serve general QA at
 336px and OCR requests at 1024px with tiling.
 
+**Why the slowdown is worse than 4x:** token count grows quadratically with image
+side, and self-attention cost grows quadratically with token count, so doubling the
+resolution multiplies the attention FLOPs by up to 16x. The offline eval never
+surfaced this because accuracy was measured per example with no latency budget; the
+regression only exists as a function of sequence length at serving time.
+
 **Q: Should you cache raw image bytes, encoder embeddings, or decoder KV entries?**
 A: Cache encoder embeddings (not raw bytes, which require re-encoding). KV entries
 are too large and session-specific. Encoder output is deterministic given the
@@ -62,6 +68,14 @@ image and reusable across any prompt about the same image. Key the cache by
 image content hash, not by filename or URL, so identical images with different
 names still hit the cache. vLLM V1 also folds the image hash into the prefix
 cache key so KV recompute is avoided on multi-turn conversations about one image.
+
+**Why the three cache candidates differ:** each sits at a different point in the
+dependency chain. Raw bytes depend on nothing but save nothing (the expensive
+encode still runs). Encoder embeddings depend only on the pixels, so they are valid
+for any prompt, any user, any session. KV entries additionally depend on every
+token before them in the sequence, including positions and the surrounding prompt,
+so they are only reusable when the entire prefix matches, which is why they belong
+to the prefix cache rather than a standalone image cache.
 
 **Q: Your prefix cache for text prompts is already working. Why does it break on
 multimodal input?**
@@ -79,6 +93,13 @@ that dense content, OCR, and fine geometric detail are partially lost because th
 resampler must discard information to hit the fixed budget. Use a resampler when
 the task is general-understanding and the budget is tight; use an MLP projector
 when the task needs fine detail and you can afford variable token counts.
+
+**Why the fixed budget loses detail:** the resampler works by cross-attending a
+small set of learned query tokens over the full patch grid, so everything the
+decoder will ever know about the image must pass through that fixed-width
+bottleneck. Information theory does the rest: a 4096-patch grid summarized into 64
+vectors cannot preserve every glyph and edge, so the queries learn to keep what the
+training tasks rewarded, which is global semantics rather than dense text.
 
 **Q: You cache encoder embeddings by content hash, but two users crop or re-save
 the same photo slightly and get zero cache hits. Is the cache broken?**
@@ -104,6 +125,31 @@ cache and scales differently. The encoder output (a fixed-size embedding block)
 is passed to the decoder tier via a lightweight message. This separation also
 allows DP on the encoder and TP on the decoder independently.
 
+**Why the two tiers scale so differently:** the encoder is a stateless feed-forward
+pass, so throughput scales almost linearly with replica count and any replica can
+serve any request. The decoder holds per-session KV state that must stay resident
+on the GPU where the sequence lives, so its capacity is bounded by HBM and requests
+are sticky to their replica. Mixing them in one service forces the stateless,
+compute-hungry phase and the stateful, memory-hungry phase to share one scaling
+policy, which fits neither.
+
+**Q: Tiling and a native higher-resolution encoder look similar; both feed the model
+more pixels. When does the difference actually matter?**
+
+A: The mechanics differ in where the extra pixels meet attention. A native
+high-resolution encoder runs self-attention over the full patch grid, so every patch
+can attend to every other patch: global layout is preserved, but cost grows
+quadratically in the grid size and the encoder must be trained at that resolution.
+Tiling reuses a fixed-resolution encoder by slicing the image into crops and
+encoding each independently: cost grows only linearly with tile count and no
+retraining is needed, but a patch in one tile can never attend to a patch in
+another, so structures that span tile boundaries (a table row, a diagram arrow) are
+fragmented and must be re-stitched by the decoder, usually with tile-position tags
+and a low-resolution thumbnail as a global map. The difference matters exactly when
+the task needs cross-region geometry: reading a full-page table or chart favors
+native resolution (or careful tile tagging), while spotting localized fine detail
+like small print tolerates tiling and gets it far cheaper.
+
 ## Commonly answered wrong
 
 **Q: Does the image go into the LLM's context as a single special token?**
@@ -113,11 +159,25 @@ image as a single token is the core mistake that leads to wrong cost estimates.
 A 336px image is roughly 576 tokens; a 1024px image can be 4096. These are the
 numbers to have on hand.
 
+**Why one token cannot work:** the decoder can only use information that is present
+in the token sequence, and a single embedding vector has nowhere near the capacity
+to represent a scene at answerable detail. One token per patch keeps a spatial
+correspondence the attention mechanism can exploit (the model can attend to the
+region containing the answer), which is also why cost estimates based on "an image
+is one token" are off by three orders of magnitude.
+
 **Q: Is image-token caching done by filename or URL?**
 A: By content hash. Filenames and URLs are not stable; the same image can arrive
 with different names or from different URLs. Content hashing ensures that identical
 bytes always hit the cache, and different images never collide even if their URLs
 match. This is subtle but matters in practice.
+
+**Why a collision is worse than a miss:** a miss just costs one redundant encode,
+but a collision serves another image's embeddings as if they were this one's, and
+the decoder happily answers about the wrong picture with no error signal anywhere
+in the pipeline. Cache keys must therefore be derived from the content the cached
+value actually depends on, which for encoder output is the pixels, not the name
+they arrived under.
 
 **Q: Does adding more GPU memory to the decoder server speed up image-heavy
 requests?**

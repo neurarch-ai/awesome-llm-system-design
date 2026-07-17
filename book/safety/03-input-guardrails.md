@@ -76,6 +76,29 @@ which is why the durable defenses are architectural (remove external egress,
 isolate untrusted content, gate actions in code) rather than a cleverer prompt or
 a stronger detector. Treat the classifier as blast-radius reduction, not a seal.
 
+## Compare and contrast: jailbreak vs prompt injection
+
+Both are adversarial text that arrives in the prompt and tries to make the model
+do something the application forbids, and both exploit the same underlying flaw:
+the model has no privilege bit separating instructions from data. They are
+routinely conflated because the payloads can even use identical wording. What
+differs is who the attacker is and which defenses can hold.
+
+| Dimension | Jailbreak | Prompt injection |
+|---|---|---|
+| Attack medium | adversarial text in the prompt | adversarial text in the prompt |
+| Root cause exploited | same: one undifferentiated token stream, no privilege separation | same: one undifferentiated token stream, no privilege separation |
+| Who writes the payload | the user, attacking on their own behalf | a third party who planted it in content the app retrieves; the user may be innocent |
+| Who is the victim | the platform (its policy gets bypassed) | usually the user or the business (their data or actions get hijacked) |
+| Delivery path | the user-message channel, visible to input filters | the application's own trusted plumbing: documents, web pages, tool results |
+| Defense that carries the weight | independent classifiers and refusal training aimed at user text | structural isolation (spotlighting), injection detectors on retrieved content, and code-side action gates |
+
+The difference changes the design the moment your system retrieves external
+content or calls tools: user-facing input filters see only the user channel, so
+an injection riding in through a retrieved document bypasses them entirely, and
+the defense budget has to move from screening the user to isolating the corpus
+and gating the actions.
+
 ## PII detection
 
 PII detection on input prevents two problems: user-submitted PII getting logged or

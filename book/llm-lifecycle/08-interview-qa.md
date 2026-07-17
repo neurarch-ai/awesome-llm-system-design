@@ -91,6 +91,12 @@ inference, where inference at billions of tokens dominates. A smaller model
 trained on far more tokens is cheaper to serve forever. Different objective,
 different optimum. State which cost you are optimizing.
 
+**Why over-training a small model works at all:** loss keeps falling past the
+compute-optimal token count, just with diminishing returns, so the extra training
+tokens buy real quality. Meanwhile serving cost scales with parameter count on every
+generated token for the life of the product, so a one-time overpayment in training
+compute is repaid on billions of inference calls.
+
 ---
 
 **Q: Your eval jumped 8 points after a data refresh. What is the first thing
@@ -100,6 +106,13 @@ A: Contamination. A benchmark gain from new data is guilty until proven clean.
 Re-run decontamination (n-gram or embedding overlap of eval against train) before
 believing or shipping the number. An 8-point gain that traces to eval leakage is
 not a gain; it is a reporting failure.
+
+**Why contamination is the prime suspect:** a data refresh usually pulls newer web
+scrapes, and the web increasingly contains published benchmark questions and answers
+verbatim (papers, blog posts, GitHub dumps of the test sets). A model that has
+memorized test items recalls them instead of reasoning, so the score inflates with no
+capability change, which is exactly the signature of a sudden jump tied to a data
+change rather than a method change.
 
 ---
 
@@ -124,6 +137,14 @@ architecture at lower precision. The two compose: distill then quantize. Begin
 with INT8, move to INT4 under an eval gate, and reach for distillation when
 the model architecture itself is the bottleneck.
 
+**Why INT8 is safe but INT4 is not:** 8 bits gives 256 quantization levels, enough
+that rounding error stays below the noise floor of most layers, while 4 bits gives
+only 16 levels, so the error per weight grows sharply and outlier channels (a few
+weights with much larger magnitude than their neighbors) can dominate the
+reconstruction error of a whole layer. That is why INT4 methods like GPTQ and AWQ
+need calibration data and outlier handling, and why you gate INT4 on your own evals
+rather than trusting a benchmark table.
+
 ---
 
 **Q: PPO keeps a separate value network to estimate the advantage. GRPO drops it.
@@ -141,6 +162,25 @@ tradeoff is that you must sample several completions per prompt, so it leans on
 cheap, high-throughput verifiable rewards (unit tests, math graders) rather than an
 expensive learned reward model.
 
+---
+
+**Q: Mid-training (continued pretraining) and SFT look similar; both are "keep
+training the model on your data." When does the difference actually matter?**
+
+A: The objective and the data shape are different, so they change different things.
+Mid-training runs the same self-supervised next-token objective as pretraining, on
+raw domain text at billions-of-tokens scale; it shifts what the model knows and which
+distributions it models well. SFT runs supervised learning on curated
+instruction-response pairs at thousands-to-millions scale; it shifts how the model
+behaves: answering instead of completing, following formats, adopting a persona. The
+difference matters when you diagnose a failure: a model that writes fluent prose but
+does not know your domain's vocabulary and facts needs mid-training (more SFT will
+just teach it to confidently phrase what it does not know), while a model that knows
+the domain but rambles or ignores instructions needs SFT (more raw domain text will
+not teach it to answer). Mechanically, mid-training also risks catastrophic
+forgetting at its scale, which is why it mixes in replay data from the original
+distribution, a concern SFT rarely hits at its much smaller token counts.
+
 ## Commonly answered wrong (the traps)
 
 **Q: "We will just fine-tune it on our knowledge base."**
@@ -149,6 +189,13 @@ Wrong. Fine-tuning teaches behavior and style; it bakes facts into weights at a
 point in time and cannot cite a source. Correct: RAG for the facts, fine-tune
 only the behavior.
 
+**Why baked-in facts turn into hallucinations:** gradient descent stores a fact as a
+diffuse pattern across many weights with no record of where it came from, so the
+model cannot distinguish a memorized fact from a plausible interpolation. When the
+real-world fact changes, the weights still encode the old version and the model
+states it with full confidence, because nothing in the architecture marks stored
+knowledge as stale.
+
 ---
 
 **Q: "Bigger model means lower perplexity means better product."**
@@ -156,6 +203,14 @@ only the behavior.
 Wrong twice. Perplexity is tokenizer-dependent and measures next-token fit, not
 usefulness. Product quality comes from post-training, data quality, and serving,
 not raw size. Name the right metric per stage.
+
+**Why tokenizer dependence breaks the comparison:** perplexity is exponentiated loss
+per token, and different tokenizers cut the same text into different numbers of
+tokens of different difficulty, so two models with different vocabularies are being
+scored on different denominators. And even a legitimately lower next-token loss only
+says the model predicts text well; it says nothing about instruction following,
+refusal behavior, or factual grounding, which are what users experience and what
+post-training determines.
 
 ---
 
@@ -181,6 +236,13 @@ and jailbreak robustness as release gates. Assume adversarial evasion is
 continuous, including prompt injection through tool calls and RAG retrieval.
 Layer input/output filters, isolate tool inputs, and red-team continuously.
 
+**Why one-time safety tuning decays:** tuning shifts the policy on the attack
+distribution seen during training, but attackers search off that distribution, and
+every new tool or retrieval source adds an input channel the tuning never saw. A
+static defense against an adaptive adversary loses by default, which is why safety
+has to be operated as a measured, layered process rather than shipped as a
+checkpoint property.
+
 ---
 
 **Q: "Benchmark scores are state of the art."**
@@ -188,3 +250,9 @@ Layer input/output filters, isolate tool inputs, and red-team continuously.
 Meaningless without a decontamination claim. The first question is whether the
 eval leaked into training. Lead with the decontamination check; do not wait to
 be asked.
+
+**Why leakage is the default assumption:** benchmarks are published on the same web
+that pretraining corpora scrape, so any benchmark older than the training cutoff has
+plausibly been seen. A contaminated score measures recall of the answer key, not the
+capability the benchmark was designed to test, and no amount of statistical
+significance on the score itself can distinguish the two.
