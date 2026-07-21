@@ -12,6 +12,22 @@ compounds non-linearly with quality: the jump from 0.4 to 0.8 quality score
 produces roughly double the lift of the jump from 0.0 to 0.4. Contamination
 collapses the curve entirely.*
 
+## Where the labels come from
+
+Before you curate, know the provenance of every label, because each source carries
+a different bias that survives into the model. For post-training the label is the
+target response or the preference judgment; here is where it comes from.
+
+| Source | What it gives you | Bias / cost |
+| --- | --- | --- |
+| Implicit production signals (thumbs, accept/reject, edits, downstream task success) | Abundant, cheap, continuously refreshed (prompt, chosen, rejected) pairs | Biased by the current model and by self-selected users; only covers behaviors the model already emits |
+| Human annotation / expert labels (golden SFT targets, preference pairs, safety labels) | High quality on the axes that matter most | Low volume, costly, slow; subject to annotator disagreement, so it needs clear rubrics and adjudication |
+| Synthetic / model-generated (stronger teacher model, self-instruct, augmentation) | Scalable, fills thin skills fast | Propagates the generator's biases and risks judge circularity, so it must pass the same quality and dedup gates as human data |
+
+The non-negotiable rule spanning all three: eval data must never leak into training
+or any retrieval index the model can see. If it does, your metrics measure
+memorization, not capability, and every downstream decision is made on a lie.
+
 ## SFT data: the five rules
 
 **Quality over quantity.** The classic open instruction-tuning result was that

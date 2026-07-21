@@ -125,6 +125,22 @@ right number to bring to a build-versus-buy or provider-selection decision. The
 practical rule: choose the provider on the speed-and-price frontier that meets your
 latency SLO, and re-check it periodically, because the frontier moves.
 
+## The metrics matrix: quality, cost, safety (offline vs online)
+
+A serving change is not judged on throughput alone. It sits on three axes (quality,
+cost, safety), each with an offline proxy you measure before shipping and an online
+signal you confirm on real traffic. This is why a quantization win that lifts tokens
+per second still has to clear a quality gate before it goes out.
+
+| Axis | Offline | Online |
+| --- | --- | --- |
+| Quality | Task-eval score after a precision or engine change (for example accuracy holding when dropping to INT8 or INT4) on a golden set | Output edit rate, thumbs up/down, and quality-regression alerts on live traffic |
+| Cost | Tokens/s/GPU and cost per million tokens $= \frac{\text{GPU hourly rate} \times 10^6}{\text{tokens/s/GPU} \times 3600}$ at a target batch size | p99 TTFT and TPOT under real load, GPU-hours billed, per-provider p50 speed and price |
+| Safety | Load-shedding and admission behavior verified under simulated saturation; no OOM killing in-flight requests | 429 rate, SLO-violation rate, and preemption or OOM incidents observed under real spikes |
+
+A serving config that is cheap and fast but silently regresses quality or drops
+requests under load does not ship, so all three axes gate a launch, not cost alone.
+
 ## Bottlenecks table
 
 | Bottleneck | First sign | Root cause | Fix |

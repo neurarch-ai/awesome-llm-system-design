@@ -5,6 +5,22 @@ run on every request, and resilient to the two distinct threat classes: jailbrea
 that try to talk the model out of its safety behavior, and prompt injection that
 tries to hide instructions in untrusted content.
 
+## Where the labels come from
+
+Every guard classifier and every safety eval set is trained on labels, and the label
+here is a policy verdict: violating or benign. Its provenance decides which attacks the
+guard learns to catch and which it stays blind to.
+
+| Source | What it gives you | Bias / cost |
+| --- | --- | --- |
+| Implicit production signals (flagged messages, user reports, moderator overturns, blocked-then-appealed requests) | Abundant, and it surfaces real attack patterns as they appear in traffic | Biased by the current guard and by self-selected reporters; only covers attack families that already reach production |
+| Human annotation / expert labels (red-team-generated attacks, policy-boundary cases, safety-reviewer verdicts) | High quality on the hardest and most sensitive boundary cases | Low volume, costly, slow; annotator disagreement on where a policy line sits, so it needs clear rubrics and adjudication |
+| Synthetic / model-generated (automated adversarial generation, augmented paraphrases and cipher variants) | Scalable coverage of attack families that are rare in real traffic | Propagates the generator's assumptions about what an attack looks like and risks judge circularity, so it must pass the same quality and dedup gates |
+
+The rule across all three: the adversarial and benign eval sets must never leak into
+the guard's training data, or the ASR and FRR you report measure memorization instead
+of true robustness. Keep the eval sets decontaminated and held out.
+
 ## Jailbreak defense
 
 A jailbreak is a user-crafted input designed to suppress the model's safety

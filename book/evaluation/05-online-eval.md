@@ -95,6 +95,22 @@ offline gate alone, and only the genuinely uncertain ones need a full A/B.
 Spotify explicitly names this: "without offline-online signal calibration, our
 evals are opinions, not evidence."
 
+## The metrics matrix: quality, cost, safety (offline vs online)
+
+A launch decision is not one number. It sits on three axes (quality, cost, safety),
+and each has an offline proxy you measure before shipping and an online signal you
+confirm on real traffic. Reading the matrix by column tells you what a pre-ship gate
+can and cannot see; reading it by row tells you which axis a change is trading against.
+
+| Axis | Offline | Online |
+| --- | --- | --- |
+| Quality | Golden-set task metrics (exact match, F1, pass@k), LLM-as-judge scores per slice on a versioned held-out set | Task completion rate, output edit rate, thumbs up/down, follow-up "that is wrong" messages, human expert A/B |
+| Cost | Tokens per request and estimated cost per case on the offline suite | Cost per request in production, tail latency, throughput under real load |
+| Safety | Binary policy-compliance rate on an adversarial and edge-case set (refused vs complied) | Refusal rate, error rate, and safety-incident rate observed on live traffic |
+
+A system that scores high on quality but is too expensive or unsafe does not ship, so
+all three axes gate a launch, not quality alone.
+
 ## When to use which online approach
 
 | Reach for | When | Instead of |

@@ -32,6 +32,23 @@ query patterns that emerge by Q3. Periodically sample production traffic, annota
 and merge new rows in. Booking.com watches for this drift and treats golden-set
 freshness as a system health signal.
 
+## Where the labels come from
+
+The golden dataset is only as trustworthy as the labels in it, and every label has a
+provenance that decides its bias. For an eval system the label is the reference
+output or the judgment of correctness; here is where each kind comes from.
+
+| Source | What it gives you | Bias / cost |
+| --- | --- | --- |
+| Implicit production signals (thumbs, accept/reject, downstream task success) | Abundant, and it grounds the eval in real outcomes rather than proxies | Biased by the current model and by self-selected users; a rejected answer may be right and unpopular |
+| Human annotation / expert labels (golden references, preference pairs, safety labels) | High quality; the anchor every automated metric is calibrated against | Low volume, costly, slow; subject to annotator disagreement, so publish inter-annotator agreement and adjudicate |
+| Synthetic / model-generated (stronger model as judge or reference generator, augmented cases) | Scalable coverage of rare slices and adversarial cases | Propagates the generator's biases and risks judge circularity, so it must pass the same quality and dedup gates and be calibrated to human labels |
+
+The rule that outranks all three: eval data must never leak into training or into a
+retrieval index the system can see, or the score measures memorization and the metric
+lies. Decontaminate the golden set against training data and keep a held-out slice you
+never tune against.
+
 ## Public benchmarks: capability signal, not a quality gate
 
 Public benchmarks are useful for a single purpose: filtering candidate models by

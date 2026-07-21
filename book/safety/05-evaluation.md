@@ -128,6 +128,22 @@ exercises. The discovery of a universal jailbreak via cipher and role-play after
 the initial classifier deployment is evidence that static evals miss things; keep
 the red-team cadence up.
 
+## The metrics matrix: quality, cost, safety (offline vs online)
+
+Even a safety system does not get to optimize one axis alone. A guardrail launch is
+judged on three axes (quality, meaning helpfulness preserved; cost, meaning the added
+latency and compute of the guard layers; and safety itself), each with an offline proxy
+you measure before shipping and an online signal you confirm on real traffic.
+
+| Axis | Offline | Online |
+| --- | --- | --- |
+| Quality | False-refusal rate (FRR) on a labeled benign eval set; helpfulness held constant | Production FRR from sampled blocked logs; user complaints about wrongful blocks |
+| Cost | Added latency and compute per request from the guard layers, measured on the eval set | Per-request latency and cost overhead of the guard stack under real load |
+| Safety | Attack success rate (ASR) overall and per attack family on a labeled adversarial set | Safety-incident rate and residual ASR observed via continuous red-teaming on live traffic |
+
+A guard that drives ASR near zero but refuses legitimate users or adds unacceptable
+latency does not ship, so all three axes gate a launch, not the safety number alone.
+
 ## When to use which evaluation approach
 
 | Reach for | When | Instead of |

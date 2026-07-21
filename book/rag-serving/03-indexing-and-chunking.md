@@ -114,6 +114,24 @@ chunk's span, so every chunk vector already carries global context with no per-c
 LLM call. Contextual Retrieval is more powerful per chunk but costs an LLM call each;
 late chunking is far cheaper but needs a long-context embedder.
 
+## Where the labels come from
+
+A RAG system is trained and evaluated on relevance labels: which chunk actually
+answers a query, and whether the grounded response was faithful. Every embedder,
+reranker, and retrieval eval depends on those labels, and each source of them carries
+a different bias.
+
+| Source | What it gives you | Bias / cost |
+| --- | --- | --- |
+| Implicit production signals (clicked results, citations the user kept, thumbs, downstream task success) | Abundant query-to-chunk relevance signal straight from real usage | Biased by the current retriever and by self-selected users; you only see relevance for chunks the system already surfaced |
+| Human annotation / expert labels (query-document relevance judgments, golden answer sets, faithfulness labels) | High quality; the anchor for retrieval and grounding eval | Low volume, costly, slow; annotator disagreement on partial relevance, so it needs clear rubrics and adjudication |
+| Synthetic / model-generated (LLM-generated query-answer pairs from your own corpus, hard-negative mining) | Scalable labeled pairs and hard negatives without waiting for traffic | Propagates the generator's biases and risks judge circularity, so it must pass the same quality and dedup gates before it trains or evaluates anything |
+
+The rule that governs all three: the retrieval eval set (its queries and their labeled
+answers) must never leak into the training data or into the live index the system
+retrieves from, or recall and faithfulness numbers measure memorization, not real
+retrieval quality. Keep eval queries out of the index.
+
 ## The embedding service
 
 Every chunk and every query passes through a **text embedding model**: a

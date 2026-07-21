@@ -119,6 +119,22 @@ citation ID verification check described above is a weaker necessary preconditio
 an answer can cite real IDs while paraphrasing them incorrectly, so citation
 verification and groundedness are complementary checks, not substitutes.
 
+## The metrics matrix: quality, cost, safety (offline vs online)
+
+A RAG launch is not decided by answer quality alone. It sits on three axes (quality,
+cost, safety), each with an offline proxy you measure before shipping and an online
+signal you confirm on real traffic. Reading by column shows what a pre-ship gate can
+see; reading by row shows which axis a change trades against.
+
+| Axis | Offline | Online |
+| --- | --- | --- |
+| Quality | Retrieval recall and precision at k, groundedness (faithfulness) score, citation-support rate on a golden set | Task completion rate, output edit rate, thumbs up/down, follow-up "that is wrong" messages |
+| Cost | Prompt token count $T_{\text{prompt}} \approx m \cdot s + T_{\text{query}} + T_{\text{sys}}$ and estimated prefill cost per query | p99 first-token latency, cost per request, index memory and search cost under real load |
+| Safety | Prompt-injection resistance on adversarial corpus documents, abstention rate on out-of-scope queries, fabricated-citation rate | Observed injection incidents, wrongful-disclosure rate, and refusal rate on live traffic |
+
+A RAG answer that is faithful but too expensive to serve or exploitable by a malicious
+corpus document does not ship, so all three axes gate a launch, not quality alone.
+
 ## When to use which grounding strategy
 
 | Reach for | When | Instead of |

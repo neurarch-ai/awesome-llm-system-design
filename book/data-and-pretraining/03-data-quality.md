@@ -4,6 +4,24 @@ Quality filtering and deduplication are the two highest-leverage steps in the
 entire pipeline. This section covers how each works, when to use which, and the
 failure modes that hurt quietly.
 
+## Where the labels come from
+
+Pretraining has no per-example gold answer, but every quality filter is still driven
+by a label: the keep/drop decision, the reference corpus a classifier imitates, or
+the score a judge assigns. Knowing the provenance of that label tells you which bias
+it bakes into the corpus.
+
+| Source | What it gives you | Bias / cost |
+| --- | --- | --- |
+| Implicit production signals (which sources users cite, downstream benchmark lift when a slice is ablated) | Abundant, and it grounds keep/drop in real downstream task success rather than intuition | Biased toward what the current pipeline and users already surface; only measures capabilities your evals already cover |
+| Human annotation / expert labels (curated reference corpora like Wikipedia and books, hand-scored educational-quality samples) | High quality; anchors learned classifiers and perplexity references | Low volume, costly; annotator disagreement on "quality," and the reference set's register becomes the corpus's register |
+| Synthetic / model-generated (LLM-scored quality labels, instruction-formatted positives, augmentation) | Scalable labeling of trillions of tokens a fast classifier can then apply | Propagates the scoring model's biases and risks judge circularity, so it must pass the same heuristic, dedup, and decontamination gates |
+
+The rule that dominates all of them: eval sets must never leak into the training
+corpus or into the reference the filter is trained on, or your benchmark numbers
+measure memorization instead of capability. This is why decontamination runs before
+the first training token, not after.
+
 ## Heuristic quality filters
 
 Heuristic filters are cheap, interpretable rules applied per document. The

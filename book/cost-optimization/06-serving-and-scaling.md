@@ -69,6 +69,22 @@ be discovered. Track these together:
 | Fallback rate (gateway) | Sustained fallback means the primary is in trouble, not a transient blip |
 | Router drift alert | Periodic re-sweep of the quality-cost frontier; alert when per-bucket quality moves |
 
+## The metrics matrix: quality, cost, safety (offline vs online)
+
+Cost optimization is the axis this chapter is about, but a cost win never ships on its
+own number. It sits on three axes (quality, cost, safety), each with an offline proxy
+you measure before shipping and an online signal you confirm on real traffic. A cheaper
+route that quietly returns wrong answers is not a saving; it is a hidden quality cut.
+
+| Axis | Offline | Online |
+| --- | --- | --- |
+| Quality | Per-routing-bucket eval score and cache-hit quality on a golden set before a threshold or model change | Cost per successful request, escalation rate, output edit rate, thumbs up/down on live traffic |
+| Cost | Projected cost per request across routing buckets, cache break-even hit rate $h^{\ast}$, batch-API vs sync price | Actual spend per team or tenant, cache hit rate, batch-vs-online mix, latency added by the gateway hop |
+| Safety | Confirming a fallback or cheaper model preserves policy behavior on the safety eval set | Fallback rate and refusal-rate drift, since a silent fallback can route to a model with different safety behavior |
+
+A route that is cheaper but returns wrong answers or falls back to an unsafe model does
+not ship, so all three axes gate a launch, not cost alone.
+
 ## Bottlenecks table
 
 | Bottleneck | First sign | Fix | Tradeoff |
