@@ -23,6 +23,13 @@ model zoo that open live at real dimensions, not screenshots.
 - Look ahead to the frontier: world models and world-action models that let embodied agents plan, evaluated in simulation and on real robots.
 - Connect every design choice to the architecture underneath it, traced on a real graph rather than a box diagram.
 
+## Start here
+
+**[0. The method: how to approach an LLM system design interview](00-the-method.md)** -
+the repeatable six-step playbook (clarify, metrics, architecture, model adaptation,
+context and data, serving) that every chapter below applies to a different system. Read
+this first; the chapters are the method worked once each.
+
 ## Chapters
 
 Ordered the way a model comes to life: build it, serve it, ground it, compose it, then assure it.
