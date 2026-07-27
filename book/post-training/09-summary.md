@@ -78,6 +78,9 @@ flowchart TD
 
 ## Further reading
 
+- The capstone: [the complete build](10-putting-it-together.md), where every
+  choice in this chapter is committed once for the scenario, costed, rebuilt
+  under two other constraint sets, and compressed into a runnable one-file preference tuner.
 - Dense reference (comparison table, all math, all case studies):
   [topics/05-post-training-pipeline.md](../../topics/05-post-training-pipeline.md).
 - Evaluation system deep dive:

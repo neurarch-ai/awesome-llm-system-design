@@ -25,6 +25,7 @@ activity rather than a one-time pass or fail.
 7. [How teams do it in production](07-how-teams-do-it-in-production.md) - Datadog, Honeycomb, Uber, Grafana, LangChain, Twilio Segment, and where they diverge.
 8. [Interview Q&A](08-interview-qa.md) - commonly asked, tricky, and commonly answered wrong.
 9. [Summary](09-summary.md) - the one-page recap, mermaid, and self-test.
+10. [Putting it together: the complete build](10-putting-it-together.md) - a default stack, the scenario built end to end with sampling and cost math, the same system under three different constraint sets, and the smallest runnable monitor.
 
 ## The whole system on one page
 

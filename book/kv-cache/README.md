@@ -25,6 +25,7 @@ and every design choice follows from it.
 7. [How teams do it in production](07-how-teams-do-it-in-production.md) -- named companies, divergence table, first-party links.
 8. [Interview Q&A](08-interview-qa.md) -- commonly asked, tricky, and commonly answered wrong.
 9. [Summary](09-summary.md) -- one-page recap, mermaid, test-yourself, further reading.
+10. [Putting it together: the complete build](10-putting-it-together.md) -- a default stack, the scenario built end to end with memory and latency math, the same system under three different constraint sets, and the smallest runnable KV cache.
 
 ## The whole system on one page
 

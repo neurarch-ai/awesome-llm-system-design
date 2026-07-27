@@ -30,6 +30,10 @@ Etsy, Instacart, Meta, Google, and Microsoft actually ship it.
    commonly answered wrong, with clear answers.
 9. [Summary](09-summary.md) -- one-page recap, mermaid overview, and
    self-test questions.
+10. [Putting it together: the complete build](10-putting-it-together.md) -- a
+    default stack, the scenario built end to end with memory and latency math,
+    the same system under three different constraint sets, and the smallest
+    runnable ANN index.
 
 ## The whole system on one page
 

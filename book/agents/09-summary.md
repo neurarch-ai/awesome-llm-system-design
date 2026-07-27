@@ -78,6 +78,10 @@ flowchart TD
 
 ## Further reading
 
+- The capstone: [the complete build](10-putting-it-together.md), where every
+  choice in this chapter is committed once for the scenario, costed, rebuilt
+  under two other constraint sets, and compressed into a runnable one-file
+  agent loop.
 - Dense reference (comparison tables, math, full case study list):
   [topics/03-agent-orchestration.md](../../topics/03-agent-orchestration.md)
 - Comparison across production systems (all divergence tables):

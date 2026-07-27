@@ -32,6 +32,7 @@ cross-entropy) is one line; the engineering is everything around it.
 8. [Interview Q&A](08-interview-qa.md) - commonly asked, tricky, and commonly
    answered wrong, with clear answers.
 9. [Summary](09-summary.md) - one-page recap, mermaid, and test-yourself questions.
+10. [Putting it together: the complete build](10-putting-it-together.md) - a default stack, the scenario built end to end with funnel and compute math, the same pipeline under three different constraint sets, and the smallest runnable dedup.
 
 ## The full pipeline on one page
 

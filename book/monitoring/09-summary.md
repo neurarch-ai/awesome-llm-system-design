@@ -75,6 +75,9 @@ flowchart TD
 
 ## Further reading
 
+- The capstone: [the complete build](10-putting-it-together.md), where every
+  choice in this chapter is committed once for the scenario, costed, rebuilt
+  under two other constraint sets, and compressed into a runnable one-file drift detector.
 - Dense reference with all comparisons, math, and production case studies:
   [../../topics/12-production-monitoring-and-observability.md](../../topics/12-production-monitoring-and-observability.md)
 - Per-company teardowns (Datadog, Honeycomb, Uber, Grafana, LangChain, Twilio

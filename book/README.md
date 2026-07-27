@@ -103,12 +103,12 @@ of first-party production engineering writeups. Read a chapter, open its figures
 attempt the questions, then follow the further reading to see how real teams
 shipped the same system.
 
-The RAG chapter additionally closes with a
-[capstone](rag-serving/10-putting-it-together.md) that assembles every technique
-into one complete costed build: an opinionated default stack for a first system,
-the full scenario built end to end with latency and dollar arithmetic, the same
-pipeline re-derived under startup and batch constraints, and a runnable
-zero-dependency reference implementation. If a chapter feels like a menu of
+Every chapter closes with a capstone ("Putting it together: the complete
+build") that assembles the chapter's techniques into one complete costed build:
+an opinionated default stack for a first system, the chapter's scenario built
+end to end with the sizing and dollar arithmetic, the same pipeline re-derived
+under two contrasting constraint sets, and a tested zero-dependency runnable
+reference (a one-file RAG, a continuous-batching simulator, a paged KV
+allocator, a CEM planner, and so on). If a chapter feels like a menu of
 options, the capstone is the worked answer to "which ones do I actually pick,
-under my constraints"; the same treatment is rolling out to the other chapters.
-Built by [Neurarch](https://www.neurarch.com).
+under my constraints." Built by [Neurarch](https://www.neurarch.com).

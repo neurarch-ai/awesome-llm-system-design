@@ -86,6 +86,10 @@ flowchart TD
 
 ## Further reading
 
+- The capstone: [the complete build](10-putting-it-together.md), where every
+  choice in this chapter is committed once for the scenario, costed, rebuilt
+  under two other constraint sets, and compressed into a runnable one-file
+  judge experiment.
 - Dense reference (all case studies, math, divergence diagram):
   [topics/06-evaluation-system.md](../../topics/06-evaluation-system.md).
 - LLM-as-judge survey: [Judging the Judges: Evaluating Alignment and Vulnerabilities in LLMs-as-Judges](https://arxiv.org/abs/2406.12624).

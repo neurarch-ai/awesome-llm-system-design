@@ -84,6 +84,10 @@ flowchart LR
 
 ## Further reading
 
+- The capstone: [the complete build](10-putting-it-together.md), where every
+  choice in this chapter is committed once for the scenario, sized against the
+  node's memory, rebuilt under two other constraint sets, and compressed into a
+  runnable one-file KV-cache model.
 - Dense reference with all math, comparison diagrams, and case studies:
   [../../topics/02-long-context-and-kv-cache.md](../../topics/02-long-context-and-kv-cache.md).
 - Per-company teardowns (vLLM, Character.AI, DeepSeek, Google GQA, NVIDIA, Databricks,

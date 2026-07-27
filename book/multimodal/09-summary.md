@@ -63,6 +63,10 @@ flowchart LR
 
 ## Further reading
 
+- The capstone: [the complete build](10-putting-it-together.md), where every
+  choice in this chapter is committed once for the scenario, costed, rebuilt
+  under two other constraint sets, and compressed into a runnable one-file
+  token-budget calculator.
 - Dense reference with math, all case studies, and per-company teardowns:
   [topics/09-multimodal-serving.md](../../topics/09-multimodal-serving.md).
 - Comparison table and connector math: [tools/comparisons/09.md](../../tools/comparisons/09.md).

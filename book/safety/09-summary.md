@@ -74,6 +74,10 @@ flowchart LR
 
 ## Further reading
 
+- The capstone: [the complete build](10-putting-it-together.md), where every
+  choice in this chapter is committed once for the scenario, costed, rebuilt
+  under two other constraint sets, and compressed into a runnable one-file
+  guardrail pipeline.
 - Dense reference with comparisons, math, and all case studies: [../../topics/07-safety-and-guardrails.md](../../topics/07-safety-and-guardrails.md)
 - Per-company teardowns: [../../tools/teardowns/07.md](../../tools/teardowns/07.md)
 - Comparison table and quadrant chart: [../../tools/comparisons/07.md](../../tools/comparisons/07.md)

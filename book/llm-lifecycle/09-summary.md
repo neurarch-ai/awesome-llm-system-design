@@ -77,6 +77,9 @@ flowchart TD
 
 ## Further reading
 
+- The capstone: [the complete build](10-putting-it-together.md), where every
+  choice in this chapter is committed once for the scenario, costed, rebuilt
+  under two other constraint sets, and compressed into a runnable one-file compute-optimal planner.
 - Full dense reference with all derivations, case studies, and math:
   [../../topics/13-llm-lifecycle.md](../../topics/13-llm-lifecycle.md)
 - Post-training deep dive (SFT, LoRA, reward modeling, PPO, DPO, GRPO):

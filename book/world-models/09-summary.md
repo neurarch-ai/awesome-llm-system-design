@@ -47,6 +47,9 @@ flowchart TB
 
 ## Further reading (first-party)
 
+- The capstone: [the complete build](10-putting-it-together.md), where every
+  choice in this chapter is committed once for the scenario, costed, rebuilt
+  under two other constraint sets, and compressed into a runnable one-file planner.
 - World Models, Ha and Schmidhuber, 2018: [arXiv:1803.10122](https://arxiv.org/abs/1803.10122).
 - DreamerV3, Mastering Diverse Domains through World Models: [arXiv:2301.04104](https://arxiv.org/abs/2301.04104).
 - MuZero, planning with a learned model: [arXiv:1911.08265](https://arxiv.org/abs/1911.08265).

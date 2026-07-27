@@ -78,6 +78,9 @@ flowchart TD
 
 ## Further reading
 
+- The capstone: [the complete build](10-putting-it-together.md), where every
+  choice in this chapter is committed once for the scenario, costed, rebuilt
+  under two other constraint sets, and compressed into a runnable one-file MinHash dedup.
 - Dense reference (all case studies, full math, comparison diagrams):
   [topics/14-data-curation-and-pretraining.md](../../topics/14-data-curation-and-pretraining.md).
 - Open base models with documented data pipelines:

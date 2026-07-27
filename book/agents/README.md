@@ -29,6 +29,10 @@ Ramp, LinkedIn, Uber, and others actually ship it.
    answered wrong, with clear answers.
 9. [Summary](09-summary.md) - the one-page recap, mermaid diagram, and
    self-test questions.
+10. [Putting it together: the complete build](10-putting-it-together.md) - a
+    default stack, the scenario built end to end with latency and cost math,
+    the same system under three different constraint sets, and the smallest
+    runnable agent loop.
 
 ## The agent loop on one page
 

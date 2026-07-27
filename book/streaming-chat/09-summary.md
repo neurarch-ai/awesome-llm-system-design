@@ -72,6 +72,10 @@ flowchart LR
 
 ## Further reading
 
+- The capstone: [the complete build](10-putting-it-together.md), where every
+  choice in this chapter is committed once for the scenario, sized, rebuilt
+  under two other constraint sets, and compressed into a runnable one-file
+  stream.
 - Dense reference (comparison tables, math, all case studies):
   [topics/10-realtime-streaming-chat.md](../../topics/10-realtime-streaming-chat.md).
 - The decoder behind the stream (the model generating the tokens):

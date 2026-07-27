@@ -82,6 +82,9 @@ flowchart TD
 
 ## Further reading
 
+- The capstone: [the complete build](10-putting-it-together.md), where every
+  choice in this chapter is committed once for the scenario, costed, rebuilt
+  under two other constraint sets, and compressed into a runnable one-file RoPE-scaling calculator.
 - Dense reference (all mechanisms, math, case studies):
   [topics/15-continued-pretraining-and-long-context.md](../../topics/15-continued-pretraining-and-long-context.md)
 - Per-company teardowns (Llama 3, Code Llama, YaRN, LongRoPE, Yi, Qwen2.5, Mila):

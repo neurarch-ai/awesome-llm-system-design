@@ -24,6 +24,7 @@ reach for a training run on the first sentence lose the plot.
 7. [How teams do it in production](07-how-teams-do-it-in-production.md) -- where named companies diverge, plus the first-party write-ups.
 8. [Interview Q&A](08-interview-qa.md) -- commonly asked, tricky, and commonly answered wrong, with clear answers.
 9. [Summary](09-summary.md) -- the one-page recap, mermaid diagram, and self-test.
+10. [Putting it together: the complete build](10-putting-it-together.md) -- a default stack, the scenario built end to end with data and training math, the same recipe under three different constraint sets, and the smallest runnable preference tuner.
 
 ## The whole system on one page
 

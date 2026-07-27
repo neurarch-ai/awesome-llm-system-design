@@ -80,6 +80,10 @@ flowchart LR
 
 ## Further reading
 
+- The capstone: [the complete build](10-putting-it-together.md), where every
+  choice in this chapter is committed once for the scenario, sized, rebuilt
+  under two other constraint sets, and compressed into a runnable one-file
+  ANN index.
 - Dense reference (comparison, math, all case studies):
   [topics/08-semantic-search-and-embeddings.md](../../topics/08-semantic-search-and-embeddings.md).
 - Per-company teardowns and interview question banks:

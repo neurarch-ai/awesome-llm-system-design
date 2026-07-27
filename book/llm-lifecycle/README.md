@@ -22,6 +22,7 @@ front** and **inference at scale** on the back end.
 7. [How teams do it in production](07-how-teams-do-it-in-production.md) - named companies, what diverges, and first-party links.
 8. [Interview Q&A](08-interview-qa.md) - commonly asked, tricky, and commonly answered wrong, with clear answers.
 9. [Summary](09-summary.md) - recap, the 5-stage mermaid diagram, test-yourself questions, and further reading.
+10. [Putting it together: the complete build](10-putting-it-together.md) - a default stack, the scenario built end to end with compute and cost math, the same plan under three different constraint sets, and the smallest runnable lifecycle planner.
 
 ## The lifecycle on one page
 

@@ -77,6 +77,10 @@ flowchart LR
 
 ## Further reading
 
+- The capstone: [the complete build](10-putting-it-together.md), where every
+  choice in this chapter is committed once for the scenario, costed, rebuilt
+  under two other constraint sets, and compressed into a runnable one-file
+  batching scheduler.
 - Dense reference with all math, case studies, and the "when to use which" tables:
   [topics/04-inference-serving-at-scale.md](../../topics/04-inference-serving-at-scale.md).
 - Per-system teardowns (Anyscale, Character.AI, LinkedIn, NVIDIA, Together, Fireworks, Modal):
