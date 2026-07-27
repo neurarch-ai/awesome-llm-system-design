@@ -88,6 +88,9 @@ ground a confident reply.
 
 ## Further reading
 
+- The capstone: [the complete build](10-putting-it-together.md), where every
+  choice in this chapter is committed once for the scenario, costed, rebuilt
+  under two other constraint sets, and compressed into a runnable one-file RAG.
 - Dense topic reference (case studies, math, quadrant chart, full production
   comparison): [topics/01-rag-serving.md](../../topics/01-rag-serving.md).
 - Per-company teardowns with interview questions and gotchas:

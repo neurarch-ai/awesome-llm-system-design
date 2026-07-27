@@ -56,7 +56,7 @@ Ordered the way a model comes to life: build it, serve it, ground it, compose it
 
 | Chapter | Covers |
 |---------|--------|
-| [Serving Retrieval-Augmented Generation](rag-serving/) | Retrieval, chunking, the embedding service, ANN at scale, re-ranking, grounded generation, eval |
+| [Serving Retrieval-Augmented Generation](rag-serving/) | Retrieval, chunking, the embedding service, ANN at scale, re-ranking, grounded generation, eval, plus a [worked capstone build](rag-serving/10-putting-it-together.md) |
 | [Semantic Search and Embedding Services](semantic-search/) | Vector index choice, recall vs latency, quantization, hybrid search, re-ranking |
 
 ### Building applications
@@ -101,4 +101,14 @@ Open a chapter folder and read its sections in order (start at the folder's
 README). Each chapter ends with an interview Q&A and a self-test, and links a set
 of first-party production engineering writeups. Read a chapter, open its figures,
 attempt the questions, then follow the further reading to see how real teams
-shipped the same system. Built by [Neurarch](https://www.neurarch.com).
+shipped the same system.
+
+The RAG chapter additionally closes with a
+[capstone](rag-serving/10-putting-it-together.md) that assembles every technique
+into one complete costed build: an opinionated default stack for a first system,
+the full scenario built end to end with latency and dollar arithmetic, the same
+pipeline re-derived under startup and batch constraints, and a runnable
+zero-dependency reference implementation. If a chapter feels like a menu of
+options, the capstone is the worked answer to "which ones do I actually pick,
+under my constraints"; the same treatment is rolling out to the other chapters.
+Built by [Neurarch](https://www.neurarch.com).
