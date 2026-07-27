@@ -6,11 +6,13 @@ on:
     paths:
       - "book/**"
       - "tools/validate-book.mjs"
+      - "tools/run-capstones.py"
       - ".github/workflows/validate-book.yml"
   pull_request:
     paths:
       - "book/**"
       - "tools/validate-book.mjs"
+      - "tools/run-capstones.py"
       - ".github/workflows/validate-book.yml"
 
 jobs:
@@ -23,3 +25,8 @@ jobs:
           node-version: "24"
       - name: Validate book markdown (links, fences, mermaid, KaTeX, math, style)
         run: node tools/validate-book.mjs
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run every capstone code block (book/*/10-putting-it-together.md)
+        run: python3 tools/run-capstones.py

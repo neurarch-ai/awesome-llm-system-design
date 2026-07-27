@@ -203,7 +203,7 @@ def report(C, volumes):
     print(f"  Overtrained small  : N = {N2/1e9:5.1f}B params, "
           f"D = {D2/1e9:6.0f}B tokens ({D2/N2:.0f} tok/param)")
     print(f"  Train cost         : optimal ${t1:,.0f}  vs  small ${t2:,.0f}")
-    print(f"  Serve cost / 1M tok: optimal ${s1*1e6:.3f}  vs  small ${s2*1e6:.3f}")
+    print(f"  Serve cost / 1M tok: optimal {s1*1e6:.3f}  vs  small {s2*1e6:.3f} (USD)")
     print(f"  Decode ms/token b=1: optimal {N1*P_BYTES/HBM_BW*1e3:.1f}  "
           f"vs  small {N2*P_BYTES/HBM_BW*1e3:.1f}")
     print()

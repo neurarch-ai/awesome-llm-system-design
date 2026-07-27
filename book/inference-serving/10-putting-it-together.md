@@ -87,11 +87,11 @@ stretches that prefill across several iterations, trading a little TTFT for a
 smooth token stream on every other user's request.
 
 **Cost per million output tokens.** From [section 6](06-autoscaling-and-cost.md),
-cost = (GPU hourly rate x 10^6) / (tokens/s/GPU x 3600). At $3 per H100-hour
-and 320 tokens/s/GPU that is about $2.60 per million output tokens; equivalently,
-60 nodes at $24 per node-hour is about $35,000 per day (Illustrative) serving
+cost = (GPU hourly rate x 10^6) / (tokens/s/GPU x 3600). At \$3 per H100-hour
+and 320 tokens/s/GPU that is about \$2.60 per million output tokens; equivalently,
+60 nodes at \$24 per node-hour is about \$35,000 per day (Illustrative) serving
 about 13 billion output tokens. Compare the section's own worked example at 80
-tokens/s/GPU: $10.40 per million. The entire gap is the denominator, which is
+tokens/s/GPU: \$10.40 per million. The entire gap is the denominator, which is
 why continuous batching, FP8, and INT8 KV are business decisions, not tuning
 details. Every remaining lever (speculation on a low-batch tier, better packing)
 is judged by whether it moves that denominator without failing the quality gate.

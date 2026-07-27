@@ -78,7 +78,7 @@ sharded index means a handful of RAM-heavy replicas plus GPU embedding workers
 on the write path, and cost stays flat with query volume until a replica is
 added. Illustrative: four shards times two replicas is eight index nodes. The
 chapter's calibration point is Vespa's published billion-scale build, 1B int8
-vectors at 90% recall@10 under 50ms for about $6K per month
+vectors at 90% recall@10 under 50ms for about \$6K per month
 ([section 7](07-how-teams-do-it-in-production.md)); a 100M-document service
 sits well under that. The number worth internalizing is the counterfactual:
 skipping quantization would nearly triple RAM per shard, and choosing a

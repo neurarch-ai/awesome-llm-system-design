@@ -80,9 +80,9 @@ of milliseconds for the encoder pass (zero on a cache hit), then prefill over
 roughly balanced and TTFT lands well under one second, leaving half the
 2-second budget as headroom for queueing, cold caches, and multi-turn prefixes.
 
-**Cost per request.** Illustrative, at $0.25 per million input tokens and $1.25
+**Cost per request.** Illustrative, at \$0.25 per million input tokens and \$1.25
 per million output tokens: ~640 input tokens plus a ~150-token answer is about
-$0.0004 per image request, and the 70 percent text-only majority costs a tenth
+\$0.0004 per image request, and the 70 percent text-only majority costs a tenth
 of that. The number worth internalizing is the counterfactual: serving native
 1024px multiplies the image-side input bill by more than 6x and the prefill
 latency by far more, for zero measured quality gain on general VQA. The
@@ -225,7 +225,7 @@ spills into the same four padded tiles as a full 1024px page and pays the
 identical 4096-token bill, which is why resolution caps belong at tile
 boundaries. And the pooled column shows the connector clawing it back: a 4x
 patch-merge projector turns a four-image 1024px page from 16,444 prefill tokens
-(about $0.0041, illustrative) into 4,156 (about $0.0010), the same lever a
+(about \$0.0041, illustrative) into 4,156 (about \$0.0010), the same lever a
 resampler pulls harder with a fixed cap. Change POOL to 1, 4, and 16 and you
 are walking the [connector tradeoff curve](03-the-projector-and-tokens.md) from
 MLP toward Q-Former; every section of this chapter is a policy for one constant
