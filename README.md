@@ -21,6 +21,9 @@ numbers change. More on why that matters [below](#about-the-diagrams).
 
 > **Reading this as a book?** A chapter-by-chapter edition of this material, in
 > book style with figures and end-of-chapter questions, lives in [**book/**](book/).
+> Every chapter closes with a capstone that decides the whole build once, costs it,
+> re-derives it under two other constraint sets, and ships a runnable
+> zero-dependency reference you can execute with nothing but Python 3.
 
 ---
 

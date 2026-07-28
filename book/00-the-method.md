@@ -90,3 +90,9 @@ I would iterate after launch, driven by traces" is what finishes a strong answer
 Each chapter that follows is this method applied once. Read a few and the shape becomes
 automatic, which is the entire point: the interview rewards the method, not the
 memorized system.
+
+Each chapter then ends with a capstone that runs the method to a verdict: every step
+above decided once for that chapter's scenario, with the sizing and cost arithmetic, the
+same system re-derived under two other constraint sets, and a runnable reference small
+enough to read in one sitting. The six steps teach you what to ask; the capstone shows
+what committing to answers actually looks like.
