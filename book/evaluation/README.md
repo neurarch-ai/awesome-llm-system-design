@@ -45,3 +45,8 @@ flowchart TD
 
 Read the sections in order the first time; they build on each other. Each opens
 with the question an interviewer actually asks, then answers it.
+
+## Companion chapter
+
+The classic-ML companion book covers the same ground from the other side:
+[experimentation](https://github.com/neurarch-ai/awesome-ml-system-design/tree/main/book/experimentation/) is the A/B platform underneath the online half of this chapter: randomization units, power and sizing, peeking, and interleaving.

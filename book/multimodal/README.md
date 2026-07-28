@@ -51,3 +51,8 @@ lives.
 
 Read the sections in order the first time; they build on each other. Each opens
 with the question an interviewer actually asks, then answers it.
+
+## Companion chapter
+
+The classic-ML companion book covers the same ground from the other side:
+[computer-vision](https://github.com/neurarch-ai/awesome-ml-system-design/tree/main/book/computer-vision/) is the vision stack underneath the encoder: labeling, augmentation, detection heads, and mAP.

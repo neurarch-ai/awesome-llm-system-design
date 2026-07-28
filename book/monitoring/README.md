@@ -58,3 +58,8 @@ and sampled** so they do not tax the serving path, and human labels loop back to
 Read the sections in order the first time; they build on each other. Each opens
 with the question an interviewer actually asks, then answers it with the reasoning
 behind the design choice.
+
+## Companion chapter
+
+The classic-ML companion book covers the same ground from the other side:
+[monitoring](https://github.com/neurarch-ai/awesome-ml-system-design/tree/main/book/monitoring/) is the classic-ML treatment of the same job: feature and prediction drift, PSI, and delayed-label performance on a tabular model.

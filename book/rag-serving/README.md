@@ -53,3 +53,8 @@ flowchart LR
 
 Read the sections in order the first time; they build on each other. Each opens
 with the question an interviewer actually asks, then answers it.
+
+## Companion chapter
+
+The classic-ML companion book covers the same ground from the other side:
+[search-ranking](https://github.com/neurarch-ai/awesome-ml-system-design/tree/main/book/search-ranking/) is the retrieval funnel treated as a search product: query understanding, BM25, learning to rank, and judgment collection.

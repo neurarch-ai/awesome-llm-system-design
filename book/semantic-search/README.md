@@ -58,3 +58,8 @@ flowchart LR
 ```
 
 Read the sections in order the first time; each one builds on what came before.
+
+## Companion chapter
+
+The classic-ML companion book covers the same ground from the other side:
+[candidate-retrieval](https://github.com/neurarch-ai/awesome-ml-system-design/tree/main/book/candidate-retrieval/) is the same index used as the recall stage of a recommender, where the query is a user rather than a text string.

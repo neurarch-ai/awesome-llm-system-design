@@ -43,3 +43,8 @@ flowchart LR
 
 Read the sections in order the first time; they build on each other. Each opens
 with the question an interviewer actually asks, then answers it.
+
+## Companion chapter
+
+The classic-ML companion book covers the same ground from the other side:
+[content-moderation](https://github.com/neurarch-ai/awesome-ml-system-design/tree/main/book/content-moderation/) is the platform-scale moderation system these guardrails descend from: policy taxonomies, thresholds, and the human-review loop.
