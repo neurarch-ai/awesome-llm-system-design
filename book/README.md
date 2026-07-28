@@ -95,6 +95,10 @@ the supporting tooling (an approximate-nearest-neighbor index, a re-ranker, an
 inference server, a feature or trace store) but do not require you to install
 anything to read them.
 
+Each chapter's capstone closes with a runnable program that uses the Python
+standard library only. If you want to execute those, any Python 3 works; nothing
+else is needed, and no chapter asks you to install a framework.
+
 ## How to use this book
 
 Open a chapter folder and read its sections in order (start at the folder's
