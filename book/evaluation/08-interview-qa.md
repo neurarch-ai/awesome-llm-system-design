@@ -183,6 +183,25 @@ an online canary before full rollout.
 
 **Deeper:** The judge's blindness is categorical, not a matter of accuracy. It cannot observe whether the user kept the output, retried, or churned, because those signals simply do not exist at eval time. No amount of judge quality recovers a variable that is structurally absent from the offline input, which is why online validation is a different measurement rather than a more precise version of the same one.
 
+**Q: Our judge clears the kappa bar, so we can report its scores as the quality
+number.**
+
+A: Clearing the bar makes the judge usable for *ranking* two candidates on the same
+rubric; it does not make its absolute number unbiased. Kappa says the judge and
+humans disagree at some rate, which is a property of the instrument, not a
+correction to the measurement. If the number leaves the team (a report, a model
+card, a launch review), rectify it: keep the judge on all examples, keep human
+labels on a few hundred, and add the measured judge bias back to the judge's mean
+(prediction-powered inference). That is unbiased regardless of judge quality, and it
+costs a labeling budget you can size rather than a labeling budget you cannot
+afford. See [benchmarking, section 5](../benchmark-eval/05-scoring-and-autoraters.md).
+
+**Deeper:** The distinction is between a relative and an absolute claim. "Candidate
+beats baseline on this rubric" survives a biased judge as long as the bias applies
+equally to both, which is why gating works. "Our assistant is 74 percent accurate"
+does not, because that number inherits the judge's bias directly, and it is the one
+that ends up on a slide.
+
 **Q: Set the gate tolerance to zero: any regression at all blocks the deploy.**
 
 A: Judge noise means a tolerance of zero will flap the gate constantly. The judge

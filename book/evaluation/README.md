@@ -46,7 +46,14 @@ flowchart TD
 Read the sections in order the first time; they build on each other. Each opens
 with the question an interviewer actually asks, then answers it.
 
-## Companion chapter
+## Companion chapters
+
+[Benchmarking a model](../benchmark-eval/) is the other half of "eval": this chapter
+gates a *feature* on your own golden set, that one produces a defensible number for a
+*model* on public and internal benchmarks. Go there for the harness and protocol
+knobs that make published numbers irreproducible, contamination detection, autorater
+certification and bias correction, and the statistics that decide whether a gap is
+real.
 
 The classic-ML companion book covers the same ground from the other side:
 [experimentation](https://github.com/neurarch-ai/awesome-ml-system-design/tree/main/book/experimentation/) is the A/B platform underneath the online half of this chapter: randomization units, power and sizing, peeking, and interleaving.
