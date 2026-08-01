@@ -1,4 +1,4 @@
-# Continued Pretraining and Long-Context Adaptation
+# Mid-Training: Continued Pretraining and Long-Context Adaptation
 
 > **Style note.** This chapter teaches first. It borrows the thinking of a
 > structured system-design interview (clarifying requirements, framing the
@@ -18,11 +18,20 @@ the cheap, high-leverage gap between a base model and an aligned chat model. Thi
 chapter builds both end to end, and shows how Meta, Nous Research, Microsoft, 01.AI,
 Alibaba, and the Mila group actually do it.
 
+**This stage is what labs now call mid-training.** The phase between pretraining
+and post-training has its own budget, its own data, and its own evals: mixture
+reweighting, the anneal (decay) phase, capability injection, long-context
+extension, and preparing the base for post-training. Section 3 opens with that
+lab-side view and then walks the practitioner-side recipe (adapting a released open
+base) that most product teams actually run. Where the model's data pipeline itself
+is the subject, see [data curation and pretraining](../data-and-pretraining/); where
+the question is the whole five-stage map, see [the LLM lifecycle](../llm-lifecycle/).
+
 ## Sections
 
 1. [Clarifying the requirements](01-clarifying-requirements.md) -- the dialogue that scopes the problem.
 2. [Two axes](02-two-axes.md) -- the adaptation axis (domain) and the length axis; input and output.
-3. [Continued pretraining](03-continued-pretraining.md) -- DAPT, LoRA, replay against forgetting, and the LR schedule.
+3. [The mid-training phase](03-continued-pretraining.md) -- what mid-training means now, data mixture and microanneals, the anneal phase and stable-phase branching, capability injection and RL readiness, then DAPT, replay against forgetting, and the LR schedule.
 4. [Context extension](04-context-extension.md) -- PI, NTK-ABF, YaRN, LongRoPE, ALiBi; KaTeX for the math.
 5. [Evaluation](05-evaluation.md) -- needle-in-a-haystack, RULER, forgetting checks; what each measures.
 6. [Serving and scaling](06-serving-and-scaling.md) -- memory cost at length, bottlenecks table.

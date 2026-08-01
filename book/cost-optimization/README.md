@@ -45,3 +45,12 @@ flowchart TD
 
 Read the sections in order the first time; each one opens with the question the
 interviewer actually asks, then answers it.
+
+## Companion chapter
+
+This chapter's right-sizing section stops at "use a smaller or quantized model."
+[Model compression](../model-compression/) picks it up from there: which lever moves
+which resource, why a 4x smaller model is not 4x faster, pruning shapes the hardware
+can use, prune-plus-distill for building a small model without a pretraining budget,
+and how to accept a compressed model without shipping a different one behind the
+same benchmark score.

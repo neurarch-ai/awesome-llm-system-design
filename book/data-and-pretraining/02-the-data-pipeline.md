@@ -73,7 +73,10 @@ books, papers, and math each carry different qualities; each is given a domain
 weight. High-value but scarce domains (code, math, papers) are upsampled above
 their natural frequency; noisy web text is downsampled. Near the end of
 training, the mixture is annealed (gradually shifted) toward the highest-quality, most-on-target
-data, which cheaply sharpens the base before post-training.
+data, which cheaply sharpens the base before post-training. That tail is now a
+named phase with its own budget and its own evals, mid-training, and it is where
+mixture reweighting, microanneals, capability injection, and long-context extension
+happen: see [the mid-training phase](../continued-pretraining/03-continued-pretraining.md).
 
 Concretely, "domain weight" just means the probability of drawing the next
 document from each domain, which you can implement as a weighted draw:

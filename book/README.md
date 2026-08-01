@@ -16,7 +16,8 @@ model zoo that open live at real dimensions, not screenshots.
 ## What you will learn
 
 - Understand how a model comes to exist: the lifecycle, data curation and pretraining, continued pretraining, and post-training with LoRA, SFT, DPO, and RLHF.
-- Reason about the real cost of serving an LLM: the KV cache, continuous batching, speculative decoding, quantization, cost optimization, and streaming.
+- Reason about the real cost of serving an LLM: the KV cache, continuous batching, speculative decoding, cost optimization, and streaming.
+- Make a model smaller without pretending it is free: quantization, pruning, distillation, and the acceptance test a compressed model has to pass.
 - Ground a model in knowledge: RAG, semantic search, and the embedding and re-ranking stack.
 - Compose models into products: agent orchestration and multimodal serving.
 - Know that a system works and keep it working: offline and online evaluation, benchmarking a model with error bars and contamination control, safety and guardrails, and production monitoring.
@@ -40,7 +41,7 @@ Ordered the way a model comes to life: build it, serve it, ground it, compose it
 |---------|--------|
 | [The LLM Lifecycle](llm-lifecycle/) | The five-stage map (data, pretraining, mid-training, post-training, deployment) and the cross-stage math |
 | [Data Curation and Pretraining](data-and-pretraining/) | Web-scale data pipeline, dedup and decontamination, tokenizer, scaling laws, architecture and parallelism |
-| [Continued Pretraining and Long Context](continued-pretraining/) | Domain adaptation, catastrophic forgetting, RoPE scaling, YaRN, long-context evaluation |
+| [Mid-Training: Continued Pretraining and Long Context](continued-pretraining/) | Mixture reweighting and the anneal phase, capability injection and RL readiness, domain adaptation, catastrophic forgetting, RoPE scaling, YaRN, long-context evaluation |
 | [Fine-Tuning and Post-Training](post-training/) | Prompt vs RAG vs SFT vs LoRA, DPO and RLHF, data curation, eval gates |
 
 ### Inference and serving
@@ -50,6 +51,7 @@ Ordered the way a model comes to life: build it, serve it, ground it, compose it
 | [Long-Context Inference and the KV Cache](kv-cache/) | The real cost of serving, GQA and MLA, paged attention, prefix caching, batching |
 | [Serving LLM Inference at Scale](inference-serving/) | Continuous batching, speculative decoding, disaggregation, parallelism, autoscaling |
 | [Cost Optimization and Model Routing](cost-optimization/) | Routing, cascades, semantic caching, prompt compression, the quality-cost frontier |
+| [Model Compression](model-compression/) | Quantization formats and the outlier problem, pruning shapes the hardware can use, distillation, on-device serving, and how to accept a compressed model |
 | [Real-Time Streaming Chat](streaming-chat/) | Token streaming, transport, session memory, backpressure, voice pipelines |
 
 ### Retrieval and knowledge

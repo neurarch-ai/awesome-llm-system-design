@@ -1,4 +1,122 @@
-# 3. Continued pretraining
+# 3. The mid-training phase
+
+## What "mid-training" means now
+
+The stage between pretraining and post-training used to be called "continued
+pretraining" and treated as an optional extra. It is now a named phase with its own
+budget, its own data, and its own evals: token counts intermediate between
+pretraining and post-training, spent on changing the data distribution rather than
+the objective, with the goals of domain and language expansion, long-context
+extension, quality upgrade through curated and synthetic data, and preparing the
+model for post-training ([A Survey on LLM Mid-Training](https://arxiv.org/abs/2510.23081)).
+
+Two very different teams do it, and interviews conflate them.
+
+| | Lab-side mid-training | Practitioner-side continued pretraining |
+|---|---|---|
+| Starting point | Your own base, mid-run, optimizer state intact | Someone else's released base, fully decayed |
+| Main knob | The data mixture and its schedule | The domain corpus plus a replay fraction |
+| Learning rate | Still in the stable phase; you control the decay | Must be re-warmed from the floor and re-decayed |
+| Token budget | Hundreds of billions, a meaningful slice of the run | Billions, a rounding error next to pretraining |
+| Typical goal | Capability seeding, quality upgrade, long context, RL readiness | Domain prior, register, vocabulary, longer window |
+| Failure mode | A mixture that helps one eval and quietly costs another | Catastrophic forgetting of general ability |
+
+```mermaid
+flowchart LR
+  PT["pretraining<br/>stable phase, broad web mixture"] --> MIX["mixture reweight<br/>upsample code / math / papers,<br/>add curated + synthetic data"]
+  MIX --> ANN["anneal (decay) phase<br/>LR decays on the<br/>highest-quality mix"]
+  ANN --> LC["long-context extension<br/>(the length axis, section 4)"]
+  LC --> BASE["mid-trained base"]
+  BASE --> POST["post-training<br/>SFT, preference optimization, RL"]
+  OPEN["released open base<br/>(fully decayed)"] --> DAPT["continued pretraining<br/>re-warm + replay"]
+  DAPT --> BASE
+```
+
+The rest of this section walks the lab-side knobs first, because they explain why
+the practitioner-side recipe looks the way it does, then the DAPT mechanics that
+most product teams actually run.
+
+## The data mixture is the main knob
+
+Mid-training changes what the model sees, not how it learns. A mixture is a set of
+sampling weights over domains, and the weights are a design decision with measurable
+consequences: high-value scarce domains (code, math, papers, target languages) get
+upsampled well above their natural web frequency, noisy web text gets downsampled,
+and curated or synthetic data enters at ratios chosen per objective. Learned
+approaches exist for setting those weights rather than guessing them, by training a
+small proxy model and reweighting domains by where it is furthest from a reference
+([DoReMi](https://arxiv.org/abs/2305.10429)).
+
+The practical problem is that a full run per candidate mixture is unaffordable. The
+answer is the **microanneal**: take a checkpoint from the stable phase, run a short
+decay on the candidate mixture, and read the eval delta as a cheap estimate of what
+that mixture would do at scale. OLMo 2 systematizes this, and publishes the
+mid-training mixture itself (Dolmino) as an artifact separate from the pretraining
+corpus ([2 OLMo 2 Furious](https://arxiv.org/abs/2501.00656)).
+
+The same trick inverts into a **data-quality probe**: when you cannot tell whether a
+small specialized corpus is worth including, anneal with it and without it and
+compare. Llama 3 used annealing runs in exactly this way to judge small
+domain-specific datasets ([The Llama 3 Herd of Models](https://arxiv.org/abs/2407.21783)).
+That reframing is worth stating in an interview: annealing is not only a training
+schedule, it is the cheapest experiment you have for valuing a dataset.
+
+## The anneal, and why the schedule has a stable phase
+
+Cosine decay commits you to a horizon: the schedule is defined by the total token
+count, so you cannot stop early, and you cannot branch. The warmup-stable-decay
+family fixes that by holding the learning rate constant for most of training and
+decaying only at the end, which makes every point in the stable phase a legitimate
+branch point and puts most of the loss improvement inside a short, cheap decay
+([MiniCPM](https://arxiv.org/abs/2404.06395)).
+
+That shape is what makes mid-training practical as an engineering process:
+
+- **Branch, do not restart.** One stable-phase checkpoint feeds many decay runs
+  (different mixtures, different context lengths, different capability targets).
+- **Spend quality where it counts.** The decay phase is where the model is most
+  plastic per token, so the best data belongs there rather than smeared across the
+  whole run.
+- **Average at the tail.** Averaging several checkpoints near the end of the decay
+  is a standard, nearly free variance reduction on the final base.
+
+## Capability injection and RL readiness
+
+The newest reason mid-training gets its own budget is that it decides whether
+post-training will work at all. Reasoning-style data (long chain-of-thought
+traces, QA-formatted problems, verified solutions) introduced during mid-training
+changes how much reinforcement learning can add later: work comparing model
+families found that high-quality math corpora plus long-CoT QA data during
+mid-training substantially raise the ceiling that RL reaches afterwards, and that
+the divergence between base families under identical RL recipes traces back to what
+they saw in this phase ([OctoThinker](https://arxiv.org/abs/2506.20512)).
+
+Two consequences to state explicitly, because both are common interview follow-ups.
+First, **instruction-shaped data before SFT is deliberate, not leakage of
+post-training into pretraining**: pre-mixing a modest fraction of instruction and QA
+formatting makes the later SFT run cheaper and more stable. Second, **that same
+practice is where benchmark contamination enters most easily**, since curated QA and
+synthetic reasoning data resemble benchmark items by construction, so the
+decontamination pass has to run against the mid-training mixture too, not only the
+pretraining corpus (see [benchmarking, section 4](../benchmark-eval/04-contamination-and-validity.md)).
+
+## Mid-training evals: what should move, and when
+
+The phase has its own measurement discipline, distinct from both pretraining loss
+curves and post-training preference scores.
+
+| Signal | Reads on | Why it belongs here |
+|---|---|---|
+| Few-shot capability benchmarks (code, math, domain) | The injected capability | The thing the mixture was changed to buy |
+| Full general suite, before and after | Forgetting | A mixture that lifts one axis and drops another is a net loss |
+| Long-context retrieval and aggregation (RULER-style) | The length axis | Extension is usually done in this phase, so it is measured in this phase |
+| Loss on a held-out slice per domain | Whether a domain weight is doing anything | Cheap, continuous, and available before any benchmark moves |
+| Post-training probe (short SFT plus a small RL run) | RL readiness | The only signal that catches "the base is fine but will not respond to RL" |
+
+The last row is the one people miss. A base can look healthy on every static
+benchmark and still be a poor starting point for reinforcement learning, and the
+only way to find out before committing the post-training budget is to run a small
+probe.
 
 ## Domain-adaptive pretraining (DAPT)
 

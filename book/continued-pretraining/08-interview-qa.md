@@ -6,6 +6,37 @@ are where interviews are won or lost.
 
 ## Commonly asked
 
+**Q: What is mid-training, and how is it different from pretraining and
+post-training?**
+
+A: It is the phase between them, defined by what changes rather than by scale: the
+objective stays next-token prediction (unlike post-training) while the data
+distribution changes deliberately (unlike the bulk of pretraining). Its jobs are
+domain and language expansion, a quality upgrade through curated and synthetic
+data, long-context extension, and getting the base ready for post-training. Two
+teams run it under two different constraints. A lab does it mid-run: the optimizer
+state is intact and the learning rate is still in its stable phase, so the main knob
+is the data mixture and the timing of the decay. A product team does it on a
+released base that has already fully decayed, which is why the practitioner recipe
+needs a learning-rate re-warm and a general-data replay fraction that the lab-side
+version does not. Mixing the two recipes up (resuming a released base as if the
+optimizer state were yours) is the usual mistake.
+
+**Q: Why do labs decay the learning rate at the end on a different data mixture
+rather than just training longer on the same one?**
+
+A: Because the decay phase is where the model is most plastic per token, so the
+highest-quality data belongs there rather than smeared uniformly across trillions
+of tokens. Practically it also buys a branching structure: a constant learning
+rate through the stable phase means any stable-phase checkpoint can be forked into
+several short decay runs (one per candidate mixture, context length, or capability
+target) instead of committing the whole run to one horizon the way a cosine
+schedule does. That is what makes the short "microanneal" a usable experiment: run
+the decay on a candidate mixture, read the eval delta, and extrapolate before
+spending the full budget. The same run doubles as a data-quality probe, which is
+how Llama 3 valued small domain-specific datasets: anneal with and without the
+dataset and compare.
+
 **Q: Why continued pretraining instead of just fine-tuning on domain examples?**
 
 A: SFT on domain examples teaches the model a format and narrows behavior; it does
@@ -128,6 +159,36 @@ interchangeable and the cheaper one (no extra data pipeline, so lower peak)
 wins.
 
 ## Commonly answered wrong (the traps)
+
+**Q: Instruction and QA-formatted data belongs in post-training, so mid-training
+should be raw text only.**
+
+A: Labs deliberately pre-mix a modest fraction of instruction-shaped and QA-shaped
+data during mid-training, because it makes the later SFT run cheaper and more
+stable, and because reasoning-formatted data in this phase raises the ceiling that
+reinforcement learning can reach afterwards. Work comparing base families under
+identical RL recipes traces their divergence back to what they saw in mid-training,
+not to the RL recipe. The real caution is different: curated QA and synthetic
+reasoning data resemble benchmark items by construction, so this is the easiest
+place for contamination to enter, and the decontamination pass has to cover the
+mid-training mixture and not just the pretraining corpus.
+
+**Deeper:** The failure this trap produces is not a bad base but an unreadable one.
+A model whose mid-training mixture was never decontaminated posts strong benchmark
+numbers and disappoints in the product, and because the contamination entered after
+the pretraining pipeline's decontamination step, the usual "we deduplicated the
+corpus" claim is true and irrelevant.
+
+**Q: A base that scores well on every static benchmark is a good starting point for
+post-training.**
+
+A: Not necessarily, and this is the signal mid-training exists to produce. Static
+benchmarks measure what the base can already do; what post-training needs is
+whether the base *responds* to being pushed, which is a different property. The
+cheap check is a probe rather than an argument: run a short SFT plus a small RL run
+on the candidate base and compare the movement against your reference base. Skipping
+the probe is how a team discovers, after committing the entire post-training budget,
+that the ceiling was set two stages earlier.
 
 **Q: To get a clinical model, fine-tune on our clinical documents.**
 
