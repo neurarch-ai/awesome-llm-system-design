@@ -78,6 +78,12 @@ borrowing from how they report:
 Use these as the coarse capability filter and the live-numbers reference; then run
 your own task-specific eval, because a public number never gates your feature.
 
+Running those benchmarks yourself is its own pipeline, and it is a common interview
+topic in its own right ("walk me through how you evaluate a model on a benchmark").
+The protocol knobs that make two runs of the same benchmark disagree, contamination
+detection, certifying a model grader, and the statistics that decide whether a gap
+is real are all in the [benchmarking chapter](../benchmark-eval/).
+
 The reason is contamination (benchmark items, or near-copies of them, leaking into
 the model's training data). If eval cases or near-duplicates leaked into a
 model's training data, its scores look inflated on public benchmarks while the

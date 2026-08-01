@@ -19,7 +19,7 @@ model zoo that open live at real dimensions, not screenshots.
 - Reason about the real cost of serving an LLM: the KV cache, continuous batching, speculative decoding, quantization, cost optimization, and streaming.
 - Ground a model in knowledge: RAG, semantic search, and the embedding and re-ranking stack.
 - Compose models into products: agent orchestration and multimodal serving.
-- Know that a system works and keep it working: offline and online evaluation, safety and guardrails, and production monitoring.
+- Know that a system works and keep it working: offline and online evaluation, benchmarking a model with error bars and contamination control, safety and guardrails, and production monitoring.
 - Look ahead to the frontier: world models and world-action models that let embodied agents plan, evaluated in simulation and on real robots.
 - Connect every design choice to the architecture underneath it, traced on a real graph rather than a box diagram.
 
@@ -71,6 +71,7 @@ Ordered the way a model comes to life: build it, serve it, ground it, compose it
 | Chapter | Covers |
 |---------|--------|
 | [Evaluating LLM Systems](evaluation/) | Offline suites, LLM-as-judge, online A/B, regression gates |
+| [Benchmarking a Model](benchmark-eval/) | The benchmark pipeline end to end: harness and protocol, contamination, autorater certification, error bars, leaderboards |
 | [Safety, Moderation, and Guardrails](safety/) | Input and output filtering, jailbreak and injection defense, PII, policy routing |
 | [Production Monitoring and Observability](monitoring/) | Tracing, online eval without labels, hallucination detection, drift, regression |
 

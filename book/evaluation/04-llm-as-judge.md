@@ -110,6 +110,42 @@ tolerance to compensate for a bad instrument; fix the instrument. A low kappa
 means the judge is measuring something other than what humans care about, and
 gating on it gives false confidence.
 
+## Beyond kappa: certify, ensemble, and correct
+
+Kappa tells you the judge disagrees with humans at some rate. It does not make the
+number you report unbiased, and three newer practices close that gap. All three are
+developed in full in the [benchmarking chapter](../benchmark-eval/05-scoring-and-autoraters.md).
+
+**Rubric criteria instead of a holistic score.** Replace "rate this 1 to 10" with a
+list of per-item criteria, each nearly binary and each carrying a weight, and let the
+judge decide criterion by criterion. Models and humans agree far more on small
+checkable claims than on a global rating, and the rubric is an artifact you can
+version and hand to a domain expert. OpenAI's HealthBench is the reference design,
+with physician-written criteria per conversation and an expert meta-evaluation of the
+grader itself ([HealthBench](https://arxiv.org/abs/2505.08775)).
+
+**Probe the judge for gaming before trusting it.** Run degenerate inputs through the
+rubric: an empty answer, a constant answer, a padded answer, and an answer containing
+an instruction aimed at the judge. Any of them scoring well is a blocking defect, and
+constant-output "null models" have been shown to win non-trivial rates against
+automatic judges. Judge-specific benchmarks exist for the same reason: strong general
+models are mediocre judges on objectively checkable pairs where the wrong answer
+sounds better ([JudgeBench](https://arxiv.org/abs/2410.12784)).
+
+**Correct the residual bias statistically instead of assuming it away.** Keep the
+cheap judge on all $N$ examples, keep human labels on a small $n$, and rectify:
+
+$$\hat\theta_{\text{PPI}} = \frac{1}{N}\sum_{i=1}^{N} f(X_i) + \frac{1}{n}\sum_{j=1}^{n}\bigl(Y_j - f(X_j)\bigr)$$
+
+where $f$ is the judge score and $Y$ the human label. The second term is an unbiased
+estimate of the judge's systematic error, so the result is unbiased no matter how
+biased the judge is, and a better judge buys a tighter interval rather than a
+different answer ([Stratified Prediction-Powered Inference](https://arxiv.org/abs/2406.04291),
+[How to Correctly Report LLM-as-a-Judge Evaluations](https://arxiv.org/abs/2511.21140)).
+The practical effect is that the question stops being "can we afford to label
+everything" and becomes "how many labels buy an acceptable interval," which is a
+sizing calculation you can put in a plan.
+
 ## Pairwise vs pointwise: when to use which
 
 | Reach for | When | Instead of |
