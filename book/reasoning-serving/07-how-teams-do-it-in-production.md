@@ -45,3 +45,6 @@ cost per solved task.
 - **Google** [thinking in the Gemini API](https://ai.google.dev/gemini-api/docs/thinking): thinking budgets and how to turn them off for latency-sensitive calls.
 - **METR** [Measuring AI Ability to Complete Long Software Tasks](https://metr.org/blog/2025-03-19-measuring-ai-ability-to-complete-long-tasks/): capability expressed as the length of task a model completes, which is the demand side of the budget question.
 - **UIUC and collaborators** [Establishing Best Practices for Building Rigorous Agentic Benchmarks](https://arxiv.org/abs/2507.02825): how weak outcome validation inflates results, which is the same failure mode as a weak accept test in a cascade.
+
+For the dense single-file reference (same material, interview-walkthrough shape):
+[topics/18-reasoning-and-test-time-compute.md](../../topics/18-reasoning-and-test-time-compute.md).

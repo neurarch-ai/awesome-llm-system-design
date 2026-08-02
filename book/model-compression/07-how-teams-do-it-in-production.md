@@ -53,3 +53,6 @@ like server stacks even when both say "4-bit."
 - **Microsoft Research India** [Accuracy is Not All You Need](https://arxiv.org/abs/2407.09141): why compressed models that match on accuracy still behave differently, and what to measure instead.
 - **Red Hat AI and the vLLM project** [llm-compressor](https://github.com/vllm-project/llm-compressor): production recipes for weight, activation, and KV-cache quantization targeting vLLM.
 - **llama.cpp** [the GGUF quantization ecosystem](https://github.com/ggml-org/llama.cpp): the reference for CPU, Metal, and consumer-hardware quantized inference.
+
+For the dense single-file reference (same material, interview-walkthrough shape):
+[topics/17-model-compression.md](../../topics/17-model-compression.md).

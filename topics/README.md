@@ -30,6 +30,8 @@ navigate by use case instead, start from the
 - [02 - Long-context inference and the KV cache](02-long-context-and-kv-cache.md)
 - [04 - LLM inference serving at scale](04-inference-serving-at-scale.md)
 - [11 - Cost optimization and model routing](11-cost-optimization-and-model-routing.md)
+- [17 - Model compression](17-model-compression.md)
+- [18 - Reasoning models and test-time compute](18-reasoning-and-test-time-compute.md)
 - [10 - Realtime streaming chat](10-realtime-streaming-chat.md)
 
 **Retrieval and knowledge**
@@ -42,6 +44,7 @@ navigate by use case instead, start from the
 
 **Quality and safety**
 - [06 - LLM evaluation system](06-evaluation-system.md)
+- [16 - Benchmarking a model](16-benchmark-evaluation.md)
 - [07 - Safety, moderation, and guardrails](07-safety-and-guardrails.md)
 - [12 - Production monitoring and observability](12-production-monitoring-and-observability.md)
 
@@ -49,7 +52,6 @@ navigate by use case instead, start from the
 
 - Speculative decoding deep dive and disaggregated prefill/decode
 - Cost modeling and capacity planning end to end
-- On-device and edge LLM serving
 
 ## Contributing a topic
 

@@ -54,3 +54,6 @@ suites plus one internal set. Publishing a model-card number does not.
 - **UIUC and collaborators** [Establishing Best Practices for Building Rigorous Agentic Benchmarks](https://arxiv.org/abs/2507.02825): the checklist for task specification and outcome validation, with measured overestimation in widely used agentic benchmarks.
 - **Thinking Machines Lab** [Defeating Nondeterminism in LLM Inference](https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/): why identical requests differ, and batch-invariant kernels that fix it.
 - **Epoch AI** [benchmarking hub](https://epoch.ai/benchmarks): independently re-run benchmark results with the protocol documented.
+
+For the dense single-file reference (same material, interview-walkthrough shape):
+[topics/16-benchmark-evaluation.md](../../topics/16-benchmark-evaluation.md).

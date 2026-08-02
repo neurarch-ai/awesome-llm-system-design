@@ -84,6 +84,8 @@ watch it.**
 | 02 | [Long-context inference and the KV cache](topics/02-long-context-and-kv-cache.md) | The real cost of serving, GQA vs MLA, paged attention, prefix caching, batching |
 | 04 | [LLM inference serving at scale](topics/04-inference-serving-at-scale.md) | Continuous batching, speculative decoding, tensor parallelism, autoscaling |
 | 11 | [Cost optimization and model routing](topics/11-cost-optimization-and-model-routing.md) | Model routing, cascades, semantic caching, prompt compression, right-sizing, the quality-cost frontier |
+| 17 | [Model compression](topics/17-model-compression.md) | Quantization and the outlier problem, pruning shapes the hardware can use, distillation, on-device, the acceptance test |
+| 18 | [Reasoning and test-time compute](topics/18-reasoning-and-test-time-compute.md) | Thinking budgets, the latency tail, effort routing and cascades, verifiers, cost per solved task |
 | 10 | [Realtime streaming chat](topics/10-realtime-streaming-chat.md) | Token streaming, session memory, websockets, backpressure |
 
 ### Retrieval and knowledge
@@ -108,22 +110,11 @@ watch it.**
 | # | Topic | What it teaches |
 |---|-------|-----------------|
 | 06 | [LLM evaluation system](topics/06-evaluation-system.md) | Offline suites, LLM-as-judge, online A/B, regression gates |
+| 16 | [Benchmarking a model](topics/16-benchmark-evaluation.md) | Harness and protocol, contamination, autorater certification and PPI, error bars, leaderboards |
 | 07 | [Safety, moderation, and guardrails](topics/07-safety-and-guardrails.md) | Input/output filtering, jailbreak defense, PII, policy routing |
 | 12 | [Production monitoring and observability](topics/12-production-monitoring-and-observability.md) | Tracing, online eval without labels, LLM-as-judge, hallucination detection, drift, regression |
 
-All fifteen topics are written and ready.
-
-### Book-only chapters
-
-Three subjects are covered in the book edition and have no `topics/` counterpart
-yet. They are written in the same shape (dialogue, deep dives, production
-comparison, interview Q&A, runnable capstone).
-
-| Chapter | What it teaches |
-|---|---|
-| [Benchmarking a model](book/benchmark-eval/) | The benchmark pipeline end to end: harness and protocol, contamination detection, autorater certification and bias correction, error bars, leaderboards |
-| [Model compression](book/model-compression/) | Quantization and the outlier problem, pruning shapes the hardware can use, distillation, on-device serving, and the acceptance test a compressed model must pass |
-| [Reasoning and test-time compute](book/reasoning-serving/) | Serving models that think: token budgets, latency variance, effort routing, verifiers and best-of-n, when a reasoning model is the wrong choice |
+All eighteen topics are written and ready.
 
 **Going deeper than the whiteboard?** [**deep-dives.md**](deep-dives.md) is a
 bank of ~206 rapid-fire, depth-probing questions: the follow-ups an interviewer
