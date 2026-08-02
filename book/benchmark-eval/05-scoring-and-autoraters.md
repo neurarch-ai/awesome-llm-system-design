@@ -51,6 +51,12 @@ user gets one attempt and a failure is a failure.
 
 $$\text{pass}^k = p^k \qquad\text{so}\qquad p = 0.9 \implies \text{pass}^8 \approx 0.43$$
 
+![pass@k and pass^k for the same 90 percent agent](assets/fig-passk-vs-passhatk.png)
+
+*Both metrics start at the single-attempt rate and then move in opposite
+directions. Quoting pass@k for a product where the user gets one attempt reports
+the blue curve for a system that lives on the orange one.*
+
 A 90 percent success rate looks strong and is not: run the same task eight times and
 the agent gets all eight right less than half the time. The unbiased estimator from
 $n$ samples with $c$ successes mirrors the pass@k one:
@@ -149,6 +155,13 @@ def ppi_estimate(judge_all, judge_labeled, human_labeled):
     return mean(judge_all) + bias                                    # rectified, unbiased
 # judge says 0.72 overall; on 200 human-labeled items it runs 0.05 high -> corrected 0.67
 ```
+
+![Three estimators of the same quantity](assets/fig-ppi-correction.png)
+
+*Simulated: a judge that runs 6 points high on 5,000 items, 300 of which also carry
+human labels. The judge alone is precise and wrong, the human sample alone is
+unbiased and wide, and the rectified estimate is unbiased with roughly half the
+human-only interval. Illustrative.*
 
 Two consequences worth saying out loud in an interview. First, this **changes the
 labeling budget question** from "can we afford to label everything" to "how many

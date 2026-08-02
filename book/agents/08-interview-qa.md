@@ -178,6 +178,30 @@ other.
 
 ## Commonly answered wrong (the traps)
 
+**Q: How do you guarantee tool calls and JSON outputs are always valid? Is a good
+prompt enough?**
+
+A: No. Prompt instructions make validity likely, not certain, and at production
+volume a small failure rate is a steady stream of broken turns. The guarantee comes
+from constrained decoding: compile the schema or grammar into a state machine and
+mask the logits so tokens that cannot complete a valid parse have zero probability,
+either through the provider's structured-output mode or locally for a self-hosted
+model. Two things that guarantee does not cover, and a complete answer names both.
+It constrains **form, not content**, so a well-formed call with a wrong argument is
+still possible and the validation gate still runs. And it can cost quality if the
+grammar fights the model's natural distribution, which is why you leave a place for
+reasoning before the constrained block rather than forcing schema-only output. Round
+it out with repair before retry (trim surrounding prose, close a string, coerce a
+type) and a retry that feeds the validator error back, capped, since three retries of
+a structurally impossible call is latency spent on nothing.
+
+**Deeper:** Track it as a rate split three ways, parse failures, schema violations,
+and semantically wrong but valid calls, per tool and per model version. The split is
+what tells you which lever to pull: the first two shrink with constrained decoding,
+the third only responds to schema design and the gate. It is also an early warning
+system for model changes, since call validity is usually the first thing to regress
+when a model is swapped or quantized.
+
 **Q: Should the model decide how many steps to take?**
 
 A: No. The model decides what to do on each step; the orchestration layer

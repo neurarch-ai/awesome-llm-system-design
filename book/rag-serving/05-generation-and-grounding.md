@@ -153,7 +153,8 @@ tightening the context. Groundedness and citation-support scoring are provided b
 Ragas (its faithfulness metric), DeepEval, and Arize Phoenix, using an LLM judge or an
 NLI classifier over the (context, claim) pairs. Structured citation output is enforced
 with a schema-constrained decoding layer such as Outlines, Guidance, or the provider's
-JSON-mode. Prompt-injection defenses draw on scanners like Rebuff and the guardrail
+JSON-mode (the mechanism, its limits, and the repair-then-retry ladder are in
+[agents, section 3](../agents/03-planning-and-tools.md)). Prompt-injection defenses draw on scanners like Rebuff and the guardrail
 layers in NeMo Guardrails (NVIDIA) and Guardrails AI, though the core fix is keeping
 retrieved text out of the instruction slot.
 

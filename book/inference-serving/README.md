@@ -41,7 +41,12 @@ flowchart LR
 Read the sections in order the first time; they build on each other. Each opens
 with the question an interviewer actually asks, then answers it.
 
-## Companion chapter
+## Companion chapters
+
+[Model compression](../model-compression/) goes deeper on the artifact this chapter
+serves: quantization formats and the outlier problem, pruning shapes the hardware
+can actually skip work for, distillation, and the acceptance test a compressed model
+has to pass before it replaces the original.
 
 The classic-ML companion book covers the same ground from the other side:
 [realtime-serving](https://github.com/neurarch-ai/awesome-ml-system-design/tree/main/book/realtime-serving/) is the classic-ML serving problem, where requests are cheap and uniform so queueing, not the KV cache, sets the p99.

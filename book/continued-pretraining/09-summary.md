@@ -2,6 +2,13 @@
 
 ## One-page recap
 
+- **This stage is mid-training, and it has two dialects.** Lab-side, you are still
+  mid-run: the knob is the data mixture and when you decay, the anneal phase is
+  where the best data goes, and a stable-phase checkpoint branches into many short
+  microanneals. Practitioner-side, the base is already fully decayed, which is why
+  your recipe adds a learning-rate re-warm and a replay fraction that the lab
+  version does not need. Mixing the recipes up is the usual mistake.
+
 - **Name the two axes before you design.** Domain adaptation (DAPT) and context
   extension are independent problems with different failure modes and different
   tools. Solving one with the other's tool is the first tell of a shallow answer.

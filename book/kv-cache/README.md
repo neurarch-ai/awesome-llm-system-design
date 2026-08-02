@@ -44,3 +44,11 @@ flowchart LR
 
 Read the sections in order the first time. They build on each other.
 Each opens with the question an interviewer actually asks, then answers it.
+
+## Companion chapter
+
+KV quantization is one lever in a larger toolkit. [Model
+compression](../model-compression/) covers the rest (weight quantization and the
+outlier problem, pruning shapes, distillation) and, more usefully here, the order to
+apply them in: architectural KV reduction first, then paging, then quantizing the
+cache, and only then trading away what the model can attend to.
