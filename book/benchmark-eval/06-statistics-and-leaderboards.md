@@ -23,7 +23,14 @@ Put the item counts of real benchmarks into that and the implications are blunt.
 | 500 items | SWE-bench Verified | about 4.4 points | The usual headline gaps are borderline |
 | 2,000 items | Large aggregate suites | about 2.2 points | 2-point claims become discussable, not yet decided |
 
-This table alone answers the most common follow-up in the interview: *"the new model
+![95 percent CI half-width against benchmark size](assets/fig-error-bars-vs-n.png)
+
+*The interval on a single score, computed from the binomial standard error at
+$\hat p = 0.5$. The benchmarks people quote most often sit on the steep part of the
+curve: a 30-item competition set carries about 18 points of uncertainty and a
+198-item set about 7, which is why single-run claims on them are not claims.*
+
+This figure answers the most common follow-up in the interview: *"the new model
 scores 3 points higher, is it better?"* On a 200-item benchmark, from one run, the
 honest answer is "not distinguishable yet, and here is what it would take."
 
@@ -58,6 +65,14 @@ a 4.4-point interval and the comparison looks hopeless. Paired,
 $\text{SE} = \sqrt{40}/500 \approx 1.3$ points and $z = 10/\sqrt{40} \approx 1.6$:
 still not significant, but now you know exactly how far off you are and that the
 answer is more items, not more argument.
+
+![Unpaired intervals versus the paired difference](assets/fig-paired-vs-unpaired.png)
+
+*The same 500-item run, analyzed two ways. Left: each score with its own interval,
+which overlap so heavily the comparison looks hopeless. Right: the paired
+per-item difference, whose interval is about half as wide because the concordant
+items cancel. It still crosses zero, but now the question is a sample-size
+calculation rather than an argument.*
 
 Sizing follows directly. To detect a difference $\delta$ at 5 percent significance
 and 80 percent power with a discordance rate $d = (b+c)/n$:

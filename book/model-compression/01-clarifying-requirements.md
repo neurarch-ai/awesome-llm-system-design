@@ -64,6 +64,12 @@ The right first question is not "how much can I compress" but "what does this
 accelerator make cheap," and every recommendation should name the format and the
 kernel, not just the bit width.
 
+![Identical accuracy with a 12 percent flip rate](assets/fig-accuracy-vs-flips.png)
+
+*The measurement that decides whether "no regression" is true. Wins and losses
+cancel in the mean, so a compressed model can post the baseline's exact score while
+answering one item in eight differently. Illustrative.*
+
 **Consequence 2: top-line accuracy is the wrong acceptance test.** Two models can
 score the same on a benchmark and disagree on a large fraction of individual items,
 which is exactly what compression does: it does not lower the average so much as

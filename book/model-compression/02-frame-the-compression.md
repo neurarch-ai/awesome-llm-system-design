@@ -14,6 +14,13 @@ key-value heads, $d_h$ the head dimension, $s$ the sequence length, $B$ the batc
 and $b_{kv}$ the bytes per cached element. The first term is fixed; the second
 grows with context and batch and is the one that surprises people.
 
+![Weights and KV cache against an 80GB ceiling](assets/fig-memory-breakdown.png)
+
+*The same 70B model at 32K context. int8 weights still miss a single 80GB
+accelerator once one sequence's cache is resident, which is what forces int4 rather
+than a preference for it, and the KV term is already a fifth of the budget at one
+sequence.*
+
 **Time** splits by phase:
 
 - **Prefill** processes the whole prompt at once, so each loaded weight is reused
@@ -32,6 +39,13 @@ $$t_{\text{decode}} \approx \frac{N b_w + \text{KV bytes read}}{\text{HBM bandwi
 and equally, why the same trick does almost nothing for time-to-first-token, and
 why the win erodes as batch size grows and the phase drifts back toward compute
 bound.
+
+![Decode throughput versus fp16, as batch size grows](assets/fig-speedup-vs-batch.png)
+
+*Computed from the bandwidth model above for a 70B model at 32K context. Weight-only
+quantization is worth over 3x at batch one and about 1.15x at batch 64, because the
+weight read amortizes across the batch while the KV term does not. Quantizing the KV
+cache is the lever that keeps paying at production batch sizes.*
 
 ## The four levers
 

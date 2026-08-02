@@ -16,6 +16,14 @@ flowchart TD
   ST --> STO["quality: needs a healing run<br/>speed: real everywhere (smaller matrices)<br/>memory: genuinely smaller model"]
 ```
 
+![Reconstruction error for quantization and pruning](assets/fig-quant-prune-error.png)
+
+*Measured on a synthetic weight block with a handful of outlier channels (the
+capstone prints the same comparison for a different draw). Two readings: shrinking
+the quantization group from 128 to 32 nearly halves the int4 error, the cheapest
+knob in the chapter; and 2:4 sparsity costs more error than unstructured pruning at
+the same 50 percent, which is the price of a pattern the hardware can actually skip.*
+
 The middle column is the whole lesson. Unstructured sparsity is the easiest to
 achieve and the hardest to cash in: a dense matmul unit does the same work whether
 the zeros are there or not. The 2:4 pattern (exactly two nonzeros in every group of

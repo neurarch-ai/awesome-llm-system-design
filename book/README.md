@@ -31,6 +31,12 @@ the repeatable six-step playbook (clarify, metrics, architecture, model adaptati
 context and data, serving) that every chapter below applies to a different system. Read
 this first; the chapters are the method worked once each.
 
+Three companion pages sit alongside the chapters:
+
+- **[Reading paths](reading-paths.md)** - which chapters to read in which order for a specific loop (infra, model team, AI engineer, on-device, research), plus a one-week plan.
+- **[Numbers to know](numbers-to-know.md)** - the quantities you should be able to produce from memory, each with the formula that generates it.
+- **[A mock interview, end to end](mock-interview.md)** - a full 45-minute transcript with the interviewer's scoring notes and the rubric they fill in afterwards.
+
 ## Chapters
 
 Ordered the way a model comes to life: build it, serve it, ground it, compose it, then assure it.
@@ -52,6 +58,7 @@ Ordered the way a model comes to life: build it, serve it, ground it, compose it
 | [Serving LLM Inference at Scale](inference-serving/) | Continuous batching, speculative decoding, disaggregation, parallelism, autoscaling |
 | [Cost Optimization and Model Routing](cost-optimization/) | Routing, cascades, semantic caching, prompt compression, the quality-cost frontier |
 | [Model Compression](model-compression/) | Quantization formats and the outlier problem, pruning shapes the hardware can use, distillation, on-device serving, and how to accept a compressed model |
+| [Reasoning and Test-Time Compute](reasoning-serving/) | Serving models that think: budgets and the latency tail, effort routing and cascades, verifiers, cost per solved task |
 | [Real-Time Streaming Chat](streaming-chat/) | Token streaming, transport, session memory, backpressure, voice pipelines |
 
 ### Retrieval and knowledge

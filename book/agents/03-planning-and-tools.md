@@ -82,6 +82,68 @@ Good tool schema properties:
 - **Clear failure modes.** Document what the tool returns on error so the model
   knows how to handle a timeout or a not-found result without hallucinating.
 
+## Making the call valid: constrained decoding and repair
+
+A schema tells the model what a valid call looks like. It does not make the call
+valid. At scale, a percentage of outputs will be malformed JSON, invent an argument,
+omit a required field, or return prose wrapped around the call, and each of those is
+a failed turn that costs a retry. There are four levers, and they stack in a
+specific order.
+
+**1. Constrained decoding (the strongest).** Restrict sampling to tokens that can
+still complete a valid parse. Implementations compile the schema or grammar into a
+finite-state machine (or a pushdown automaton for recursive grammars) and mask the
+logits at each step, so invalid tokens have zero probability. Properties worth
+knowing:
+
+- Validity becomes structural, not statistical: malformed output is impossible
+  rather than unlikely.
+- The mask costs almost nothing at decode time once compiled, but compiling a
+  complex schema is not free, so cache the compiled artifact per schema version.
+- It constrains **form, not content**. A constrained decoder will happily produce a
+  well-formed call with a wrong argument value, which is why the validation gate
+  still runs afterwards.
+- It can hurt quality if the grammar fights the model's natural distribution.
+  Forcing an answer-only JSON schema on a model that wanted to reason first is a
+  common cause of worse arguments; give it a place to think, then constrain the
+  final block.
+
+**2. Provider-native structured output.** Most APIs expose a JSON or schema mode
+that does the same thing server-side. Use it when available; it is the same
+mechanism with less operational surface. The caveat is that support varies by
+model and by feature (recursive schemas, unions, and long enums are where
+implementations diverge), so validate rather than assume.
+
+**3. Schema design that reduces the failure surface.** Shallow beats deep, flat
+beats nested, enums beat free strings, and required-field counts should be small.
+Optional fields with defaults are cheaper than fields the model must remember. If
+two tools have confusable schemas, the model will confuse them, so the fix is
+naming and narrowing rather than a longer description.
+
+**4. Repair, then retry, in that order.** When something does get through
+malformed, try to fix it locally (trim prose around the JSON block, close an
+unterminated string, coerce a numeric string to a number) before spending another
+model call. If a retry is needed, feed the validator's error back as the prompt
+rather than re-asking blind, and cap retries: an agent that retries a structurally
+impossible call three times has burned the user's latency budget on nothing.
+
+**Measure it as a rate, not an anecdote.** The metric is **call validity rate**,
+split into parse failures, schema violations, and semantically-wrong-but-valid
+calls, tracked per tool and per model version. The third bucket is the one that
+matters most and the one constrained decoding does not help with, so it is the
+argument for keeping the validation gate. Validity is also the first thing to
+regress when you quantize a model, which is why it appears as an acceptance test in
+the [compression chapter](../model-compression/08-interview-qa.md).
+
+| Reach for | When | Instead of |
+|---|---|---|
+| Provider structured-output mode | It exists for your model and covers your schema | Rolling your own masking layer |
+| Local constrained decoding (grammar or FSM) | Self-hosted, or you need a grammar the provider does not support | Prompt-only instructions, which fail statistically |
+| Prompt-only "respond in JSON" | Prototypes, or a model with no constrained mode | Assuming it will hold at production volume |
+| Repair before retry | Any malformed output | Immediately spending another full call |
+| Retry with the validator error | Repair failed and the call is required | Blind re-asking, which usually repeats the mistake |
+| Schema simplification | Validity is low on one specific tool | More prompt engineering on a schema the model finds confusable |
+
 ## Single agent vs multi-agent
 
 Multi-agent systems get a lot of attention. The honest framing is that they

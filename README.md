@@ -113,6 +113,18 @@ watch it.**
 
 All fifteen topics are written and ready.
 
+### Book-only chapters
+
+Three subjects are covered in the book edition and have no `topics/` counterpart
+yet. They are written in the same shape (dialogue, deep dives, production
+comparison, interview Q&A, runnable capstone).
+
+| Chapter | What it teaches |
+|---|---|
+| [Benchmarking a model](book/benchmark-eval/) | The benchmark pipeline end to end: harness and protocol, contamination detection, autorater certification and bias correction, error bars, leaderboards |
+| [Model compression](book/model-compression/) | Quantization and the outlier problem, pruning shapes the hardware can use, distillation, on-device serving, and the acceptance test a compressed model must pass |
+| [Reasoning and test-time compute](book/reasoning-serving/) | Serving models that think: token budgets, latency variance, effort routing, verifiers and best-of-n, when a reasoning model is the wrong choice |
+
 **Going deeper than the whiteboard?** [**deep-dives.md**](deep-dives.md) is a
 bank of ~206 rapid-fire, depth-probing questions: the follow-ups an interviewer
 pulls once the design is on the board (normalization and attention variants, where KL divergence shows up, optimization and gradient descent, decoding and sampling, generative model families, distributed-training failure modes, and quantization tradeoffs). Each answer leads with the mechanism, then the tradeoff.
