@@ -31,7 +31,7 @@ the question is the whole five-stage map, see [the LLM lifecycle](../llm-lifecyc
 
 1. [Clarifying the requirements](01-clarifying-requirements.md) -- the dialogue that scopes the problem.
 2. [Two axes](02-two-axes.md) -- the adaptation axis (domain) and the length axis; input and output.
-3. [The mid-training phase](03-continued-pretraining.md) -- what mid-training means now, data mixture and microanneals, the anneal phase and stable-phase branching, capability injection and RL readiness, then DAPT, replay against forgetting, and the LR schedule.
+3. [The mid-training phase](03-the-mid-training-phase.md) -- what mid-training means now, data mixture and microanneals, the anneal phase and stable-phase branching, capability injection and RL readiness, then DAPT, replay against forgetting, and the LR schedule.
 4. [Context extension](04-context-extension.md) -- PI, NTK-ABF, YaRN, LongRoPE, ALiBi; KaTeX for the math.
 5. [Evaluation](05-evaluation.md) -- needle-in-a-haystack, RULER, forgetting checks; what each measures.
 6. [Serving and scaling](06-serving-and-scaling.md) -- memory cost at length, bottlenecks table.

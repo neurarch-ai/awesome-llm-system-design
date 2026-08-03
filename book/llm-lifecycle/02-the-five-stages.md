@@ -26,7 +26,7 @@ flowchart TD
 |---|---|---|---|---|
 | 1. Data prep | raw web plus proprietary text | clean tokenized token stream | pipeline engineering, storage | eval leakage from missing decontamination |
 | 2. Pretraining | the token stream | raw base model | compute (GPU cluster, weeks) | under- or over-fitting compute budget (violating Chinchilla, the compute-optimal size-vs-tokens rule) |
-| 3. [Mid-training](../mid-training/03-continued-pretraining.md) | existing base plus a reweighted mixture (domain, curated, synthetic, long docs) | domain, quality-upgraded, or long-context base | compute (small fraction of pretrain) | catastrophic forgetting if general data is not mixed in; contamination entering through curated QA data |
+| 3. [Mid-training](../mid-training/03-the-mid-training-phase.md) | existing base plus a reweighted mixture (domain, curated, synthetic, long docs) | domain, quality-upgraded, or long-context base | compute (small fraction of pretrain) | catastrophic forgetting if general data is not mixed in; contamination entering through curated QA data |
 | 4. Post-training | base plus (instruction, response) pairs and preference data | aligned instruct model | data quality, labeling cost | reward hacking or alignment tax from dropping the KL leash |
 | 5. Deployment | aligned model | production serving system | ongoing GPU spend, engineering | KV cache OOM, latency blowup, hallucination without RAG |
 

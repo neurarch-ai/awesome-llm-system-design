@@ -59,9 +59,9 @@ is stating the formula, plugging in, and saying what would change the answer.
 |---|---|---|
 | Compute-optimal tokens | Chinchilla scaling: roughly 20 tokens per parameter | [data and pretraining](data-and-pretraining/) |
 | Training FLOPs | about $6ND$ for $N$ parameters and $D$ tokens | [llm lifecycle](llm-lifecycle/) |
-| Replay fraction against forgetting | 5 to 10 percent general data in a continued-pretraining mix | [mid-training](mid-training/03-continued-pretraining.md) |
+| Replay fraction against forgetting | 5 to 10 percent general data in a continued-pretraining mix | [mid-training](mid-training/03-the-mid-training-phase.md) |
 | Continued-pretraining corpus floor | billions of tokens; below that, use SFT or RAG instead | [mid-training](mid-training/) |
-| Re-warm peak learning rate | a fraction of the original pretraining peak, then re-decay | [mid-training](mid-training/03-continued-pretraining.md) |
+| Re-warm peak learning rate | a fraction of the original pretraining peak, then re-decay | [mid-training](mid-training/03-the-mid-training-phase.md) |
 
 ## Retrieval
 

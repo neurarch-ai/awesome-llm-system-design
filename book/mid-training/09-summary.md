@@ -85,7 +85,7 @@ Answers are collapsed. Attempt each question before opening one.
    general instruction following. That is why a single averaged score is not
    enough; a targeted skill can collapse while the average stays flat, so run the
    specific suites ([section 5](05-evaluation.md)). If a benchmark does regress,
-   [section 3](03-continued-pretraining.md) gives the check order: was replay in
+   [section 3](03-the-mid-training-phase.md) gives the check order: was replay in
    the mix at all, then was the re-warm peak too high, then was the corpus large
    enough. Asserting no forgetting without a before-and-after gate is the
    quietly fatal mistake in DAPT.
