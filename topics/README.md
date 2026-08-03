@@ -23,7 +23,7 @@ navigate by use case instead, start from the
 **Building and adapting the model**
 - [13 - The LLM training lifecycle](13-llm-lifecycle.md)
 - [14 - Data curation and pretraining](14-data-curation-and-pretraining.md)
-- [15 - Continued pretraining and long-context adaptation](15-continued-pretraining-and-long-context.md)
+- [15 - Mid-training: continued pretraining and long-context adaptation](15-continued-pretraining-and-long-context.md)
 - [05 - Fine-tuning and post-training pipeline](05-post-training-pipeline.md)
 
 **Inference and serving (the cost layer)**

@@ -21,9 +21,9 @@ not, so decide per stage and treat any specific method as replaceable.
 
 | Stage | Default | Deviate when | Why (section) |
 |---|---|---|---|
-| Adaptation method | Full continued pretraining (DAPT) with replay | Under ~1B in-domain tokens: SFT or RAG instead; strict forgetting budget: LoRA / QLoRA | [3](03-continued-pretraining.md) |
-| Domain data mix | Domain corpus plus 10 percent general-data replay | Domain sits close to the pretrain distribution: a lower re-warm peak can substitute for extra replay | [3](03-continued-pretraining.md) |
-| LR schedule | Re-warm from the decayed floor to a modest peak (a fraction of the pretrain peak), cosine re-decay, anneal highest-quality data at the tail | Run stalls: raise the peak modestly; general benchmarks regress: lower it before touching the data | [3](03-continued-pretraining.md) |
+| Adaptation method | Full continued pretraining (DAPT) with replay | Under ~1B in-domain tokens: SFT or RAG instead; strict forgetting budget: LoRA / QLoRA | [3](03-the-mid-training-phase.md) |
+| Domain data mix | Domain corpus plus 10 percent general-data replay | Domain sits close to the pretrain distribution: a lower re-warm peak can substitute for extra replay | [3](03-the-mid-training-phase.md) |
+| LR schedule | Re-warm from the decayed floor to a modest peak (a fraction of the pretrain peak), cosine re-decay, anneal highest-quality data at the tail | Run stalls: raise the peak modestly; general benchmarks regress: lower it before touching the data | [3](03-the-mid-training-phase.md) |
 | RoPE scaling method | YaRN (non-uniform per-band blend plus attention-temperature correction) | Extension at or under ~8x with near-zero fine-tuning budget: NTK-ABF; extreme 2M+ targets: LongRoPE's searched rescale | [4](04-context-extension.md) |
 | Context-extension recipe | Upsampled genuinely long documents, staged length increase, rescale before the long-context training run | Never packed unrelated short documents; that teaches the model distant tokens are irrelevant | [4](04-context-extension.md) |
 | Serving posture | GQA base, FlashAttention, paged attention; KV quantization at 64K and beyond | Product only ever sees short prompts: skip the long-context serving stack entirely | [6](06-serving-and-scaling.md) |
@@ -111,7 +111,7 @@ keep the identical stage interfaces and swap nearly every choice.
 
 Two lessons fall out. First, the left column is mostly deletions: below the
 billion-token threshold DAPT overfits and forgets more than it learns
-([section 3](03-continued-pretraining.md)), so the correct adaptation is SFT
+([section 3](03-the-mid-training-phase.md)), so the correct adaptation is SFT
 plus retrieval and the entire length axis disappears with the requirement.
 Second, the right column shows the axes trading places as the binding
 constraint: domain work shrinks to a nudge, data curation and the

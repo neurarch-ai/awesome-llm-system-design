@@ -1,4 +1,4 @@
-# 15 - Continued pretraining and long-context adaptation
+# 15 - Mid-training: continued pretraining and long-context adaptation
 
 > **Interviewer:** "You have a strong open base model. Your product needs it to
 > know a specialized domain (say clinical notes, or a large private codebase) and

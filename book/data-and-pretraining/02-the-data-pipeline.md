@@ -76,7 +76,7 @@ training, the mixture is annealed (gradually shifted) toward the highest-quality
 data, which cheaply sharpens the base before post-training. That tail is now a
 named phase with its own budget and its own evals, mid-training, and it is where
 mixture reweighting, microanneals, capability injection, and long-context extension
-happen: see [the mid-training phase](../continued-pretraining/03-continued-pretraining.md).
+happen: see [the mid-training phase](../mid-training/03-the-mid-training-phase.md).
 
 Concretely, "domain weight" just means the probability of drawing the next
 document from each domain, which you can implement as a weighted draw:

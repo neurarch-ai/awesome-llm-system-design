@@ -31,7 +31,7 @@ Expect to be asked to estimate memory and throughput out loud, so drill
 
 **Applied scientist or ML engineer on a model team.** [LLM lifecycle](llm-lifecycle/)
 then [data curation and pretraining](data-and-pretraining/) then
-[mid-training](continued-pretraining/) then [post-training](post-training/) then
+[mid-training](mid-training/) then [post-training](post-training/) then
 [benchmarking](benchmark-eval/) then [evaluation](evaluation/). The loop tests
 whether you can reason about a training pipeline end to end and, above all, whether
 you can tell a real improvement from a measurement artifact. The benchmarking
@@ -60,7 +60,7 @@ model is still the same model.
 
 **Research-adjacent or frontier-lab.** [LLM lifecycle](llm-lifecycle/) then
 [data curation and pretraining](data-and-pretraining/) then
-[mid-training](continued-pretraining/) then [post-training](post-training/) then
+[mid-training](mid-training/) then [post-training](post-training/) then
 [reasoning serving](reasoning-serving/) then [benchmarking](benchmark-eval/) then
 [deep-dives](../deep-dives.md) end to end. The loop probes depth on mechanisms and
 tolerance for uncertainty; the deep-dive bank is the best preparation for
@@ -75,7 +75,7 @@ rapid-fire follow-ups.
 | "Make our LLM cheaper" | [Cost optimization](cost-optimization/), [KV cache](kv-cache/), [model compression](model-compression/), [reasoning serving](reasoning-serving/) |
 | "Serving and infrastructure" | [Inference serving](inference-serving/), [KV cache](kv-cache/), [streaming chat](streaming-chat/), [model compression](model-compression/) |
 | "How would you evaluate this" | [Evaluation](evaluation/), [benchmarking](benchmark-eval/), [monitoring](monitoring/) |
-| "Fine-tuning and training" | [Post-training](post-training/), [mid-training](continued-pretraining/), [data and pretraining](data-and-pretraining/) |
+| "Fine-tuning and training" | [Post-training](post-training/), [mid-training](mid-training/), [data and pretraining](data-and-pretraining/) |
 | "Multimodal" | [Multimodal](multimodal/), [inference serving](inference-serving/), [evaluation](evaluation/) |
 | Unspecified, a general LLM loop | The one-week path above |
 

@@ -73,7 +73,7 @@ watch it.**
 |---|-------|-----------------|
 | 13 | [The LLM training lifecycle](topics/13-llm-lifecycle.md) | The whole build side as one map: data, pretraining, adaptation, post-training, serving |
 | 14 | [Data curation and pretraining](topics/14-data-curation-and-pretraining.md) | Web-scale data cleaning, dedup, tokenizer, scaling laws, distributed training of a base model |
-| 15 | [Continued pretraining and long-context adaptation](topics/15-continued-pretraining-and-long-context.md) | Domain continued pretraining, catastrophic forgetting, RoPE scaling / YaRN, long-context eval |
+| 15 | [Mid-training: continued pretraining and long context](topics/15-continued-pretraining-and-long-context.md) | Data-mixture reweighting and the anneal phase, capability injection and RL readiness, domain continued pretraining, catastrophic forgetting, RoPE scaling / YaRN, long-context eval |
 | 05 | [Fine-tuning and post-training pipeline](topics/05-post-training-pipeline.md) | LoRA, SFT, DPO/RLHF, data curation, eval gates |
 
 ### Inference and serving (the cost layer)
