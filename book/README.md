@@ -47,7 +47,7 @@ Ordered the way a model comes to life: build it, serve it, ground it, compose it
 |---------|--------|
 | [The LLM Lifecycle](llm-lifecycle/) | The five-stage map (data, pretraining, mid-training, post-training, deployment) and the cross-stage math |
 | [Data Curation and Pretraining](data-and-pretraining/) | Web-scale data pipeline, dedup and decontamination, tokenizer, scaling laws, architecture and parallelism |
-| [Mid-Training: Continued Pretraining and Long Context](continued-pretraining/) | Mixture reweighting and the anneal phase, capability injection and RL readiness, domain adaptation, catastrophic forgetting, RoPE scaling, YaRN, long-context evaluation |
+| [Mid-Training: Continued Pretraining and Long Context](mid-training/) | Mixture reweighting and the anneal phase, capability injection and RL readiness, domain adaptation, catastrophic forgetting, RoPE scaling, YaRN, long-context evaluation |
 | [Fine-Tuning and Post-Training](post-training/) | Prompt vs RAG vs SFT vs LoRA, DPO and RLHF, data curation, eval gates |
 
 ### Inference and serving

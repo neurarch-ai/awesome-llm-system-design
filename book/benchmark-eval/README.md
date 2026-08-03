@@ -54,5 +54,5 @@ in the arrows, not the boxes.
 
 - [Evaluating LLM systems](../evaluation/) is the product-side loop: golden sets, LLM-as-judge calibration, regression gates, online A/B. Benchmarks feed the *model selection* step upstream of it; they never gate a feature.
 - [Data curation and pretraining](../data-and-pretraining/) owns training-side decontamination, which is the only place contamination can actually be fixed.
-- [Continued pretraining and long context](../continued-pretraining/) covers long-context evaluation in the context of extending a model.
+- [Continued pretraining and long context](../mid-training/) covers long-context evaluation in the context of extending a model.
 - The classic-ML companion book covers the statistics of online comparison in [experimentation](https://github.com/neurarch-ai/awesome-ml-system-design/tree/main/book/experimentation/).
