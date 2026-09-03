@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Extract and execute the python block of every chapter capstone.
 
-Each book/<chapter>/10-putting-it-together.md ships a zero-dependency,
+Each book/<chapter>/10-putting-it-together.md (and its book-zh/ translation) ships a zero-dependency,
 deterministic, stdlib-only runnable. This gate re-runs all of them so an edit
 can never silently break a code block readers are told they can execute.
 
@@ -13,7 +13,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-CAPSTONES = sorted(Path("book").glob("*/10-putting-it-together.md"))
+CAPSTONES = sorted(
+    p for root in ("book", "book-zh") for p in Path(root).glob("*/10-putting-it-together.md")
+)
 if not CAPSTONES:
     sys.exit("no capstone files found; run from the repo root")
 
@@ -30,7 +32,7 @@ for md in CAPSTONES:
     if r.returncode != 0:
         failures.append(f"{md}: exit {r.returncode}\n{r.stderr.strip()[:400]}")
     else:
-        print(f"ok  {md.parent.name}")
+        print(f"ok  {md.parent.parent.name}/{md.parent.name}")
 
 if failures:
     print(f"\n{len(failures)} capstone(s) FAILED:", file=sys.stderr)
