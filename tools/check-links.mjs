@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// On-demand external-link checker for book/**/*.md.
+// On-demand external-link checker for book/**/*.md and book-zh/**/*.md.
 // Fetches every http(s) URL and classifies it:
 //   OK        2xx / 3xx
 //   BLOCKED   401/403/405/406/429 (bot-block or auth wall; the page almost certainly exists)
@@ -10,10 +10,10 @@
 //   node tools/check-links.mjs
 // Exits non-zero if any DEAD link is found.
 
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
-const ROOT = "book";
+const ROOTS = ["book", "book-zh"].filter((d) => existsSync(d));
 const CONCURRENCY = 12;
 const TIMEOUT_MS = 20000;
 const UA = "Mozilla/5.0 (compatible; neurarch-linkcheck/1.0)";
@@ -30,7 +30,7 @@ function walk(dir) {
 
 // url -> Set of files that reference it
 const refs = new Map();
-for (const f of walk(ROOT)) {
+for (const f of ROOTS.flatMap(walk)) {
   const t = readFileSync(f, "utf8");
   for (const m of t.matchAll(/\]\((https?:\/\/[^)\s]+)\)/g)) {
     const u = m[1];

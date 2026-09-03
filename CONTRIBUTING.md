@@ -53,6 +53,17 @@ The validator enforces the rules below (Node 24, no dependencies).
   (a bot-block on a page that almost certainly exists), or DEAD (a 404, DNS failure,
   or TLS error) and fails only on DEAD.
 
+## The Chinese edition (`book-zh/`)
+
+`book-zh/` mirrors `book/` file for file: same folder names, same file names, one
+translation per source file. The validator and the capstone runner walk both trees,
+so every rule above applies to the translation too, and the Chinese double dash
+`——` counts as an em dash. Code blocks are copied byte for byte (the capstones are
+executed from the translation as well). Figures are not duplicated; a translated
+chapter references `../../book/<slug>/assets/` directly. When you change a section
+in `book/`, change the matching file in `book-zh/` in the same PR, or say in the PR
+that the translation is now behind.
+
 ## Chapter structure
 
 Chapters live in `book/<slug>/` as one file per section (`01-clarifying-requirements`

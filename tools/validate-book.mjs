@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Validate book/**/*.md for render-safety and house-style issues.
+// Validate book/**/*.md and book-zh/**/*.md (the Chinese edition) for render-safety and house-style issues.
 // Exits non-zero (with a report) if any problem is found, so it can gate CI.
 //
 // Checks:
@@ -19,7 +19,7 @@
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join, dirname, resolve, extname } from "node:path";
 
-const ROOT = "book";
+const ROOTS = ["book", "book-zh"].filter((d) => existsSync(d));
 
 function walk(dir) {
   const out = [];
@@ -41,7 +41,8 @@ const HEADING = /^#{2,}\s.+$/gm;
 const MATH = /\$\$[\s\S]+?\$\$|\$(?!\$)[^$\n]+?\$/g;
 const IMGEXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"]);
 
-for (const file of walk(ROOT)) {
+const files = ROOTS.flatMap(walk);
+for (const file of files) {
   const t = readFileSync(file, "utf8");
   const dir = dirname(file);
 
@@ -79,8 +80,13 @@ for (const file of walk(ROOT)) {
   for (const h of (t.match(HEADING) || [])) counts.set(h.trim(), (counts.get(h.trim()) || 0) + 1);
   for (const [h, n] of counts) if (n > 1) add(file, `duplicate heading (${n}x): ${h}`);
 
-  // 6. KaTeX hazards inside math
-  for (const seg of (t.match(MATH) || [])) {
+  // 6. KaTeX hazards inside math.
+  // Strip escaped \$ first: a literal money '$' is not math, and leaving it in lets the
+  // scan run from it to the next real '$', flagging ordinary prose (bold, comparisons)
+  // in between. English wraps at ~80 columns so the newline usually stopped it; a
+  // translated paragraph on one long line does not.
+  const mathText = t.replace(/\\\$/g, "");
+  for (const seg of (mathText.match(MATH) || [])) {
     const head = seg.slice(0, 48).replace(/\n/g, " ");
     if (seg.includes("*")) add(file, `literal '*' in math (use \\ast): ${head}`);
     if (/<[a-zA-Z]/.test(seg)) add(file, `'<' before a letter in math (use \\lt): ${head}`);
@@ -92,7 +98,7 @@ for (const file of walk(ROOT)) {
   const dollars = (s.match(/\$/g) || []).length;
   if (dollars % 2 !== 0) add(file, `odd inline-math '$' (${dollars}); a literal money '$' is likely mispairing with math, escape it as \\$`);
 
-  // 8. no em/en dashes
+  // 8. no em/en dashes (the Chinese double dash "——" is two em dashes and fails the same way)
   if (/[–—]/.test(t)) add(file, "contains an em or en dash (use commas, periods, parentheses)");
 }
 
@@ -101,4 +107,4 @@ if (problems.length) {
   for (const p of problems) console.error("  " + p);
   process.exit(1);
 }
-console.log(`Book validation passed: ${walk(ROOT).length} files clean.`);
+console.log(`Book validation passed: ${files.length} files clean.`);

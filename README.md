@@ -24,6 +24,7 @@ numbers change. More on why that matters [below](#about-the-diagrams).
 > Every chapter closes with a capstone that decides the whole build once, costs it,
 > re-derives it under two other constraint sets, and ships a runnable
 > zero-dependency reference you can execute with nothing but Python 3.
+> 中文读者：这本书有官方中文版，在 [**book-zh/**](book-zh/)，和英文版逐章对应。
 
 ---
 
