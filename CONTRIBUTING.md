@@ -27,7 +27,10 @@ The validator enforces the rules below (Node 24, no dependencies).
     with a real inline-math `$` and swallow the text between them.
 - **Mermaid line breaks are `<br/>`, never `\n`.** A literal `\n` inside a mermaid
   block does not render.
-- **Code fences balance.** Every ```` ``` ```` opens and closes.
+- **Code fences balance, and a closing fence sits alone on its line.** Every
+  ```` ``` ```` opens and closes, and a closing fence carries no text: ```` ``` The upfront ````
+  closes nothing, so the block runs on and renders the rest of the file as code.
+  The backtick count stays even, which is why this hid for so long.
 - **Images live in the chapter's `assets/` folder**, and every
   `![...](assets/...)` reference must resolve to a file that exists.
 - **Internal links resolve** to a file, a `file.md`, or a directory.

@@ -125,9 +125,22 @@ for (const file of files) {
   const t = readFileSync(file, "utf8");
   const dir = dirname(file);
 
-  // 1. code fences balanced
+  // 1. code fences balanced, and every closing fence alone on its line.
+  //    A closing fence may not carry an info string, so "``` The upfront" does not
+  //    close anything: the block runs on and swallows the rest of the file as code.
+  //    Counting backticks alone misses it, because the count stays even.
   const fences = (t.match(FENCE) || []).length;
   if (fences % 2 !== 0) add(file, `unbalanced code fences (${fences})`);
+  let openFence = false;
+  t.split("\n").forEach((ln, i) => {
+    const s = ln.trim();
+    if (!s.startsWith("```")) return;
+    const rest = s.slice(3).trim();
+    if (openFence && rest) {
+      add(file, `line ${i + 1}: text on a closing fence, so the block never closes: ${s.slice(0, 60)}`);
+    }
+    openFence = !openFence;
+  });
 
   // 2. mermaid uses <br/> not \n
   let inMermaid = false;

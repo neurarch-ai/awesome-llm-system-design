@@ -17,7 +17,9 @@ def rate_zscore(r_t, r_ref, n_t):
     se = np.sqrt(r_ref * (1 - r_ref) / n_t)                # standard error of the baseline rate
     return float((r_t - r_ref) / se)
 # rate_zscore(0.08, 0.05, 500) -> 3.0779 (above the z>=3 page threshold)
-``` 这样一来，真正的幻觉飙升（把比率推高好几个百分点的那种）会很快触发，而日常的噪声不会。
+```
+
+这样一来，真正的幻觉飙升（把比率推高好几个百分点的那种）会很快触发，而日常的噪声不会。
 
 注意分母里 $n_t$ 的作用：窗口更小（采样更重）会收窄置信区间，更容易发现小的比率偏移，但同时也抬高了最小可检测的效应量。采样率和窗口大小要一起调，不能各调各的。
 

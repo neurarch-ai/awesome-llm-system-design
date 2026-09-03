@@ -114,7 +114,9 @@ def call_key(name, args):                          # dedupe identity for a propo
     norm = json.dumps(args, sort_keys=True)        # sort keys so argument order does not matter
     return hashlib.sha256((name + norm).encode()).hexdigest()[:8]
 # e.g. call_key("get", {"a": 1, "b": 2}) == call_key("get", {"b": 2, "a": 1}) -> True
-``` A loop that repeats even after deduping usually means the tool result does not actually answer the model's question, which is a tool-schema problem rather than a control-flow one.
+```
+
+A loop that repeats even after deduping usually means the tool result does not actually answer the model's question, which is a tool-schema problem rather than a control-flow one.
 
 ---
 

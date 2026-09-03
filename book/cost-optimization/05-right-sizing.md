@@ -66,7 +66,9 @@ flowchart LR
   TEACH --> LABELS["teacher outputs<br/>(training labels)"]
   LABELS --> TRAIN["train small student<br/>to mimic teacher"]
   TRAIN --> STUDENT["small student model<br/>~1/10 cost, serves traffic"]
-``` The upfront
+```
+
+The upfront
 investment is a labeled dataset (teacher outputs on your traffic) and a training
 run; the ongoing savings can be large if QPS is high.
 

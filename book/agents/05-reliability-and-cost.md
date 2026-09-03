@@ -139,7 +139,9 @@ or pick a fallback tool.
 def backoff_delays(base, cap, attempts):   # base = first wait (s), cap = max wait (s)
     return [min(cap, base * 2 ** i) for i in range(attempts)]   # double each retry, clamp at cap
 # e.g. backoff_delays(base=1.0, cap=10.0, attempts=3) -> [1.0, 2.0, 4.0]
-``` The model must not hallucinate a result when a tool
+```
+
+The model must not hallucinate a result when a tool
 times out; it must acknowledge the failure and handle it.
 
 ## Model tiering
