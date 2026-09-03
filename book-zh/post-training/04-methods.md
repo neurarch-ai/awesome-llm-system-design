@@ -13,7 +13,7 @@ flowchart TD
   GATE -->|"不通过"| DATA
 ```
 
-**它是怎么运转的。**训练从整理好的 (prompt, response) 对开始，先跑 SFT，也就是在这些标注样本上做普通的
+**它是怎么运转的。** 训练从整理好的 (prompt, response) 对开始，先跑 SFT，也就是在这些标注样本上做普通的
 next-token 预测，通常这也是唯一需要的步骤。分岔点在于目标质量轴是不是 SFT 能直接教会的：
 格式、语气和技能都能从样本里学到，所以这些情况直接进评估门禁。而那些依赖比较两条候选回复的轴，
 安全、有用性和其他比较型偏好，没法表达成一个唯一的标准答案，所以要先经过一个偏好调优阶段
@@ -34,18 +34,18 @@ $$L_{\text{SFT}} = -\frac{1}{T}\sum_{t=1}^{T} \log p_\theta\!\left(y_t \,\middle
 
 SFT 是主力，通常也是唯一需要的训练步骤。它直接教格式、语气和任务相关的行为。要点名的两种失败模式：
 
-**灾难性遗忘。**在一个窄集合上训过头会损伤通用能力。学习率保持温和（常见在 2e-5 到 1e-4 之间），
+**灾难性遗忘。** 在一个窄集合上训过头会损伤通用能力。学习率保持温和（常见在 2e-5 到 1e-4 之间），
 epoch 少（一到三个），如果在意广度就混入一小部分通用数据。LoRA adapter 天然更能避免这个问题，
 因为基座权重是冻结的。
 
-**评估污染。**训练样本和评估集有重叠，指标就会虚高。每次都要去污染，不是只做一次。
+**评估污染。** 训练样本和评估集有重叠，指标就会虚高。每次都要去污染，不是只做一次。
 
 ## 参数高效微调：LoRA 和 QLoRA
 
 全量微调更新模型里的每一个权重。对一个 7B 或 70B 参数的模型来说，这意味着优化器状态
 （Adam 通常要存两份梯度大小的量）、激活值，以及每个任务一份全尺寸的新 checkpoint。你很少真的需要它。
 
-**LoRA（low-rank adaptation）**冻结基座权重，为每个目标权重矩阵学习一小对低秩矩阵：
+**LoRA（low-rank adaptation）** 冻结基座权重，为每个目标权重矩阵学习一小对低秩矩阵：
 
 $$W = W_0 + \frac{\alpha}{r}\, B A,\qquad B \in \mathbb{R}^{d \times r},\ A \in \mathbb{R}^{r \times k},\ r \ll \min(d, k)$$
 
@@ -120,7 +120,7 @@ def dpo_loss(pol_chosen, pol_rejected, ref_chosen, ref_rejected, beta=0.1):
     return -F.logsigmoid(beta * (pol_logratio - ref_logratio)).mean()
 ```
 
-**资深工程师会盯的边界情况：DPO 可能把 chosen 的概率压低。**这个损失只约束 chosen 和 rejected
+**资深工程师会盯的边界情况：DPO 可能把 chosen 的概率压低。** 这个损失只约束 chosen 和 rejected
 对数比之间的*间隔*，不单独约束任何一项，所以梯度下降可以靠把 rejected 的对数概率压得比 chosen 更快来满足它，
 同时把首选回复的绝对对数概率也一起拖下去。这种似然位移（Razin 等人 2024 年研究过）表现为
 chosen 的 reward 曲线在训练损失持续改善的同时反而下降，最糟的情况下，概率质量跑到了第三条意料之外的回复上，
@@ -203,18 +203,18 @@ DPO 的简单，正是需要偏好调优时它常被当作首选的原因。*
 | GRPO | 存在可验证的奖励（数学、代码、检索排名）；没有价值函数可用 | RLHF，当奖励没法对每个样本便宜地验证时 |
 | 小 beta（0.03 到 0.1） | 第一次跑；稳定性优先；Anyscale 和 Spotify 都用了这个区间 | 大 beta，会把策略过度拉回 SFT 参考 |
 
-**出处。**LoRA 来自 Microsoft（2021），QLoRA 来自 University of Washington（2023）。
+**出处。** LoRA 来自 Microsoft（2021），QLoRA 来自 University of Washington（2023）。
 RLHF 由 OpenAI 的 InstructGPT（2022）推广开来，其 RL 步骤用的是 PPO（OpenAI，2017）；
 DPO 来自 Stanford（2023），是免奖励模型的替代方案；GRPO 来自 DeepSeek（2024），
 是面向可验证奖励、免价值函数的变体。
 
-**每种方法的工具。**Hugging Face TRL 通过 SFTTrainer、DPOTrainer 和 GRPOTrainer 实现了 SFT、DPO 和 GRPO，
+**每种方法的工具。** Hugging Face TRL 通过 SFTTrainer、DPOTrainer 和 GRPOTrainer 实现了 SFT、DPO 和 GRPO，
 PEFT 提供 LoRA 和 QLoRA adapter（QLoRA 是 PEFT 搭配 bitsandbytes 的 4-bit 量化）。
 Axolotl 和 Unsloth 把同一套 TRL 加 PEFT 栈包在声明式配置后面，Unsloth 专注于单 GPU 的速度和显存。
 大规模的全量微调和 RLHF 依赖 DeepSpeed（Microsoft）的 ZeRO 在多张 GPU 之间切分优化器状态和梯度。
 带可验证奖励的 GRPO 用的还是 TRL 的 GRPOTrainer，再加一个你自己写的代码或数学检查打分函数。
 
-**一个完整的例子。**一个领域 LLM 团队要把 7B 基座适配到他们的文档风格，手上有几千条干净的样本对，
+**一个完整的例子。** 一个领域 LLM 团队要把 7B 基座适配到他们的文档风格，手上有几千条干净的样本对，
 没有空闲的 GPU 集群，所以他们选 QLoRA 而不是全量微调，因为冻结的 4-bit 基座加一个 rank 16 的 adapter
 能塞进一张消费级 GPU，而且行为偏移是中等的。既然差距在格式和语气、样本又稳定，他们就停在 SFT，
 跳过偏好调优，后者只会给一个 SFT 已经解决的问题增加成本。后来他们发现模型有时会挑一个自信但错误的说法，
@@ -222,7 +222,7 @@ Axolotl 和 Unsloth 把同一套 TRL 加 PEFT 栈包在声明式配置后面，U
 而不是把整套 RLHF 流水线立起来，因为在 chosen 和 rejected 对上的分类式损失就够了，不需要独立的奖励模型。
 只有当奖励能对每个样本便宜地验证时，他们才会升级到 GRPO，而对开放式的语气来说，做不到这一点。
 
-> **打开图看看。**LoRA 只适配这些堆栈里很小的一部分，而"很小的一部分"在看到真实维度之前都是抽象的。
+> **打开图看看。** LoRA 只适配这些堆栈里很小的一部分，而"很小的一部分"在看到真实维度之前都是抽象的。
 > attention 的 query、key、value、output 投影，加上 FFN 的 up 和 down 矩阵，就是学到的低秩更新所在的位置；
 > 其余全部冻结。打开
 > [Llama-3 8B 实时图](https://www.neurarch.com/?import=https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/llama3-8b/model.json)，

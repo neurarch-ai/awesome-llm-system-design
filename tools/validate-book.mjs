@@ -13,6 +13,8 @@
 //   7. Inline-math '$' balances once $$ blocks, code, and escaped \$ are removed
 //        (an odd count means a literal money '$' is mispairing with real math; escape it as \$).
 //   8. No em (—) or en (–) dashes (house style).
+//   9. Emphasis (**) that CommonMark cannot pair, e.g. `**标签。**正文`, which renders
+//        as literal asterisks because the closing run is not right-flanking.
 //
 // Usage: node tools/validate-book.mjs
 
@@ -31,6 +33,83 @@ function walk(dir) {
   return out;
 }
 
+// Emphasis delimiters that CommonMark will not pair, per its flanking rules.
+// `**标签。**正文` renders as four literal asterisks: the closing run follows
+// punctuation and precedes a letter, so it is neither preceded by whitespace nor
+// followed by whitespace or punctuation, and therefore is not right-flanking.
+// English prose never trips it because `**Label.** Text` puts a space after the
+// closing run; a Chinese translation that drops that space silently loses the bold.
+// Only runs of two or more asterisks are reported: a lone `*` in prose is usually
+// notation (`Q*`, `h^*`) and cannot be told apart from a broken italic.
+const PUNCT = /\p{P}/u;
+
+function stripCodeForEmphasis(t) {
+  let inFence = false;
+  const lines = t.split("\n").map((l) => {
+    if (l.trimStart().startsWith("```")) { inFence = !inFence; return ""; }
+    return inFence ? "" : l;
+  });
+  const s = lines.join("\n");
+  // blank out inline code spans, longest backtick runs first
+  let out = "", i = 0;
+  while (i < s.length) {
+    if (s[i] === "`") {
+      let j = i; while (j < s.length && s[j] === "`") j++;
+      const tick = s.slice(i, j);
+      const close = s.indexOf(tick, j);
+      if (close !== -1) { out += " ".repeat(close + tick.length - i); i = close + tick.length; continue; }
+    }
+    out += s[i]; i++;
+  }
+  return out;
+}
+
+function unpairedEmphasis(par) {
+  // Collect delimiter runs with their flanking properties.
+  const runs = [];
+  const re = /\*+/g;
+  let m;
+  while ((m = re.exec(par)) !== null) {
+    const i = m.index, len = m[0].length;
+    if (i > 0 && par[i - 1] === "\\") continue; // escaped
+    const before = i > 0 ? par[i - 1] : " ";
+    const after = i + len < par.length ? par[i + len] : " ";
+    const bSpace = /\s/.test(before), aSpace = /\s/.test(after);
+    const bPunct = PUNCT.test(before), aPunct = PUNCT.test(after);
+    const canOpen = !aSpace && (!aPunct || bSpace || bPunct);
+    const canClose = !bSpace && (!bPunct || aSpace || aPunct);
+    runs.push({ i, len, left: len, canOpen, canClose, both: canOpen && canClose });
+  }
+
+  // CommonMark's "rule of three": when either delimiter can both open and close,
+  // a pair whose lengths sum to a multiple of 3 does not match unless both
+  // lengths are themselves multiples of 3. This is what stops a lone `*` from
+  // closing a `**`, which is the difference between "the bold is broken" and
+  // "the bold is fine and an italic sits inside it".
+  const canMatch = (o, c) =>
+    !((o.both || c.both) &&
+      (o.len + c.len) % 3 === 0 &&
+      !(o.len % 3 === 0 && c.len % 3 === 0));
+
+  const stack = [], stray = [];
+  for (const r of runs) {
+    if (r.canClose) {
+      for (let k = stack.length - 1; k >= 0 && r.left > 0; k--) {
+        const o = stack[k];
+        if (!canMatch(o, r)) continue;
+        const used = Math.min(o.left, r.left);
+        o.left -= used; r.left -= used;
+        if (o.left === 0) stack.splice(k, 1);
+      }
+    }
+    if (r.left > 0) {
+      if (r.canOpen) stack.push(r);
+      else stray.push(r);
+    }
+  }
+  return [...stack, ...stray].filter((r) => r.left >= 2);
+}
+
 const problems = [];
 const add = (file, msg) => problems.push(`${file}: ${msg}`);
 
@@ -46,9 +125,22 @@ for (const file of files) {
   const t = readFileSync(file, "utf8");
   const dir = dirname(file);
 
-  // 1. code fences balanced
+  // 1. code fences balanced, and every closing fence alone on its line.
+  //    A closing fence may not carry an info string, so "``` The upfront" does not
+  //    close anything: the block runs on and swallows the rest of the file as code.
+  //    Counting backticks alone misses it, because the count stays even.
   const fences = (t.match(FENCE) || []).length;
   if (fences % 2 !== 0) add(file, `unbalanced code fences (${fences})`);
+  let openFence = false;
+  t.split("\n").forEach((ln, i) => {
+    const s = ln.trim();
+    if (!s.startsWith("```")) return;
+    const rest = s.slice(3).trim();
+    if (openFence && rest) {
+      add(file, `line ${i + 1}: text on a closing fence, so the block never closes: ${s.slice(0, 60)}`);
+    }
+    openFence = !openFence;
+  });
 
   // 2. mermaid uses <br/> not \n
   let inMermaid = false;
@@ -100,6 +192,15 @@ for (const file of files) {
 
   // 8. no em/en dashes (the Chinese double dash "——" is two em dashes and fails the same way)
   if (/[–—]/.test(t)) add(file, "contains an em or en dash (use commas, periods, parentheses)");
+
+  // 9. emphasis that cannot close, so the asterisks render literally
+  const stripped = stripCodeForEmphasis(t);
+  for (const par of stripped.split(/\n\s*\n/)) {
+    for (const r of unpairedEmphasis(par)) {
+      const ctx = par.slice(Math.max(0, r.i - 24), r.i + r.len + 20).replace(/\n/g, " ");
+      add(file, `emphasis never closes, asterisks will render literally (put a space after the closing ** or move the punctuation outside it): ...${ctx}...`);
+    }
+  }
 }
 
 if (problems.length) {

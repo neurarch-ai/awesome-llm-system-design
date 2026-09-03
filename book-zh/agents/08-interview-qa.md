@@ -100,7 +100,9 @@ def call_key(name, args):                          # dedupe identity for a propo
     norm = json.dumps(args, sort_keys=True)        # sort keys so argument order does not matter
     return hashlib.sha256((name + norm).encode()).hexdigest()[:8]
 # e.g. call_key("get", {"a": 1, "b": 2}) == call_key("get", {"b": 2, "a": 1}) -> True
-``` 去重之后还在重复的循环，通常说明工具结果根本没回答模型真正的问题，那是工具 schema 的问题，不是控制流的问题。
+```
+
+去重之后还在重复的循环，通常说明工具结果根本没回答模型真正的问题，那是工具 schema 的问题，不是控制流的问题。
 
 ---
 

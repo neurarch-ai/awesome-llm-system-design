@@ -23,7 +23,9 @@ def rate_zscore(r_t, r_ref, n_t):
     se = np.sqrt(r_ref * (1 - r_ref) / n_t)                # standard error of the baseline rate
     return float((r_t - r_ref) / se)
 # rate_zscore(0.08, 0.05, 500) -> 3.0779 (above the z>=3 page threshold)
-``` This approach means a true
+```
+
+This approach means a true
 hallucination spike, one that moves the rate by several percentage points, fires
 quickly while day-to-day noise does not.
 

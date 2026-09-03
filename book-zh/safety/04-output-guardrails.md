@@ -107,11 +107,11 @@ def kl_divergence(p, q):             # p: trained-policy probs; q: reference-mod
 | G-Eval 风格的 LLM 裁判打分（OpenAI cookbook） | 难以编码进训练分类器的定性、领域特定标准；低 QPS | 高 QPS 路径；LLM 裁判会继承基座模型的可被说服性，还要花一次完整生成的代价 |
 | 升级人工审核 | 受监管领域的高风险模糊案例；申诉（Thomson Reuters、Roblox） | 对不可逆决策做自动硬拦截，一次误报就造成真实伤害 |
 
-**工具。**guard-LLM 输出分类器有 Llama Guard（Meta）和 ShieldGemma（Google）；NeMo Guardrails（NVIDIA）编排输出侧的 rail 并用 AlignScore 做事实依据，Guardrails AI 提供输出校验器和规则加模型的混合层。Detoxify 这类小型微调毒性分类器跑在 Hugging Face Transformers 上，走低延迟路径；流式 token 级检查接进服务循环，生成可以在流中途截断。G-Eval 模式的 LLM 裁判打分基于你已经在调的那个前沿模型来搭，升级人工审核则是围绕自动判定搭建的一套工作流和队列。
+**工具。** guard-LLM 输出分类器有 Llama Guard（Meta）和 ShieldGemma（Google）；NeMo Guardrails（NVIDIA）编排输出侧的 rail 并用 AlignScore 做事实依据，Guardrails AI 提供输出校验器和规则加模型的混合层。Detoxify 这类小型微调毒性分类器跑在 Hugging Face Transformers 上，走低延迟路径；流式 token 级检查接进服务循环，生成可以在流中途截断。G-Eval 模式的 LLM 裁判打分基于你已经在调的那个前沿模型来搭，升级人工审核则是围绕自动判定搭建的一套工作流和队列。
 
-**出处。**guard-LLM 输出那一行用的是 Llama Guard（Meta），由 NeMo Guardrails（NVIDIA）编排。流式 token 级截断那一行归于 Anthropic，表里已经注明。
+**出处。** guard-LLM 输出那一行用的是 Llama Guard（Meta），由 NeMo Guardrails（NVIDIA）编排。流式 token 级截断那一行归于 Anthropic，表里已经注明。
 
-**实例。**一个文档 AI 团队上线了一个 RAG 助手，回答关于受监管财务申报文件的问题，在这里一句礼貌但无依据的断言本身就是安全故障。他们在每条补全上跑一个小型微调毒性分类器以保证低延迟，但因为毒性和事实依据是正交的，他们又加了一个事实依据分类器，把回答和检索到的 chunk 比对，而不是假设模型只用了它的来源。出于审计原因，明显的规则级违规绝不能漏过，所以他们把模型和确定性规则配成混合方案，而不是纯模型打分。阈值的定法是先固定一个误拒预算，再读出能达到的捕获率；那一小片高风险的模糊输出送人工审核而不是硬拦截，因为在不可逆决策上一次误报就会造成真实伤害。
+**实例。** 一个文档 AI 团队上线了一个 RAG 助手，回答关于受监管财务申报文件的问题，在这里一句礼貌但无依据的断言本身就是安全故障。他们在每条补全上跑一个小型微调毒性分类器以保证低延迟，但因为毒性和事实依据是正交的，他们又加了一个事实依据分类器，把回答和检索到的 chunk 比对，而不是假设模型只用了它的来源。出于审计原因，明显的规则级违规绝不能漏过，所以他们把模型和确定性规则配成混合方案，而不是纯模型打分。阈值的定法是先固定一个误拒预算，再读出能达到的捕获率；那一小片高风险的模糊输出送人工审核而不是硬拦截，因为在不可逆决策上一次误报就会造成真实伤害。
 
 ## 实现与训练的坑
 

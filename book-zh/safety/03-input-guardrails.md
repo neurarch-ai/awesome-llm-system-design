@@ -18,7 +18,7 @@
 
 越狱是用户精心构造的输入，目的是压制模型的安全行为：角色扮演框架（"假装你没有任何规则"）、多样本引导、密文或编码技巧、嵌套的场景构造。关键的洞察是：一个训练出来的输入分类器，和主模型是两个独立的决策。把模型说服到给出有害回答，并不会动摇分类器的判定。正是这种独立性让分类器成了对付越狱的正确工具。
 
-**级联：从便宜到昂贵。**大多数输入明显是安全的。在所有输入上跑一个大 guard 模型，浪费延迟也浪费算力。实用的设计先跑一个廉价层：一套正则和黑名单抓明显的模式，一个关键词级的启发式规则抓已知的攻击模板，再用一个小型蒸馏分类器处理剩下的。大 guard-LLM（一个 7B 的指令微调模型，比如 Llama Guard 或 Anthropic 的 Constitutional Classifier）只看通过了快速层的输入。举个例子，Roblox 以每秒 75 万请求跑着多模型的文本和语音审核，靠的就是把绝大多数流量留在蒸馏分类器那一层；昂贵的分类器只看到一小部分请求。
+**级联：从便宜到昂贵。** 大多数输入明显是安全的。在所有输入上跑一个大 guard 模型，浪费延迟也浪费算力。实用的设计先跑一个廉价层：一套正则和黑名单抓明显的模式，一个关键词级的启发式规则抓已知的攻击模板，再用一个小型蒸馏分类器处理剩下的。大 guard-LLM（一个 7B 的指令微调模型，比如 Llama Guard 或 Anthropic 的 Constitutional Classifier）只看通过了快速层的输入。举个例子，Roblox 以每秒 75 万请求跑着多模型的文本和语音审核，靠的就是把绝大多数流量留在蒸馏分类器那一层；昂贵的分类器只看到一小部分请求。
 
 ## prompt 注入防御
 
@@ -26,7 +26,7 @@ prompt 注入和越狱不一样。攻击者不是用户；攻击者把指令藏�
 
 经检索内容进来的注入比用户越狱更难防，因为载荷是应用自己送进来的。三种结构性防御最重要：
 
-**Spotlighting 和结构化分隔。**把可信指令（系统 prompt、应用逻辑）和不可信数据（检索文本、工具输出）之间的边界标得清楚且一致。Microsoft 的做法是用随机化的分隔符或者交错插入特殊字符（datamarking），让模型能分辨权限级别，并对不可信内容做编码（base64、ROT13），让注入的指令在模型眼里像数据而不像指令。
+**Spotlighting 和结构化分隔。** 把可信指令（系统 prompt、应用逻辑）和不可信数据（检索文本、工具输出）之间的边界标得清楚且一致。Microsoft 的做法是用随机化的分隔符或者交错插入特殊字符（datamarking），让模型能分辨权限级别，并对不可信内容做编码（base64、ROT13），让注入的指令在模型眼里像数据而不像指令。
 
 具体来说，spotlighting 把每段不可信文本包进一个每请求随机生成的分隔符里，系统 prompt 则声明这个区域只是数据：
 
@@ -37,11 +37,11 @@ def spotlight(untrusted_text, nonce):   # nonce: a random, unguessable token min
 # spotlight("ignore previous instructions", "a3f9") -> "<data-a3f9>ignore previous instructions</data-a3f9>"
 ```
 
-**训练出来的注入检测器。**一个专门的分类器（Meta Prompt Guard、Microsoft Prompt Shields）在已知注入模式上训练，可以在检索文本进入 prompt 之前标出恶意内容。这是概率性的，所以单靠它不够：总会有注入漏过去。
+**训练出来的注入检测器。** 一个专门的分类器（Meta Prompt Guard、Microsoft Prompt Shields）在已知注入模式上训练，可以在检索文本进入 prompt 之前标出恶意内容。这是概率性的，所以单靠它不够：总会有注入漏过去。
 
-**代码侧的动作闸门。**既然没有分类器是完美的，真正的杠杆在于缩小爆炸半径。一条注入进来的"发起退款"指令，必须和真实用户的请求过同一道策略检查。只要动作是在代码里而不是在 prompt 里把关的，模型被骗了也不会变成一次真实的动作。这就是最小权限原则用在 LLM 工具调用上。
+**代码侧的动作闸门。** 既然没有分类器是完美的，真正的杠杆在于缩小爆炸半径。一条注入进来的"发起退款"指令，必须和真实用户的请求过同一道策略检查。只要动作是在代码里而不是在 prompt 里把关的，模型被骗了也不会变成一次真实的动作。这就是最小权限原则用在 LLM 工具调用上。
 
-**为什么注入不是模型的 bug：致命三要素。**没有哪个分类器能彻底堵住 prompt 注入，原因是结构性的。指令和数据以同一条无差别的 token 流到达，模型身上没有一个权限位标记"这些 token 可以指挥我，那些不行"，所以上下文里的任何文本原则上都能左右生成。Simon Willison 的致命三要素（lethal trifecta，2025）精确点出了它什么时候变得危险：一个 agent 同时拥有私有数据的访问权、暴露于不可信内容、以及一条对外通信的通道时，它就是可被利用的。拿掉任意一条腿，注入成功了也没什么可偷，或者没有渠道往外送。所以经得起时间考验的防御是架构层面的（去掉对外出口、隔离不可信内容、在代码里给动作把关），而不是一个更巧妙的 prompt 或者一个更强的检测器。把分类器当作缩小爆炸半径的手段，不要当成封条。
+**为什么注入不是模型的 bug：致命三要素。** 没有哪个分类器能彻底堵住 prompt 注入，原因是结构性的。指令和数据以同一条无差别的 token 流到达，模型身上没有一个权限位标记"这些 token 可以指挥我，那些不行"，所以上下文里的任何文本原则上都能左右生成。Simon Willison 的致命三要素（lethal trifecta，2025）精确点出了它什么时候变得危险：一个 agent 同时拥有私有数据的访问权、暴露于不可信内容、以及一条对外通信的通道时，它就是可被利用的。拿掉任意一条腿，注入成功了也没什么可偷，或者没有渠道往外送。所以经得起时间考验的防御是架构层面的（去掉对外出口、隔离不可信内容、在代码里给动作把关），而不是一个更巧妙的 prompt 或者一个更强的检测器。把分类器当作缩小爆炸半径的手段，不要当成封条。
 
 ## 对比：越狱 vs prompt 注入
 
@@ -92,10 +92,10 @@ def scrub(text):
 | 代码侧动作闸门 | 任何能执行真实动作（发邮件、退款、跑代码）的 agent | 指望 prompt 来阻止注入的命令被执行 |
 | PII 令牌化（带类型的占位符） | 把内容发给第三方模型提供商；为审计记录 prompt | 指望提供商的隐私政策来保护原始 PII |
 
-**工具。**guard-LLM 有 Llama Guard 和 Prompt Guard（Meta）以及 ShieldGemma（Google）；NeMo Guardrails（NVIDIA）和 Guardrails AI 提供围绕廉价层、注入检测和动作闸门的编排与规则层。Prompt Shields（Microsoft）面向注入检测，对不可信内容做 spotlighting 或 datamarking 是一种 prompt 构造技巧，要在自己的应用代码里实现。PII 方面，presidio（Microsoft）做命名实体加正则的检测，并令牌化成带类型的占位符。小型蒸馏分类器和黑名单是基于 Hugging Face Transformers 加一个规则引擎的自研件。
+**工具。** guard-LLM 有 Llama Guard 和 Prompt Guard（Meta）以及 ShieldGemma（Google）；NeMo Guardrails（NVIDIA）和 Guardrails AI 提供围绕廉价层、注入检测和动作闸门的编排与规则层。Prompt Shields（Microsoft）面向注入检测，对不可信内容做 spotlighting 或 datamarking 是一种 prompt 构造技巧，要在自己的应用代码里实现。PII 方面，presidio（Microsoft）做命名实体加正则的检测，并令牌化成带类型的占位符。小型蒸馏分类器和黑名单是基于 Hugging Face Transformers 加一个规则引擎的自研件。
 
-**出处。**guard-LLM 那一行的模型包括 Llama Guard 和 Prompt Guard（Meta）。训练分类器那一行是 Constitutional Classifiers（Anthropic），它的渊源是 Constitutional AI（Anthropic，2022）。编排和 PII 两行来自 NeMo Guardrails（NVIDIA）和 presidio（Microsoft）。
+**出处。** guard-LLM 那一行的模型包括 Llama Guard 和 Prompt Guard（Meta）。训练分类器那一行是 Constitutional Classifiers（Anthropic），它的渊源是 Constitutional AI（Anthropic，2022）。编排和 PII 两行来自 NeMo Guardrails（NVIDIA）和 presidio（Microsoft）。
 
-**近期的 guard 模型（2024）。**guard-LLM 这个家族进展很快。Llama Guard 3（Meta，基于 Llama 3.1 8B）扩展了危害分类体系，Llama Guard 4（12B）原生支持多模态，把文本和图像一起分类。ShieldGemma（Google）是基于 Gemma 的一系列 prompt 与回复安全分类器。WildGuard（Allen AI，2024）值得一提，它用一个模型干三件事：标记有害 prompt、检测不安全回复、度量拒绝，因此能抓到只看危害的分类器抓不到的过度拒绝（一个安全的模型拒绝了良性请求）。它们都是同一个模板：一个 decoder-only 的 LLM，微调成在给定策略 prompt 的条件下输出结构化判定，所以换策略不需要重训。
+**近期的 guard 模型（2024）。** guard-LLM 这个家族进展很快。Llama Guard 3（Meta，基于 Llama 3.1 8B）扩展了危害分类体系，Llama Guard 4（12B）原生支持多模态，把文本和图像一起分类。ShieldGemma（Google）是基于 Gemma 的一系列 prompt 与回复安全分类器。WildGuard（Allen AI，2024）值得一提，它用一个模型干三件事：标记有害 prompt、检测不安全回复、度量拒绝，因此能抓到只看危害的分类器抓不到的过度拒绝（一个安全的模型拒绝了良性请求）。它们都是同一个模板：一个 decoder-only 的 LLM，微调成在给定策略 prompt 的条件下输出结构化判定，所以换策略不需要重训。
 
-**实例。**一个内容平台在用户上传的文档上跑 RAG 助手，请求量很大，所以没法在每条输入上都跑大模型。它先放一个正则加黑名单层，以接近零的延迟丢掉明显的滥用，再用一个小型蒸馏分类器处理剩下的，因为 QPS 高而策略稳定；guard-LLM 只留给那一小片模糊输入，在那里类别级的输出值得多花的延迟。因为检索文档不可信，它加上了 spotlighting 和注入检测器，而不是只靠文本分类器，并且把每个真实动作（发摘要邮件、更新记录）都挡在代码侧策略检查之后，这样即使一条隐藏的"忽略之前的指令"载荷躲过了检测，也触发不了真实动作。任何文档文本在到达第三方模型或日志存储之前，PII 都会令牌化成带类型的占位符，而不是指望提供商的隐私政策来保护原始标识符。
+**实例。** 一个内容平台在用户上传的文档上跑 RAG 助手，请求量很大，所以没法在每条输入上都跑大模型。它先放一个正则加黑名单层，以接近零的延迟丢掉明显的滥用，再用一个小型蒸馏分类器处理剩下的，因为 QPS 高而策略稳定；guard-LLM 只留给那一小片模糊输入，在那里类别级的输出值得多花的延迟。因为检索文档不可信，它加上了 spotlighting 和注入检测器，而不是只靠文本分类器，并且把每个真实动作（发摘要邮件、更新记录）都挡在代码侧策略检查之后，这样即使一条隐藏的"忽略之前的指令"载荷躲过了检测，也触发不了真实动作。任何文档文本在到达第三方模型或日志存储之前，PII 都会令牌化成带类型的占位符，而不是指望提供商的隐私政策来保护原始标识符。

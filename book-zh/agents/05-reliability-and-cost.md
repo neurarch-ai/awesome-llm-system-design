@@ -120,7 +120,9 @@ prompt 也堵不牢这个口子，因为注入的文本是作为普通模型输�
 def backoff_delays(base, cap, attempts):   # base = first wait (s), cap = max wait (s)
     return [min(cap, base * 2 ** i) for i in range(attempts)]   # double each retry, clamp at cap
 # e.g. backoff_delays(base=1.0, cap=10.0, attempts=3) -> [1.0, 2.0, 4.0]
-``` 工具超时的时候，模型不能凭幻觉编一个结果出来；它必须承认失败并处理它。
+```
+
+工具超时的时候，模型不能凭幻觉编一个结果出来；它必须承认失败并处理它。
 
 ## 模型分层
 
