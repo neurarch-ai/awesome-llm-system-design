@@ -75,7 +75,7 @@ def minhash_estimate(a, b, seeds):     # a, b: shingle sets; seeds: k independen
 # identical sets agree on every entry: minhash_estimate({1, 2, 3}, {1, 2, 3}, [7, 11, 13]) -> 1.0
 ```
 
-**LSH 分带（banding）**把这个估计变成可扩展的候选搜索。把长度为 $k$ 的签名切成 $b$ 个带（band），每带 $r$ 行。两篇文档只要在至少一个完整的带上匹配，就成为候选对。成为候选的概率是一条关于 $J$ 的可调 S 形曲线：
+**LSH 分带（banding）** 把这个估计变成可扩展的候选搜索。把长度为 $k$ 的签名切成 $b$ 个带（band），每带 $r$ 行。两篇文档只要在至少一个完整的带上匹配，就成为候选对。成为候选的概率是一条关于 $J$ 的可调 S 形曲线：
 
 $$\Pr[\text{candidate}] = 1 - \left(1 - J^{r}\right)^{b}$$
 

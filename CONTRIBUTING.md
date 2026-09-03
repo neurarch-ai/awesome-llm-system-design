@@ -32,6 +32,11 @@ The validator enforces the rules below (Node 24, no dependencies).
   `![...](assets/...)` reference must resolve to a file that exists.
 - **Internal links resolve** to a file, a `file.md`, or a directory.
 - **No duplicate section headings** within a single file.
+- **Emphasis must be able to close.** `**Label.** Text` is fine; `**标签。**正文` is
+  not. CommonMark will not close a `**` run that follows punctuation and precedes a
+  letter, so both delimiters render as literal asterisks and the bold is lost. Put a
+  space after the closing run, as the English does, or move the punctuation outside
+  the emphasis. Only CJK text hits this, because English always has the space.
 
 ## Citations
 
@@ -58,7 +63,10 @@ The validator enforces the rules below (Node 24, no dependencies).
 `book-zh/` mirrors `book/` file for file: same folder names, same file names, one
 translation per source file. The validator and the capstone runner walk both trees,
 so every rule above applies to the translation too, and the Chinese double dash
-`——` counts as an em dash. Code blocks are copied byte for byte (the capstones are
+`——` counts as an em dash. The emphasis rule above is the one a translator hits
+without noticing: dropping the space after `**` is correct Chinese typography and
+silently breaks the bold, so keep the punctuation inside the emphasis and the space
+after it, matching the English line for line. Code blocks are copied byte for byte (the capstones are
 executed from the translation as well). Figures are not duplicated; a translated
 chapter references `../../book/<slug>/assets/` directly. When you change a section
 in `book/`, change the matching file in `book-zh/` in the same PR, or say in the PR
