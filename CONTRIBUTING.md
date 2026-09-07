@@ -4,6 +4,11 @@ Thanks for improving this book. A few house rules keep every chapter rendering
 correctly on GitHub and reading consistently. CI runs the validator on every push
 and pull request, so please run it locally before opening a PR.
 
+**Writing something new rather than fixing something?** Start from
+[**template/**](template/): a skeleton for a topic walkthrough and one for a full
+book chapter, plus the list of places a new file has to be registered before anything
+links to it. This page is what CI rejects; that one is what to write.
+
 ## Before you push
 
 ```bash
@@ -77,8 +82,12 @@ that the translation is now behind.
 
 ## Chapter structure
 
+Copy [`template/chapter/`](template/chapter/) rather than an existing chapter: it
+carries the fixed section positions and the guidance for each, and its capstone block
+already runs under the gate.
+
 Chapters live in `book/<slug>/` as one file per section (`01-clarifying-requirements`
-through `09-summary`, plus a `README.md` index). A chapter opens with a
+through `10-putting-it-together`, plus a `README.md` index). A chapter opens with a
 Candidate/Interviewer dialogue to scope the problem, walks the design end to end, and
 closes with a production section (with first-party links), an interview Q&A, and a
 summary. Figures are worked matplotlib PNGs in `assets/` and mermaid diagrams. Keep

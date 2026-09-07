@@ -187,7 +187,7 @@ can.
 
 ## License
 
-MIT. See [LICENSE](LICENSE). Contributions welcome; see
-[topics/README.md](topics/README.md).
+MIT. See [LICENSE](LICENSE). Contributions welcome: [CONTRIBUTING.md](CONTRIBUTING.md)
+for the house rules, [template/](template/) for a skeleton to start from.
 
 Built and maintained by the team behind [Neurarch](https://www.neurarch.com).
