@@ -28,9 +28,9 @@ numbers change. More on why that matters [below](#about-the-diagrams).
 
 > **Want a sidebar and a search box?** The same material is published as a site at
 > **[neurarch-ai.github.io/awesome-llm-system-design](https://neurarch-ai.github.io/awesome-llm-system-design/)**,
-> generated from these exact files. Searching there covers all 490 pages at once,
-> including the Chinese edition, which is the fastest way to find the one paragraph
-> that answers a question you are stuck on.
+> generated from these exact files. Searching there covers every page of both
+> editions at once, which is the fastest way to find the one paragraph that answers a
+> question you are stuck on.
 
 ---
 

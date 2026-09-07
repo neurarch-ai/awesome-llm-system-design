@@ -32,7 +32,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          # `cache: pip` looks for **/requirements.txt or **/pyproject.toml and fails
+          # the job when it finds neither. Ours is tools/requirements-site.txt, so the
+          # path has to be named explicitly.
           cache: pip
+          cache-dependency-path: tools/requirements-site.txt
       - name: Install mkdocs
         run: pip install -r tools/requirements-site.txt
       - name: Stage content and write the mkdocs config
