@@ -192,15 +192,16 @@ whether the answer was right.
 
 ### The systems
 
-- **DeepSeek** [DeepSeek-R1](https://arxiv.org/abs/2501.12948)
-- **Stanford and collaborators** [s1: Simple test-time scaling](https://arxiv.org/abs/2501.19393)
-- **Google DeepMind and UC Berkeley** [Scaling LLM Test-Time Compute Optimally](https://arxiv.org/abs/2408.03314)
-- **Stanford** [Large Language Monkeys](https://arxiv.org/abs/2407.21787)
-- **OpenAI** [Let's Verify Step by Step](https://arxiv.org/abs/2305.20050) and the [reasoning guide](https://platform.openai.com/docs/guides/reasoning)
-- **Anthropic** [extended thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking)
-- **Google** [thinking in the Gemini API](https://ai.google.dev/gemini-api/docs/thinking)
-- **METR** [Measuring AI Ability to Complete Long Software Tasks](https://metr.org/blog/2025-03-19-measuring-ai-ability-to-complete-long-tasks/)
-- **UIUC and collaborators** [Establishing Best Practices for Building Rigorous Agentic Benchmarks](https://arxiv.org/abs/2507.02825)
+- **DeepSeek** [DeepSeek-R1](https://arxiv.org/abs/2501.12948): RL with verifiable rewards produces long thinking traces, and the trace is what your serving cost model now has to carry. *(training decision)*
+- **Stanford and collaborators** [s1: Simple test-time scaling](https://arxiv.org/abs/2501.19393): Budget forcing at the prompt level with 1k training examples, the cheapest demonstration that the budget is a knob. *(training decision)*
+- **Google DeepMind and UC Berkeley** [Scaling LLM Test-Time Compute Optimally](https://arxiv.org/abs/2408.03314): Allocate by difficulty, and the conditions under which extra inference compute beats a larger model. *(product design)*
+- **Stanford** [Large Language Monkeys](https://arxiv.org/abs/2407.21787): Coverage rises with samples, and delivered quality is coverage times selector accuracy. *(eval bar)*
+- **OpenAI** [Let's Verify Step by Step](https://arxiv.org/abs/2305.20050): Process supervision beats outcome supervision, the origin of the step-level verifier in a reasoning stack. *(training decision)*
+- **OpenAI** [the reasoning guide](https://platform.openai.com/docs/guides/reasoning): An effort parameter as the only budget control a caller gets, and what that hides about the tail. *(product design)*
+- **Anthropic** [extended thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking): A thinking-token budget in the API, priced and visible, the same knob in a different shape. *(product design)*
+- **Google** [thinking in the Gemini API](https://ai.google.dev/gemini-api/docs/thinking): A thinking budget including the option to switch it off, plus the accounting a caller needs to compare providers. *(product design)*
+- **METR** [Measuring AI Ability to Complete Long Software Tasks](https://metr.org/blog/2025-03-19-measuring-ai-ability-to-complete-long-tasks/): Task length as the capability axis, the frame that turns a thinking budget into a business decision. *(eval bar)*
+- **UIUC and collaborators** [Establishing Best Practices for Building Rigorous Agentic Benchmarks](https://arxiv.org/abs/2507.02825): Weak test suites accept wrong answers, so a verifier you have not audited is not a verifier. *(eval bar)*
 
 ## Trace the architectures
 

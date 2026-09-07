@@ -12,7 +12,7 @@ writeups. Then the systems themselves. For the full per-case teardown of any one
 see [CASE-TEARDOWNS.md](CASE-TEARDOWNS.md); browse the same systems
 [by company](CASE-STUDIES-BY-COMPANY.md) or [by industry](CASE-STUDIES-BY-INDUSTRY.md).
 
-244 systems across the taxonomy, and growing.
+285 systems across the taxonomy, and growing.
 
 ---
 ### [LLM lifecycle](topics/13-llm-lifecycle.md) · 10 systems
@@ -978,6 +978,297 @@ quadrantChart
 
 ---
 
+### [Model compression](topics/17-model-compression.md) · 18 systems
+
+**What they share.** Every system here starts from the same three-line budget: weights, KV cache, activations. Each picks the lever that moves whichever of those is binding, keeps a small set of layers at higher precision because a uniform format always breaks something, and gates on a paired comparison against the uncompressed model rather than on an aggregate score. None of them treats compression as free. They diverge on which resource they are buying back, and on whether they are allowed to retrain.
+
+**The reference pipeline.** Read every system below as a specialization of this flow. What changes is which branch is taken and how much retraining budget exists, not the skeleton: measure what binds, apply the lever that moves it, test in pairs, raise precision where it broke, ship a candidate.
+
+```mermaid
+flowchart LR
+  MEAS["measure what binds<br/>(weight bytes, KV bytes, decode latency)"] --> PICK{"which lever?"}
+  PICK -->|"memory ceiling"| WQ["weight-only int4<br/>(GPTQ, AWQ)"]
+  PICK -->|"throughput per dollar"| AQ["activation + compute<br/>(SmoothQuant, fp8)"]
+  PICK -->|"4-bit activations and KV"| ROT["rotation<br/>(QuaRot, SpinQuant)"]
+  PICK -->|"long context"| KVQ["GQA or MLA, then paging,<br/>then KV quantization (KIVI)"]
+  PICK -->|"a genuinely smaller model"| PR["structured prune<br/>+ distill (Sheared LLaMA, Minitron)"]
+  WQ --> TEST["paired acceptance test<br/>(flip rate, per-capability)"]
+  AQ --> TEST
+  ROT --> TEST
+  KVQ --> TEST
+  PR --> TEST
+  TEST -->|"a capability regressed"| MIX["raise precision on the<br/>sensitive layers, re-test"]
+  MIX --> TEST
+  TEST -->|"passes"| KERN["assert the numeric path<br/>at startup"]
+  KERN --> SHIP["ship as a new candidate model"]
+```
+
+**Reading the diagram.** Follow it left to right as one decision, made once per binding resource. The measurement at the front is what stops the usual mistake of quantizing weights when the KV cache is what filled the card: weight bytes are $N b_w$ and cache bytes are $2 L h_{kv} d_h s B b_{kv}$, and past a few thousand tokens the second term is the one that grows. The lever branch is ordered by what each family actually buys: weight-only int4 buys memory and decode bandwidth and nothing at high batch, activation and compute quantization buys arithmetic and therefore throughput, rotation buys the ability to take activations and the cache to 4 bits at all, and structured pruning plus distillation is the only branch that produces a smaller model rather than a cheaper representation of the same one. The KV branch is ordered on purpose: architectural reduction first, then paging, then quantization, then eviction or windowing last, because each step after the first is lossy in a way the previous one is not. The acceptance test is paired because two checkpoints at the same aggregate accuracy can disagree on half of their answers, so flip rate against the parent is the measurement, not the benchmark delta. The mixed-precision loop is where nearly every shipped recipe ends up: embeddings, the output projection, the first and last blocks, and the norms stay higher. The startup assertion exists because several stacks fall back to a higher-precision kernel silently, which produces no speedup, no error, and a confusing week.
+
+**Where they diverge.** The first fork is what is binding; the second, once you are in the format axis, is how far down you need to go, which decides whether you can stay post-training or must retrain.
+
+```mermaid
+flowchart TD
+  IN["too big, too slow, too expensive"] --> Q1{"what is binding?"}
+  Q1 -->|"memory / decode at low batch"| F1["format axis"]
+  Q1 -->|"throughput at high batch"| F2["compute axis"]
+  Q1 -->|"a hard device ceiling"| F3["size axis"]
+  F1 --> Q2{"how many bits?"}
+  Q2 -->|"8-bit weights"| B8["LLM.int8() outlier split"]
+  Q2 -->|"4-bit weights, no retrain"| B4["GPTQ error compensation<br/>AWQ salient channels"]
+  Q2 -->|"4-bit activations and KV"| BR["rotate first<br/>QuaRot, SpinQuant"]
+  Q2 -->|"below 4 bits"| BT["train for it<br/>BitNet ternary"]
+  F2 --> S8["SmoothQuant W8A8"]
+  F2 --> FP8["fp8 end to end<br/>DeepSeek-V3"]
+  F3 --> Q3{"retraining budget?"}
+  Q3 -->|"none"| ONE["one-shot pruning<br/>SparseGPT, Wanda"]
+  Q3 -->|"billions of tokens"| PD["prune then distill<br/>Sheared LLaMA, Minitron"]
+  Q3 -->|"model design"| DEV["on-device stack<br/>Apple Intelligence"]
+  B8 --> ACC["paired acceptance test"]
+  B4 --> ACC
+  BR --> ACC
+  BT --> ACC
+  S8 --> ACC
+  FP8 --> ACC
+  ONE --> ACC
+  PD --> ACC
+  DEV --> ACC
+```
+
+**The choices, side by side.**
+
+| System | Axis | Mechanism | Retraining | Buys | Watch out |
+| --- | --- | --- | --- | --- | --- |
+| LLM.int8() | Format, 8-bit | Split the matmul, outliers stay 16-bit | None | Memory at near-parity quality | The decomposition costs throughput |
+| SmoothQuant | Compute, W8A8 | Migrate activation outliers into weights | None to light | Arithmetic, so throughput at batch | Needs a representative calibration set |
+| GPTQ | Format, 3 to 4-bit weights | Layer-wise second-order rounding | None | Memory and decode bandwidth | Calibration mismatch shows up as a capability hole |
+| AWQ | Format, 4-bit weights | Protect salient channels by activation magnitude | None | The same, with simpler kernels | Weight-only, so no gain at high batch |
+| QuaRot, SpinQuant | Format, 4-bit activations and KV | Orthogonal rotation, fused at export | None, or learned rotations | 4-bit inference end to end | Rotation must be fused or it costs more than it saves |
+| BitNet b1.58 | Format, ternary | Train with the quantizer in the loop | Full pretraining | Extreme efficiency | Not available as a post-training option |
+| KIVI | Format, KV only | Keys per channel, values per token, 2-bit | None | Long-context capacity | Do it after GQA or MLA, not instead |
+| SparseGPT, Wanda | Sparsity | One-shot pruning, reconstruction or activation-aware score | None | Memory, or speed on a 2:4 target | Unstructured sparsity buys nothing on dense kernels |
+| Sheared LLaMA, Minitron | Size | Structured pruning plus distillation | Billions of tokens | A genuinely smaller model | Skipping the healing run and blaming pruning |
+| On-policy distillation | Size | Student generates, teacher scores | Training run | The strongest student per token | The teacher becomes serving infrastructure |
+| Apple Intelligence | Size, on device | Small model, device formats, task adapters | Yes, by design | A model that fits a hard ceiling | Format choice is dictated by the NPU |
+| DeepSeek-V3 | Compute | fp8 through training and serving | Designed in | Cost across the whole lifecycle | An architecture decision, not a post hoc one |
+| Accuracy is Not All You Need | Acceptance | Flip rate against the parent | None | A test that catches what accuracy hides | Needs per-item verdicts from both models |
+
+**The math that separates them.** Four expressions decide which lever is worth pulling and how much of the promised win survives contact with a batch size.
+
+$$\textbf{the budget: } \text{bytes} \approx \underbrace{N b_w}_{\text{weights}} + \underbrace{2 L h_{kv} d_h s B b_{kv}}_{\text{KV cache}} + \text{activations}$$
+
+$$\textbf{symmetric uniform quantization: } s = \frac{\max |w|}{2^{b-1} - 1}, \qquad q = \text{round}\!\left(\frac{w}{s}\right)$$
+
+$$\textbf{group size is why 4-bit is not 4 bits: } b_{\text{eff}} = b + \frac{b_{\text{scale}} + b_{\text{zero}}}{g}, \qquad g = 128 \Rightarrow b_{\text{eff}} \approx 4.125$$
+
+$$\textbf{activation-aware pruning score (Wanda): } S_{ij} = |W_{ij}| \cdot \lVert X_j \rVert_2$$
+
+$$\textbf{what a bandwidth win is worth: } \text{speedup} \approx \frac{\text{bytes read per token before}}{\text{bytes read per token after}} \text{ at batch 1, tending to } 1 \text{ as batch grows}$$
+
+The last one is the line that decides most arguments: weight-only quantization is over 3x at batch one and closer to 1.15x at batch 64 for the same change, because at high batch the weight read is already amortized and you are back to needing fewer FLOPs, not fewer bytes.
+
+```mermaid
+quadrantChart
+  title Compression win vs how much it can cost you
+  x-axis "small win" --> "large win"
+  y-axis "high risk to quality" --> "low risk to quality"
+  quadrant-1 "default choice"
+  quadrant-2 "safe, limited payoff"
+  quadrant-3 "avoid"
+  quadrant-4 "only with a real acceptance test"
+  "GQA or MLA first": [0.7, 0.95]
+  "int8 weights": [0.35, 0.9]
+  "int4 weight-only (AWQ, GPTQ)": [0.6, 0.75]
+  "W8A8 (SmoothQuant)": [0.6, 0.8]
+  "fp8 end to end": [0.7, 0.85]
+  "4-bit act + KV (rotation)": [0.8, 0.6]
+  "2-bit KV (KIVI)": [0.65, 0.65]
+  "unstructured 50% sparsity": [0.15, 0.55]
+  "2:4 sparsity": [0.45, 0.5]
+  "structured prune + distill": [0.85, 0.7]
+  "ternary from scratch": [0.95, 0.35]
+```
+
+**When to use which.** Name the binding resource first, then take the cheapest lever that moves it.
+
+| Reach for | When | Instead of |
+|---|---|---|
+| GQA or MLA, then paging | Long contexts, before any KV quantization | Quantizing a cache whose shape you never fixed |
+| int4 weight-only (AWQ, GPTQ) | A memory ceiling, or decode latency at low batch | Expecting the same win at batch 64, where it nearly vanishes |
+| W8A8 (SmoothQuant) or fp8 | Throughput per dollar at high batch | Weight-only quantization, which buys bandwidth and not arithmetic |
+| Rotation (QuaRot, SpinQuant) | You need 4-bit activations or KV, not just weights | Pushing weight-only methods into a regime they were not built for |
+| KIVI-style 2-bit KV | Context length is what fills the card | Evicting cache entries, which is lossy in a way quantization is not |
+| One-shot pruning (SparseGPT, Wanda) | No retraining budget and a sparsity-accelerated target | Unstructured sparsity on dense kernels, which is memory savings only |
+| Structured pruning plus distillation | You need a smaller model and have billions of tokens | Pruning without a healing run, then concluding pruning does not work |
+| On-policy distillation | You control the teacher and want the strongest student | Offline distillation, where the student never sees its own mistakes |
+| QAT | Below 4 bits, where post-training stops holding | More calibration data, which cannot recover a format that is too tight |
+| Flip rate against the parent | Accepting any compressed checkpoint | An aggregate benchmark delta, which hides half the answers changing |
+
+**Interview watch-outs.**
+
+- **Say what is binding before you name a method.** Memory ceiling, decode latency, prefill throughput and context length are four different problems, and the standard answer ("quantize to int4") addresses only two of them. Naming the resource first is the whole difference between an engineer and a menu.
+- **The outlier problem is the reason all of this exists.** A handful of activation channels carry values orders of magnitude larger than the rest and matter functionally, so a scale wide enough for them starves everything else. Every family below is a different answer to that one fact: keep them high precision, migrate them into the weights, protect the channels they touch, compensate the error, or rotate them away.
+- **Weight-only quantization is a bandwidth win, so it evaporates at batch.** Over 3x at batch one and about 1.15x at batch 64 for the same change. If the throughput target is high-batch serving, the lever is compute precision, not weight bits.
+- **A sparsity number without a shape is not reproducible.** 50 percent unstructured, 2:4 semi-structured, and structured head or channel removal have completely different quality, speed and memory profiles. Unstructured sparsity buys nothing on dense kernels.
+- **Quote the effective bit width.** Group-wise 4-bit with a per-128 scale and zero point is about 4.125 bits. On a 70B model that difference is gigabytes, and it is the first thing a careful interviewer checks.
+- **PTQ, QAT and QLoRA are three different things.** PTQ produces a serving artifact in hours from a calibration set. QAT simulates the quantizer during training and is what you escalate to below 4 bits. QLoRA quantizes a base in order to fine-tune it cheaply and is not a serving quantization at all.
+- **Assert the numeric path at startup.** Silent fallback to a higher-precision kernel produces no speedup and no error. Log the kernel actually selected, and treat an unfused dequantize-then-matmul path as a regression.
+- **Accuracy is not the acceptance test.** Two checkpoints at equal aggregate accuracy can disagree on half their answers. Measure flip rate against the parent, per capability, and keep the raw per-item verdicts so the comparison is paired.
+
+**The systems**
+
+- **LLM.int8()** [8-bit Matrix Multiplication for Transformers at Scale](https://arxiv.org/abs/2208.07339): Keep the outlier channels in 16-bit and the rest in int8. The paper that defined the problem every method below is working around. *(deployment)*
+- **SmoothQuant** [Accurate and efficient post-training quantization for LLMs](https://arxiv.org/abs/2211.10438): Migrate the activation outliers into the weights so both sides can be 8-bit, which is what makes W8A8 serving practical. *(deployment)*
+- **GPTQ** [Accurate post-training quantization for generative pretrained transformers](https://arxiv.org/abs/2210.17323): Layer-wise second-order rounding that compensates its own error, the first credible one-shot path to 3 and 4 bits. *(deployment)*
+- **AWQ** [Activation-aware weight quantization](https://arxiv.org/abs/2306.00978): Protect the salient weight channels, identified from activations rather than from weight magnitude. The most deployed weight-only method. *(deployment)*
+- **QuaRot** [Outlier-free 4-bit inference in rotated LLMs](https://arxiv.org/abs/2404.00456): An orthogonal rotation fused at export removes the outliers instead of working around them, which is what unlocked 4-bit activations and KV. *(deployment)*
+- **SpinQuant** [LLM quantization with learned rotations](https://arxiv.org/abs/2405.16406): Learn the rotation rather than fixing it, trading a short training step for the accuracy the fixed rotation leaves behind. *(deployment)*
+- **Microsoft Research** [The Era of 1-bit LLMs](https://arxiv.org/abs/2402.17764): Ternary weights trained from scratch. The frontier of the format axis, and a reminder that it is not a post-training option. *(training decision)*
+- **KIVI** [Asymmetric 2-bit KV cache quantization](https://arxiv.org/abs/2402.02750): Keys quantized per channel, values per token, with no tuning. The asymmetry is the finding. *(deployment)*
+- **SparseGPT** [Massive language models can be accurately pruned in one shot](https://arxiv.org/abs/2301.00774): Reconstruction-based one-shot pruning to 50 percent with no retraining. *(deployment)*
+- **Wanda** [A simple and effective pruning approach for LLMs](https://arxiv.org/abs/2306.11695): The same result from weight magnitude times input activation norm, with no solve at all. Read it as the argument against complexity in this area. *(deployment)*
+- **Princeton** [Sheared LLaMA](https://arxiv.org/abs/2310.06694): Structured pruning to a target shape followed by continued pretraining, a smaller model derived from a parent instead of trained from scratch. *(training decision)*
+- **NVIDIA** [Compact Language Models via Pruning and Knowledge Distillation](https://arxiv.org/abs/2407.14679): Minitron. One parent, a size ladder, and the distillation budget each rung actually costs. *(training decision)*
+- **Google DeepMind** [On-Policy Distillation of Language Models](https://arxiv.org/abs/2306.13649): The student generates and the teacher scores, so it learns on its own mistakes rather than on the teacher's transcript. *(training decision)*
+- **Apple** [Apple Intelligence Foundation Language Models](https://arxiv.org/abs/2407.21075): A hard device ceiling, a short list of fast formats, and task adapters over one resident base. The shipped on-device pattern. *(deployment)*
+- **DeepSeek** [DeepSeek-V3 Technical Report](https://arxiv.org/abs/2412.19437): fp8 end to end by design rather than compression applied afterwards, with the training cost stated. *(training decision)*
+- **Microsoft Research India** [Accuracy is Not All You Need](https://arxiv.org/abs/2407.09141): Two models at equal benchmark accuracy can disagree on half of their answers. Flip rate is the acceptance test. *(eval bar)*
+- **Red Hat AI and vLLM** [llm-compressor](https://github.com/vllm-project/llm-compressor): The path from a recipe to a served checkpoint, which is where kernel support stops being theoretical. *(systems)*
+- **llama.cpp** [the GGUF ecosystem](https://github.com/ggml-org/llama.cpp): Quantization formats as a distribution channel, and the reason a k-quant name is the first thing a local deployment argues about. *(systems)*
+
+---
+
+### [Reasoning and test-time compute](topics/18-reasoning-and-test-time-compute.md) · 10 systems
+
+**What they share.** Every system here is the same three parts: a budget knob, a policy that decides who gets how much, and something that says whether the answer was right. The knob is what a provider exposes or what a self-hosted stack enforces, the policy is where the money is actually spent or saved, and the verifier is what converts extra samples into delivered quality instead of extra tokens. None of them claims thinking is uniformly better. They diverge on who holds the knob, and on what the checker is allowed to be.
+
+**The reference pipeline.** Read every system below as a specialization of this flow. What changes is where the budget is decided and how strong the verifier is, not the skeleton: a request is classified, given a budget, generated, checked, and accounted for so the next classification is better.
+
+```mermaid
+flowchart LR
+  REQ["request"] --> CLS{"how hard, and what<br/>does being wrong cost?"}
+  CLS -->|"easy / latency-bound"| SHORT["small or zero budget"]
+  CLS -->|"hard / high stakes"| LONG["large thinking budget"]
+  SHORT --> VER{"verifier accepts?"}
+  VER -->|"no"| ESC["escalate<br/>(quota-capped)"]
+  VER -->|"yes"| OUT["answer"]
+  ESC --> LONG
+  LONG --> CAP{"budget hit?"}
+  CAP -->|"yes"| FORCE["forced answer,<br/>never silent truncation"]
+  CAP -->|"no"| OUT
+  FORCE --> OUT
+  OUT --> ACCT["record tokens, latency,<br/>accepted, solved"]
+  ACCT -.->|"recalibrate the classifier<br/>and the cap"| CLS
+```
+
+**Reading the diagram.** Follow it left to right as one request, and note that the two decisions that cost money are made before any tokens are generated. The classifier is the weakest link in most designs, which is why the cheap-path-then-verify branch exists: running the short path and checking it is a better difficulty classifier than any difficulty classifier, because it measures the thing you care about instead of predicting it. The budget cap has to end in a forced answer rather than a truncation, because a silent cut returns malformed output that then scores as a wrong answer and pollutes every measurement downstream. The verifier box is where delivered quality is decided: repeated sampling raises coverage, the chance at least one sample is right, and only a selector converts coverage into a correct delivered answer, so a 0.98 coverage with a 0.6 selector delivers about 0.6. The accounting box is what makes the loop a system rather than a setting: without a per-request record of tokens, latency and whether the task was actually solved, there is no way to compare a thinking model against a non-thinking one on anything but score, and no way to notice that the cost per solved task went up while the cost per request went down. The escalation edge carries a quota because an escalation storm under load is how this design fails in production.
+
+**Where they diverge.** The fork is who holds the budget knob, and each answer changes what you can control and what you can see.
+
+```mermaid
+flowchart TD
+  Q{"who holds the knob?"} -->|"the provider"| API["effort or thinking-token parameter<br/>OpenAI, Anthropic, Google"]
+  Q -->|"you, in the prompt"| FORCE["budget forcing<br/>s1"]
+  Q -->|"you, in the scheduler"| SELF["hard caps, queue classes, preemption<br/>self-hosted"]
+  Q -->|"the training run"| RL["RL with verifiable rewards<br/>DeepSeek-R1"]
+  API --> SEL{"what selects among attempts?"}
+  FORCE --> SEL
+  SELF --> SEL
+  RL --> SEL
+  SEL -->|"nothing"| ONE["one long chain"]
+  SEL -->|"agreement"| SC["self-consistency"]
+  SEL -->|"execution"| EXE["tests, compiler, SQL run"]
+  SEL -->|"a learned score"| PRM["outcome or process reward model"]
+  ONE --> ACC["delivered quality =<br/>coverage x selector accuracy"]
+  SC --> ACC
+  EXE --> ACC
+  PRM --> ACC
+```
+
+**The choices, side by side.**
+
+| Approach | Budget control | Selection | Buys | Watch out |
+| --- | --- | --- | --- | --- |
+| Provider effort parameter (OpenAI, Anthropic, Google) | An effort setting or a thinking-token budget | None built in | The knob with no serving work | Little visibility into the tail |
+| Prompt-level budget forcing (s1) | Suppress or inject the end-of-thinking marker | Usually self-consistency | A budget on a model that was not trained for one | Forcing a budget the model was not trained for degrades output |
+| Self-hosted with a scheduler | Hard caps plus queue policy and preemption | Whatever you build | Control of the tail | Real serving engineering |
+| RL with verifiable rewards (DeepSeek-R1) | Set during training, inherited at serving | Whatever you add | Reasoning as a model property | Trace length becomes your cost model |
+| Best-of-n with an executor | Fixed k, in parallel | Tests, compiler, SQL | Coverage converted into quality | Sandbox capacity, and weak tests accept wrong answers |
+| Cascade with a checker | Cheap path, then escalate | Executor or certified judge | The best cost curve, and two attempts on hard items | Escalation storms under load |
+| Process-supervised selection (Let's Verify) | Fixed k, in parallel | Step-level reward model | The strongest selector on math-like tasks | Verification can cost more than generation |
+| Adaptive allocation (Scaling Test-Time Compute) | Budget per item by predicted difficulty | Either | The best tokens-per-solved-task | Needs difficulty estimates you can trust |
+
+**The math that separates them.** Four expressions decide whether spending at inference is a good trade, and all four are things an interviewer can ask you to derive on the board.
+
+$$\textbf{coverage from repeated sampling: } \text{pass}@k = 1 - (1 - p)^{k}, \qquad \textbf{delivered} \approx \text{coverage} \times \text{selector accuracy}$$
+
+$$\textbf{reliability is the other metric: } \text{pass}^{k} = p^{k}, \qquad p = 0.9,\ k = 8 \Rightarrow 0.43$$
+
+$$\textbf{when a cascade beats always-thinking: } C_{\text{cascade}} = c_{\text{short}} + c_{\text{verify}} + (1 - a)\, c_{\text{long}} \lt c_{\text{long}} \iff a \gt \frac{c_{\text{short}} + c_{\text{verify}}}{c_{\text{long}}}$$
+
+$$\textbf{why the tail moves before the mean: } E[W] = \frac{\rho}{1 - \rho} \cdot \frac{E[S]\,(1 + C^{2})}{2}, \qquad C^{2} = \frac{\text{Var}(S)}{E[S]^{2}}$$
+
+The third says that at a short path around a tenth the cost of the long one, the cascade wins as soon as the cheap path handles roughly one request in six, and it has a property the alternatives do not: escalated requests get two attempts, so its solve rate can exceed always-thinking. The fourth says a thinking workload with the same mean service time as a non-thinking one has a much worse p99, because the variance term is what the queue is actually sensitive to.
+
+```mermaid
+quadrantChart
+  title Extra spend vs delivered quality
+  x-axis "little extra spend" --> "large extra spend"
+  y-axis "little quality gained" --> "real quality gained"
+  quadrant-1 "worth it when a verifier exists"
+  quadrant-2 "do this first"
+  quadrant-3 "avoid"
+  quadrant-4 "only with a strong selector"
+  "cascade with an executor": [0.3, 0.85]
+  "self-consistency (k=5)": [0.35, 0.6]
+  "best-of-n with tests": [0.6, 0.85]
+  "best-of-n with a reward model": [0.6, 0.55]
+  "one longer chain": [0.5, 0.6]
+  "adaptive budget by difficulty": [0.4, 0.8]
+  "long chain on factual recall": [0.6, 0.1]
+  "long chain on extraction": [0.5, 0.15]
+```
+
+**When to use which.** Decide whether anything can check the answer, then let the latency budget pick sequential or parallel.
+
+| Reach for | When | Instead of |
+|---|---|---|
+| A cheap attempt plus a verifier | There is any executable or symbolic check | A difficulty classifier, which predicts what the cheap attempt measures |
+| Parallel sampling with a selector | Latency matters more than tokens | A longer single chain, which pays the whole cost in serial time |
+| A longer single chain | Tokens matter more than latency, and there is no selector | Best-of-n against a weak selector, which delivers coverage you cannot keep |
+| Execution as the verifier | Code, SQL, or anything with tests | A rubric judge, which is gameable by verbosity and self-preference |
+| Self-consistency | A cheap majority is the only signal available | Treating agreement as correctness, which cannot see confident wrongness |
+| A process reward model | Math-like tasks where the steps are checkable | An outcome reward model, which is the classic reward-hacking target |
+| Retrieval | The failure is factual recall | A thinking budget, which cannot supply a fact the model does not have |
+| A hard cap with a forced answer | Always, on any budget knob | Silent truncation, which returns malformed output and scores as wrong |
+| Separate queue classes by budget | You operate the fleet | One queue, where short requests wait behind long traces |
+| Cost per solved task | Reporting anything about a reasoning stack | Cost per request, which is minimized by failing faster |
+
+**Interview watch-outs.**
+
+- **Ask what checks the answer before you spend anything.** Repeated sampling raises coverage; only a verifier converts coverage into delivered quality. If nothing can check, the honest answer is that parallel spend does not pay here.
+- **Thinking is not uniformly better.** It does not help factual recall (that is retrieval), formatting and extraction (shallow mappings, and long chains drift), latency-bound interactive surfaces, or anything with no checkable signal and no rubric. Say where it does not apply before you say where it does.
+- **The tail is the design problem, not the mean.** Long generations hold KV slots, the effective batch collapses, and short requests queue behind them. The controls, in the order to reach for them: hard cap with a forced answer, separate queues by budget class, length prediction, preemption, then admission control that downgrades rather than queues.
+- **A cascade can beat always-thinking on quality, not just cost.** Escalated requests effectively get two attempts. That is the non-obvious result in this topic and the one interviewers like.
+- **Best-of-n against a learned reward is optimization against the verifier.** Quality can peak and then fall as k grows. Execution-based checks do not have this failure, which is why they are first in the ordering.
+- **pass@k is what you can buy, the verifier decides how much you keep.** Quoting pass@k as reliability when the user gets one attempt is the most common mistake in this area.
+- **Compare on the frontier, not the score.** A reasoning model against a non-reasoning one on score alone is not a comparison. The reportable unit is score, interval, output tokens, dollars and latency, and two effort settings of one model are two candidates.
+
+**The systems**
+
+- **DeepSeek** [DeepSeek-R1](https://arxiv.org/abs/2501.12948): RL with verifiable rewards produces long thinking traces, and the trace is what your serving cost model now has to carry. *(training decision)*
+- **Stanford and collaborators** [s1: Simple test-time scaling](https://arxiv.org/abs/2501.19393): Budget forcing at the prompt level with 1k training examples, the cheapest demonstration that the budget is a knob. *(training decision)*
+- **Google DeepMind and UC Berkeley** [Scaling LLM Test-Time Compute Optimally](https://arxiv.org/abs/2408.03314): Allocate by difficulty, and the conditions under which extra inference compute beats a larger model. *(product design)*
+- **Stanford** [Large Language Monkeys](https://arxiv.org/abs/2407.21787): Coverage rises with samples, and delivered quality is coverage times selector accuracy. *(eval bar)*
+- **OpenAI** [Let's Verify Step by Step](https://arxiv.org/abs/2305.20050): Process supervision beats outcome supervision, the origin of the step-level verifier in a reasoning stack. *(training decision)*
+- **OpenAI** [the reasoning guide](https://platform.openai.com/docs/guides/reasoning): An effort parameter as the only budget control a caller gets, and what that hides about the tail. *(product design)*
+- **Anthropic** [extended thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking): A thinking-token budget in the API, priced and visible, the same knob in a different shape. *(product design)*
+- **Google** [thinking in the Gemini API](https://ai.google.dev/gemini-api/docs/thinking): A thinking budget including the option to switch it off, plus the accounting a caller needs to compare providers. *(product design)*
+- **METR** [Measuring AI Ability to Complete Long Software Tasks](https://metr.org/blog/2025-03-19-measuring-ai-ability-to-complete-long-tasks/): Task length as the capability axis, the frame that turns a thinking budget into a business decision. *(eval bar)*
+- **UIUC and collaborators** [Establishing Best Practices for Building Rigorous Agentic Benchmarks](https://arxiv.org/abs/2507.02825): Weak test suites accept wrong answers, so a verifier you have not audited is not a verifier. *(eval bar)*
+
+---
+
 ### [Realtime streaming chat](topics/10-realtime-streaming-chat.md) · 17 systems
 
 **What they share.** Every system carries the same spine: an LLM emits tokens, a transport streams them out, the client renders incrementally, and session memory feeds history back into the next turn. The forks are transport, whether the medium is text or voice, and how each fights per-hop latency.
@@ -1836,6 +2127,147 @@ Pick the offline signal, the calibration check, and the online proof by how chec
 - **LinkedIn** [How we engineered LinkedIn's Hiring Assistant](https://www.linkedin.com/blog/engineering/ai/how-we-engineered-linkedins-hiring-assistant): A quality framework pairs product policy with LLM judges scoring coherence and factuality. *(product design)*
 - **GitLab** [Developing GitLab Duo: validating and testing AI models at scale](https://about.gitlab.com/blog/developing-gitlab-duo-how-we-validate-and-test-ai-models-at-scale/): A central eval framework with an LLM judge runs daily regression at scale. *(deployment)*
 - **Wayfair** [How AI understands what you're looking for](https://www.aboutwayfair.com/careers/tech-blog/smarter-shopping-starts-here-how-ai-understands-what-youre-looking-for): LLM-as-judge validation tasks periodically evaluate AI-generated customer interests offline. *(eval bar)*
+
+---
+
+### [Benchmarking a model](topics/16-benchmark-evaluation.md) · 13 systems
+
+**What they share.** Every system here is the same admission: the number is produced by a pipeline, not by the model, so the pipeline is the thing that has to be specified. Each pins its items, renders prompts from a versioned config, keeps the raw completions, and publishes the protocol next to the score. None of them claims a benchmark measures a capability directly. They diverge on which part of the pipeline they standardize, and on which threat they treat as the one that will invalidate the number.
+
+**The reference pipeline.** Read every system below as a specialization of this flow. What changes is where each one puts its effort, not the skeleton: items enter, a protocol renders them, generation and extraction turn them into verdicts, and a report card carries the score with its interval and its provenance.
+
+```mermaid
+flowchart LR
+  SEL["benchmark portfolio<br/>(capability + headroom)"] --> ITEMS["pinned items<br/>(version, release window)"]
+  ITEMS --> DECON["contamination control<br/>(time split, functional twin)"]
+  DECON --> RENDER["prompt render<br/>(chat template, few-shot, format)"]
+  RENDER --> GEN["generation<br/>(decode policy, token budget, seeds)"]
+  GEN --> PARSE["extraction<br/>(parser / verifier / sandbox)"]
+  PARSE --> SCORE["scoring<br/>(exact, matching, rubric, tests)"]
+  SCORE --> AGG["aggregate per slice<br/>with intervals"]
+  AGG --> CARD["report card<br/>score + CI + cost + config hash"]
+  GEN -.-> STORE["run store: every prompt,<br/>completion, verdict"]
+  PARSE -.-> STORE
+  STORE -.->|"re-score without re-running"| SCORE
+```
+
+**Reading the diagram.** Follow it left to right as one measurement instrument. The portfolio at the front is a selection decision and the largest single source of error: a saturated benchmark cannot separate two candidates no matter how carefully the rest is run. Contamination control sits before rendering because it is a property of which items you are allowed to use, not of how you prompt them, and only two mechanisms actually work without the training corpus: a time gate (LiveBench, a LiveCodeBench release window) and a functional twin rebuilt to the same spec. The render and generation boxes are where most disagreements between two labs come from, which is why the harness people version them: chat template, few-shot pool, answer-format instruction, max output tokens, and the decode policy each move the score more than a model change usually does. Extraction is a component with its own error rate, so a parse-failure rate is part of the report or the score silently includes it. The run store is the stage nobody plans for and the one that pays: keeping raw completions is what lets a scoring change be re-run without re-running the models, which separates a parser fix from a model comparison for free. Aggregation must carry an interval because a score is an estimate, and the report card carries cost because two effort settings of one model are two candidates on a frontier, not one model with one number.
+
+**Where they diverge.** The fork is what each system treats as the thing most likely to make the number wrong, and each answer produces a different artifact.
+
+```mermaid
+flowchart TD
+  Q{"what will invalidate<br/>this number first?"} -->|"another lab cannot reproduce it"| REPRO["standardize the protocol<br/>EleutherAI harness, simple-evals"]
+  Q -->|"one number hides the model"| MATRIX["standardize the report<br/>HELM"]
+  Q -->|"the environment, not the agent"| ENV["standardize the loop and sandbox<br/>Inspect, SWE-bench"]
+  Q -->|"the items leaked"| FRESH["standardize item recency<br/>LiveBench, LiveCodeBench"]
+  Q -->|"the grader is a model"| RUBRIC["standardize the criteria<br/>HealthBench rubrics, PPI correction"]
+  Q -->|"the gap is inside the noise"| STATS["standardize the analysis<br/>Anthropic error bars"]
+  Q -->|"the board is gamed"| BOARD["audit the board itself<br/>Leaderboard Illusion, LMArena reply"]
+  Q -->|"the score has no business meaning"| TIME["change the axis to task length<br/>METR"]
+  Q -->|"the same prompt scores differently"| DET["make inference deterministic<br/>Thinking Machines Lab"]
+  REPRO --> CARD["a number someone else can reproduce"]
+  MATRIX --> CARD
+  ENV --> CARD
+  FRESH --> CARD
+  RUBRIC --> CARD
+  STATS --> CARD
+  BOARD --> CARD
+  TIME --> CARD
+  DET --> CARD
+```
+
+**The choices, side by side.**
+
+| System | Standardizes | Threat it designs against | The artifact | Watch out |
+| --- | --- | --- | --- | --- |
+| EleutherAI LM Evaluation Harness | Prompt rendering, versioned task configs | Irreproducibility | A task config you can pin and diff | Two harness versions are two protocols |
+| Stanford CRFM HELM | A multi-scenario, multi-metric matrix | One number standing in for a model | A reporting grid | Cost per full run is high |
+| UK AISI Inspect | The agent loop and the tool sandbox | Uncontrolled environments | A runnable eval framework | An agent score still depends on the scaffold |
+| OpenAI simple-evals | Legible prompts and parsers | Protocols nobody can replicate | Readable code, not a spec | Deliberately narrow coverage |
+| OpenAI HealthBench | Per-item expert rubric criteria | Holistic judgments that do not reproduce | Physician-written criteria | Rubric authorship is the expensive part |
+| Anthropic eval statistics | The analysis | Claiming a gap inside the noise | A method, not a suite | Paired comparison needs per-item verdicts |
+| LMArena | Human pairwise preference at scale | Task metrics missing aggregate taste | A live board | Preference is not capability |
+| Leaderboard Illusion | Disclosure of what a board hides | Private variants and selective reporting | An audit of a board | Read the operator's response with it |
+| LiveBench, LiveCodeBench | Item recency | Contamination | A benchmark with a clock | Comparability across windows is limited |
+| Princeton SWE-bench | Real issues with the project's own tests | Toy tasks and self-graded success | An executable benchmark | Weak test suites accept wrong patches |
+| METR | Task length with human baselines | Numbers with no business meaning | A capability axis in time units | Human baselines are costly to collect |
+| Thinking Machines Lab | Numerical determinism at serving time | The same prompt scoring differently | A serving fix | Determinism costs throughput |
+
+**The math that separates them.** Three quantities decide whether a reported difference means anything, and each system above is buying down one of them.
+
+$$\textbf{a score is an estimate: } \text{SE} = \sqrt{\frac{\hat p (1 - \hat p)}{n}}, \qquad \text{95\% half-width} \approx 1.96 \cdot \text{SE}$$
+
+$$\textbf{compare paired (McNemar), with } b \text{ wins for A and } c \text{ for B: } \hat\Delta = \frac{b - c}{n}, \qquad \text{SE}(\hat\Delta) \approx \frac{\sqrt{b + c}}{n}$$
+
+$$\textbf{sizing for a gap } \delta \text{ at discordance } d: \quad n \gtrsim \frac{7.85\, d}{\delta^{2}}$$
+
+$$\textbf{correct a model grader rather than trusting it (PPI): } \hat\theta_{\text{PPI}} = \frac{1}{N}\sum_{i=1}^{N} f(X_i) + \frac{1}{n}\sum_{j=1}^{n}\bigl(Y_j - f(X_j)\bigr)$$
+
+$$\textbf{coverage is not reliability: } \text{pass}@k = 1 - (1-p)^{k}, \qquad \text{pass}^{k} = p^{k}, \qquad p = 0.9,\, k = 8 \Rightarrow 0.43$$
+
+The first three say that most published gaps on small suites are unresolvable, the fourth says a cheap judge plus a few hundred human labels beats a better judge with none, and the last says an agent number is meaningless until you say which of the two you measured.
+
+```mermaid
+quadrantChart
+  title Cost of the protocol vs how much it protects the number
+  x-axis "cheap to run" --> "expensive to run"
+  y-axis "weak protection" --> "strong protection"
+  quadrant-1 "worth the budget"
+  quadrant-2 "do this first"
+  quadrant-3 "not enough on its own"
+  quadrant-4 "only when the stakes justify it"
+  "pin the harness config": [0.15, 0.7]
+  "report error bars": [0.1, 0.75]
+  "paired comparison": [0.2, 0.85]
+  "time-gated items": [0.45, 0.8]
+  "functional twin": [0.8, 0.95]
+  "expert rubrics": [0.9, 0.9]
+  "PPI with human subset": [0.5, 0.9]
+  "no-question baseline": [0.05, 0.45]
+  "deterministic serving": [0.6, 0.55]
+```
+
+**When to use which.** Name the threat first, then take the cheapest control that addresses it.
+
+| Reach for | When | Instead of |
+|---|---|---|
+| A pinned harness config plus a stored render | Any comparison across candidates or across time | Re-running a benchmark from a paper's description |
+| Paired comparison with McNemar | Two candidates on the same items | Comparing two independent proportions, which throws away the pairing |
+| Multiple seeds on reasoning suites | Candidates with a thinking budget or temperature above zero | A single run, whose swing routinely exceeds the effect claimed |
+| A time-gated benchmark or a release window | You cannot inspect the training corpus | Deduplication, which catches only verbatim contamination |
+| A functional twin rebuilt to the same spec | The stakes justify rebuilding the items | Membership-inference statistics alone, which are weak evidence per item |
+| Execution or answer matching | The task has a checkable answer | A judge, which adds an error rate you then have to certify |
+| Rubric criteria plus PPI correction | Open-ended tasks where only experts can grade | A holistic judge score reported as the headline |
+| A sealed slice with a logged query budget | Many rounds of model selection against the same set | Reporting a maximum over many looks as if it were one measurement |
+| Task length with human baselines | Someone needs to know what the number means for the business | A percentage on a suite nobody outside the team recognizes |
+| Deterministic serving settings | A close call that flips between runs | Averaging more runs, which hides a fixable serving nondeterminism |
+
+**Interview watch-outs.**
+
+- **When two numbers disagree, the prior is protocol, not model.** Chat template, few-shot pool, answer-format instruction, scoring mode, max output tokens and the serving stack each move the score enough to flip a close call. Say this first: it is the single answer that most distinguishes someone who has run evals from someone who has read about them.
+- **Deduplication is not contamination control.** Verbatim overlap is one of five kinds. Format leakage, distillation from a contaminated teacher, and selection leakage all leave the corpus clean and the number wrong. Only a time gate or a functional twin addresses the ones you cannot see.
+- **Selection leakage is the one you will commit yourself.** Nothing entered training; you simply chose the checkpoint that scored best on the test set, many times. A sealed slice with a logged query budget is what makes that bounded and auditable.
+- **A leak-free benchmark still lies if the items are broken.** Run the no-question baseline on any multiple-choice set, and read twenty passing agent trajectories before publishing an agentic number. Both are an hour of work and both routinely find something.
+- **pass@k is what you can buy, pass^k is what the user gets.** A 90 percent agent is about 43 percent across eight independent attempts. Quoting coverage as reliability is the most common technical error in agent evaluation.
+- **Once a model grades your benchmark, it is part of the instrument.** Certify it against a few hundred expert labels near the decision boundary, report swap consistency, pin its version, then correct with PPI rather than trusting it. A better judge should buy a tighter interval, not a different answer.
+- **Report cost with quality.** Two effort settings of one model are two candidates. The reportable unit is a point on a frontier: score, interval, output tokens, dollars, latency.
+
+**The systems**
+
+- **EleutherAI** [Lessons from the Trenches on Reproducible Evaluation of Language Models](https://arxiv.org/abs/2405.14782): The LM Evaluation Harness maintainers on why two labs get different numbers from the same weights, and the versioned task configs that fix it. *(eval bar)*
+- **Stanford CRFM** [HELM](https://crfm.stanford.edu/helm/): A multi-scenario, multi-metric reporting matrix, built on the position that one headline number cannot stand in for a model. *(eval bar)*
+- **UK AI Security Institute** [Inspect](https://inspect.aisi.org.uk/): An open framework that standardizes the agent loop and the tool sandbox, so an agent score measures the agent rather than the environment. *(systems)*
+- **OpenAI** [simple-evals](https://github.com/openai/simple-evals): Prompts and parsers published as runnable code, on the argument that a protocol nobody can replicate is not a measurement. *(eval bar)*
+- **OpenAI** [HealthBench](https://openai.com/index/healthbench/): Physician-written per-item rubric criteria instead of a holistic score, which is what makes an expert judgment reproduce. *(eval bar)*
+- **Anthropic** [Adding Error Bars to Evals](https://arxiv.org/abs/2411.00640): A score is an estimate. Standard errors, paired comparison, clustered items, and the resampling that stops a gap inside the noise from being reported as a gap. *(eval bar)*
+- **Cohere Labs and collaborators** [The Leaderboard Illusion](https://arxiv.org/abs/2504.20879): Private variants and selective reporting distort a public board, with [LMArena's response](https://lmarena.ai/blog/our-response/) as the other half of the argument. *(eval bar)*
+- **METR** [Measuring AI Ability to Complete Long Software Tasks](https://metr.org/blog/2025-03-19-measuring-ai-ability-to-complete-long-tasks/): Task length with human baselines as the capability axis, so the number carries a business meaning. *(eval bar)*
+- **LiveBench** [A challenging, contamination-limited LLM benchmark](https://arxiv.org/abs/2406.19314): Items refreshed on a schedule from recent sources, which makes contamination a property of the construction rather than a detection problem. *(eval bar)*
+- **LiveCodeBench** [Holistic and contamination-free evaluation of code](https://arxiv.org/abs/2403.07974): Release-window scoring, so a model is judged only on problems published after its cutoff. *(eval bar)*
+- **Princeton NLP** [SWE-bench](https://arxiv.org/abs/2310.06770): Real repository issues scored by the project's own tests, the benchmark that made agent claims falsifiable. *(eval bar)*
+- **UIUC and collaborators** [Establishing Best Practices for Building Rigorous Agentic Benchmarks](https://arxiv.org/abs/2507.02825): Task validity and outcome validity as separate failures, and how many published agent benchmarks fail one of them. *(eval bar)*
+- **Thinking Machines Lab** [Defeating Nondeterminism in LLM Inference](https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/): Batch-dependent kernel reductions make the same prompt score differently run to run, which is a measurement bug before it is a serving bug. *(systems)*
 
 ---
 
