@@ -18,7 +18,10 @@ being hired to own.
 A paper appears under two topics when both interviews genuinely assume it. That
 repetition is deliberate: this is a study list per topic, not a bibliography.
 
-Not on this page: engineering blog posts and first-party writeups. Those are the
+Not on this page: the data. Corpora, instruction sets, preference data and benchmarks
+are in [datasets.md](datasets.md), organized the same way and under the same cap.
+
+Also not on this page: engineering blog posts and first-party writeups. Those are the
 **Seen in production** section of every topic, rolled up in
 [CASE-STUDIES.md](CASE-STUDIES.md) (with per-system
 [teardowns](CASE-TEARDOWNS.md)), and for several topics they carry more of the real

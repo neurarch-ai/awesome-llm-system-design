@@ -230,7 +230,8 @@ function buildNav() {
     { title: "Home", path: "README.md" },
     { title: "Topics", children: topicsNav() },
     { title: "The book", children: bookNav("book") },
-    ...optional("Papers", "papers.md").map((p) => ({ ...p, title: "Papers" })),
+    ...optional("Papers", "papers.md"),
+    ...optional("Datasets", "datasets.md"),
     {
       title: "Case studies",
       children: [

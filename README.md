@@ -34,6 +34,21 @@ numbers change. More on why that matters [below](#about-the-diagrams).
 
 ---
 
+## What else is here, and what it is for
+
+Four things ship alongside the text, and each one exists because reading about a
+system is not the same as being able to produce its numbers under pressure.
+
+| | What it is | Use it to |
+|---|---|---|
+| [**Model Zoo**](https://github.com/neurarch-ai/awesome-llm-model-zoo) ([gallery](https://neurarch-ai.github.io/awesome-llm-model-zoo)) | 92 reference architectures as validated graphs at real dimensions, MIT | Trace GQA, MoE routing or latent attention on the real model instead of a diagram of it |
+| [**papers.md**](papers.md) | The reading list per topic, eight papers maximum each | Read the five things an interviewer will not stop to explain |
+| [**CASE-STUDIES.md**](CASE-STUDIES.md) + [**teardowns**](CASE-TEARDOWNS.md) | 285 shipped systems from first-party engineering writeups, with per-system teardowns | Ground an answer in what a real team did, and what it cost them |
+| [**datasets.md**](datasets.md) | The corpora, instruction sets, preference data and benchmarks per pipeline stage | Answer "where would the data come from", which is the question candidates answer worst |
+| [**questions.md**](questions.md) + [**deep-dives.md**](deep-dives.md) | The question bank, and ~206 rapid-fire follow-ups | Practise the prompt you will actually get, then the drill-down after it |
+
+---
+
 ## How to use this repo
 
 1. **Read the [answer framework](framework/answer-framework.md) first.** It is the
@@ -175,7 +190,7 @@ at real dimensions, that you can inspect and modify:
   can trace every tensor shape, fold the repeated transformer blocks, and change
   a hyperparameter to see what breaks.
 - **The source graphs are open** in the
-  [Model Zoo](https://github.com/neurarch-ai/awesome-llm-model-zoo) (87
+  [Model Zoo](https://github.com/neurarch-ai/awesome-llm-model-zoo) (92
   architectures, MIT). Each entry is a real graph at real dimensions plus
   verified hyperparameters.
 
