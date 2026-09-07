@@ -1,0 +1,54 @@
+name: Build and deploy site
+
+# Publishes the same markdown as a browsable site with a sidebar and search:
+# https://neurarch-ai.github.io/awesome-llm-system-design/
+#
+# One-time setup in the repository: Settings > Pages > Source = GitHub Actions.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# A queued deploy should wait for the running one rather than cancel it, so main
+# never ends up published from an older commit than the one that finished last.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install mkdocs
+        run: pip install -r tools/requirements-site.txt
+      - name: Stage content and write the mkdocs config
+        run: node tools/build-site.mjs
+      - name: Build
+        run: mkdocs build -f .site/mkdocs.yml
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .site/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

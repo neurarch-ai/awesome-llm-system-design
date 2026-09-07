@@ -580,7 +580,7 @@ Rapid-fire questions that probe the modeling and systems underneath this topic, 
 
 - [Training, fine-tuning, and overfitting](../deep-dives.md#training-fine-tuning-and-overfitting)
 - [Scaling: rooflines, parallelism, and the arithmetic of large models](../deep-dives.md#scaling-rooflines-parallelism-and-the-arithmetic-of-large-models)
-- [Normalization and attention variants](../deep-dives.md#normalization-and-attention-variants)
+- [Attention variants and positional encoding](../deep-dives.md#attention-variants-and-positional-encoding)
 - [Commonly asked, commonly missed](../deep-dives.md#commonly-asked-commonly-missed)
 
 ## Seen in production

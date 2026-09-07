@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// On-demand external-link checker for book/**/*.md and book-zh/**/*.md.
+// On-demand external-link checker for book/**/*.md, book-zh/**/*.md and papers.md.
 // Fetches every http(s) URL and classifies it:
 //   OK        2xx / 3xx
 //   BLOCKED   401/403/405/406/429 (bot-block or auth wall; the page almost certainly exists)
@@ -14,6 +14,11 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOTS = ["book", "book-zh"].filter((d) => existsSync(d));
+// papers.md is checked too: it is 130+ external links and nothing else in it, so
+// link rot there is the whole failure mode. The case-study indexes are deliberately
+// left out; they point at hundreds of company blogs that get reorganized constantly,
+// and one of those going 404 should not turn this job red every month.
+const FILES = ["papers.md"].filter((f) => existsSync(f));
 const CONCURRENCY = 12;
 const TIMEOUT_MS = 20000;
 const UA = "Mozilla/5.0 (compatible; neurarch-linkcheck/1.0)";
@@ -30,7 +35,7 @@ function walk(dir) {
 
 // url -> Set of files that reference it
 const refs = new Map();
-for (const f of ROOTS.flatMap(walk)) {
+for (const f of [...ROOTS.flatMap(walk), ...FILES]) {
   const t = readFileSync(f, "utf8");
   for (const m of t.matchAll(/\]\((https?:\/\/[^)\s]+)\)/g)) {
     const u = m[1];
@@ -39,7 +44,8 @@ for (const f of ROOTS.flatMap(walk)) {
   }
 }
 const urls = [...refs.keys()];
-console.log(`Checking ${urls.length} unique external URLs from ${ROOT}/ ...\n`);
+const SOURCES = [...ROOTS.map((r) => `${r}/`), ...FILES].join(", ");
+console.log(`Checking ${urls.length} unique external URLs from ${SOURCES} ...\n`);
 
 const BLOCKED = new Set([401, 403, 405, 406, 429]);
 
@@ -79,7 +85,7 @@ console.log(`OK: ${results.length - dead.length - blocked.length}   BLOCKED (lik
 if (dead.length) {
   console.log("DEAD links (fix these):");
   for (const d of dead.sort((a, b) => String(a.status).localeCompare(String(b.status)))) {
-    const where = [...refs.get(d.u)].map((f) => f.replace(ROOT + "/", "")).join(", ");
+    const where = [...refs.get(d.u)].join(", ");
     console.log(`  [${d.status}] ${d.u}\n        in: ${where}`);
   }
   process.exit(1);

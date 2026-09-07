@@ -26,6 +26,12 @@ numbers change. More on why that matters [below](#about-the-diagrams).
 > zero-dependency reference you can execute with nothing but Python 3.
 > 中文读者：这本书有官方中文版，在 [**book-zh/**](book-zh/)，和英文版逐章对应。
 
+> **Want a sidebar and a search box?** The same material is published as a site at
+> **[neurarch-ai.github.io/awesome-llm-system-design](https://neurarch-ai.github.io/awesome-llm-system-design/)**,
+> generated from these exact files. Searching there covers all 490 pages at once,
+> including the Chinese edition, which is the fastest way to find the one paragraph
+> that answers a question you are stuck on.
+
 ---
 
 ## How to use this repo
@@ -121,6 +127,12 @@ All eighteen topics are written and ready.
 bank of ~206 rapid-fire, depth-probing questions: the follow-ups an interviewer
 pulls once the design is on the board (normalization and attention variants, where KL divergence shows up, optimization and gradient descent, decoding and sampling, generative model families, distributed-training failure modes, and quantization tradeoffs). Each answer leads with the mechanism, then the tradeoff.
 
+**The papers an interviewer assumes you have read** are collected per topic in
+[**papers.md**](papers.md), eight at most for each, with one line on what each
+changes for you. The cap is the point: a list of everything is an index of a field,
+not a study plan. The 128 papers the walkthroughs already cite are in there, next to
+the canon they take for granted.
+
 See [topics/README.md](topics/README.md) for the full roadmap and how to
 contribute a topic.
 
@@ -175,7 +187,7 @@ can.
 
 ## License
 
-MIT. See [LICENSE](LICENSE). Contributions welcome; see
-[topics/README.md](topics/README.md).
+MIT. See [LICENSE](LICENSE). Contributions welcome: [CONTRIBUTING.md](CONTRIBUTING.md)
+for the house rules, [template/](template/) for a skeleton to start from.
 
 Built and maintained by the team behind [Neurarch](https://www.neurarch.com).

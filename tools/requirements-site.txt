@@ -1,0 +1,8 @@
+# Needed only to render the site. node tools/build-site.mjs writes .site/mkdocs.yml
+# and stages the markdown; mkdocs turns it into HTML.
+#   pip install -r tools/requirements-site.txt
+#   node tools/build-site.mjs && mkdocs serve -f .site/mkdocs.yml
+mkdocs-material>=9.5,<10
+# Chinese word segmentation for book-zh/. The search plugin uses it when present,
+# and without it a search for a Chinese term matches nothing on the whole edition.
+jieba>=0.42

@@ -1,6 +1,6 @@
 name: Check external links
 
-# Runs monthly (and on demand) to catch link rot in book/ citations.
+# Runs monthly (and on demand) to catch link rot in book/ and papers.md citations.
 # Not part of the push/PR gate: external sites rate-limit and bot-block, which would
 # make a required check flaky. Fails only on genuinely DEAD links (404 / DNS / TLS).
 on:
@@ -16,5 +16,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-      - name: Check external links in book/
+      - name: Check external links in book/ and papers.md
         run: node tools/check-links.mjs
