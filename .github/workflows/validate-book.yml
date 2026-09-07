@@ -1,6 +1,11 @@
 name: Validate book
 
 on:
+  # Manual trigger, so a green can be produced on demand. The path filters below are
+  # correct and do skip this workflow on a change that touches neither book tree,
+  # which is what happened on the merged part of PR #7; without a manual trigger
+  # there was no way to tell that skip apart from a failure that never reported.
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
