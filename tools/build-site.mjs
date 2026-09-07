@@ -46,7 +46,7 @@ function stage() {
     if (SKIP.has(entry.name)) continue;
     cpSync(entry.name, join(CONTENT, entry.name), { recursive: true });
   }
-  for (const f of walk(CONTENT)) resolveFolderLinks(f);
+  for (const f of walk(CONTENT)) normalize(f);
 }
 
 function walk(dir) {
@@ -59,18 +59,59 @@ function walk(dir) {
   return out;
 }
 
+// Two rewrites, both applied to the staged copy only, so the markdown a reader sees
+// on GitHub is untouched and the two renderings agree.
+function normalize(file) {
+  const src = readFileSync(file, "utf8");
+  const out = blankLineBeforeInterruptingList(resolveFolderLinks(file, src));
+  if (out !== src) writeFileSync(file, out);
+}
+
 // The book links a chapter as `[Agent Orchestration](agents/)`, which is right on
 // GitHub and wrong once pretty URLs move a section page down one path segment
 // (`.../reasoning-serving/09-summary/` + `../agents/` lands inside the chapter it
-// started in). Point those at the folder's README on the staged copy only, so the
-// markdown a reader sees on GitHub is untouched and both renderings resolve.
-function resolveFolderLinks(file) {
+// started in). Point those at the folder's README instead.
+function resolveFolderLinks(file, src) {
   const dir = file.slice(0, file.lastIndexOf("/"));
-  const src = readFileSync(file, "utf8");
-  const out = src.replace(/\]\((?!https?:|#|\/)([^)\s]+\/)\)/g, (whole, target) =>
+  return src.replace(/\]\((?!https?:|#|\/)([^)\s]+\/)\)/g, (whole, target) =>
     existsSync(join(dir, target, "README.md")) ? `](${target}README.md)` : whole,
   );
-  if (out !== src) writeFileSync(file, out);
+}
+
+// CommonMark lets a list interrupt a paragraph, Python-Markdown does not, so
+// `**Tricks and gotchas**` followed straight by bullets renders as a list on GitHub
+// and as one run-on paragraph on the site. The repo does this in about 1750 places,
+// which is most of its interview questions, tricks and mistakes lists. Insert the
+// blank line those renderers disagree about.
+//
+// Only a list that actually interrupts a paragraph is touched: if any line since the
+// last blank line was itself a list item, this is a continuation of that list, and a
+// blank line there would loosen it instead of fixing anything.
+function blankLineBeforeInterruptingList(src) {
+  const lines = src.split("\n");
+  const out = [];
+  let inFence = false;
+  let sawListItemInBlock = false;
+  let prev = "";
+  for (const line of lines) {
+    const isFence = line.trimStart().startsWith("```");
+    if (isFence) inFence = !inFence;
+    const isItem = !inFence && /^ {0,3}([-*+]|\d{1,9}[.)]) +\S/.test(line);
+    if (
+      isItem &&
+      !sawListItemInBlock &&
+      prev.trim() !== "" &&
+      !/^ {0,3}(#|>|\||```|<)/.test(prev.trimStart()) &&
+      !/^\s/.test(prev)
+    ) {
+      out.push("");
+    }
+    if (line.trim() === "" || isFence) sawListItemInBlock = false;
+    else if (isItem) sawListItemInBlock = true;
+    out.push(line);
+    prev = line;
+  }
+  return out.join("\n");
 }
 
 // ---------------------------------------------------------------- titles
