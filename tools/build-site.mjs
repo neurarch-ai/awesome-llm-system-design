@@ -265,7 +265,14 @@ theme:
         name: Switch to light mode
 
 plugins:
-  - search
+  # jieba (see tools/requirements-site.txt) segments the Chinese edition at index
+  # time and marks the word boundaries with a zero-width space, so the separator has
+  # to split on it. The trailing alternative splits between two CJK characters as
+  # well, which is what makes a query someone actually types ("投机解码", no spaces)
+  # match text indexed as two words; without it the search box answers "no matching
+  # documents" for every multi-word Chinese query.
+  - search:
+      separator: '[\\s\\u200b\\-,:!=\\[\\]()"/]+|(?!\\b)(?=[A-Z][a-z])|\\.(?!\\d)|&[lg]t;|(?<=[\\u4e00-\\u9fff])(?=[\\u4e00-\\u9fff])'
 
 markdown_extensions:
   - abbr
