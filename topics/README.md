@@ -15,10 +15,13 @@ shape, mirroring the [answer framework](../framework/answer-framework.md):
 
 ## Topics by pipeline stage
 
-All fifteen topics are written. They are grouped by where they sit in a production LLM
+All eighteen topics are written. They are grouped by where they sit in a production LLM
 system, in narrative order from building the model to watching it in production. To
 navigate by use case instead, start from the
 [question bank](../questions.md).
+
+Each topic's reading list is in [papers.md](../papers.md), which caps every topic at
+eight papers.
 
 **Building and adapting the model**
 - [13 - The LLM training lifecycle](13-llm-lifecycle.md)
