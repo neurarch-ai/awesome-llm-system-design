@@ -149,3 +149,35 @@ when wiring a vision or audio stack to an LLM.
 The through-line: the encoder and projector are a shape-and-budget contract with the
 decoder, so most multimodal breakage is a dimension mismatch, a token budget nobody
 capped, or a train-versus-serve template that quietly drifted.
+
+## Preference alignment for a vision-language model
+
+An instruction-tuned VLM will still describe objects that are not in the image. The
+reason is structural rather than accidental: supervised fine-tuning teaches the model
+what a good answer looks like, and a fluent answer about a plausible object looks
+good. Text-only preference tuning does not fix it either, because the preference data
+never had to be checked against a picture.
+
+Three shapes of visually grounded preference data, in rising order of cost:
+
+| Approach | Where the dispreferred answer comes from | Cost | Watch out |
+|---|---|---|---|
+| Generated negatives ([POVID](https://arxiv.org/abs/2402.11411)) | Corrupt the image or inject hallucinated detail into a good answer, and call the result dispreferred | Cheapest, no human labelling | The negatives are your own construction, so the model learns your corruption, not human taste |
+| Factually augmented RLHF ([LLaVA-RLHF](https://arxiv.org/abs/2309.14525)) | Human comparisons, with the reward model given the caption and reference facts so it can tell grounded from fluent | Moderate | The reward model needs the extra grounding or it rewards fluency again |
+| Fine-grained correctional feedback ([RLHF-V](https://arxiv.org/abs/2312.00849)) | Humans correct the specific hallucinated segment rather than ranking whole answers | Most expensive per item, least per unit of effect | Segment-level annotation needs a real annotation tool and guidelines |
+
+The design lesson generalizes past hallucination: **a preference signal is only as
+grounded as the thing the annotator, or the generator, was forced to look at.** A
+ranking collected without the image is a text-quality signal wearing a multimodal
+label.
+
+**Measure it separately from general quality.** Object hallucination has its own
+metrics, POPE and CHAIR, covered in [Evaluation](05-evaluation.md). A preference run
+that improves the win rate while CHAIR gets worse has traded grounding for fluency,
+which is exactly the failure this section exists to prevent, and it is invisible on
+an aggregate score.
+
+**Where it sits in the stack.** Alignment is the last lever, not the first. Better
+grounding data, a higher-resolution or tiled input for the detail the model was
+hallucinating around, and a decode-time constraint are all cheaper. Reach for
+preference tuning when the model can see the evidence and still says otherwise.

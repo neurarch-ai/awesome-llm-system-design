@@ -103,3 +103,60 @@ Q-Former 和 Perceiver 风格的重采样器在左下角：便宜，但细节封
 和
 [CLIP ViT-B/32](https://www.neurarch.com/?import=https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/clip-vit-b32/model.json)
 可以按真实维度追踪编码器、projector，以及图像 token 在解码器里和文本 token 汇合的那个点。
+
+## 视频：帧数就是 token 预算
+
+一张图只付一次 token。一段视频是按采样到的每一帧付，本节开头那套算术要乘上你决定
+去看多少帧，而让视频变贵的正是这个决定，不是模型。
+
+$$
+\text{video tokens} \approx F \cdot \left\lceil \frac{H}{p} \right\rceil \cdot \left\lceil \frac{W}{p} \right\rceil \cdot \frac{1}{r}
+$$
+
+其中 $F$ 是采样帧数，$p$ 是 patch 大小，$r$ 是空间合并倍数（2 乘 2 合并就是
+$r = 4$）。把数字代进去，问题就很直白了：
+
+```python
+def video_tokens(seconds, fps, h, w, patch, merge=1):
+    frames = int(seconds * fps)                       # 你决定去看多少帧
+    per_frame = (h // patch) * (w // patch) // merge  # 每一帧的成本
+    return frames * per_frame
+
+# 10 分钟、1 fps、336x336、patch 14、不做合并
+# video_tokens(600, 1.0, 336, 336, 14) -> 345600
+# 同一段片子，0.5 fps 加 2x2 合并
+# video_tokens(600, 0.5, 336, 336, 14, merge=4) -> 43200
+```
+
+345,600 个 token 不是长上下文问题，是一张账单。第二行那八倍的下降来自两个和模型
+无关的决定，所以帧预算是要最先设计的东西。
+
+**几个杠杆，按该先动哪个排序。**
+
+| 杠杆 | 作用 | 代价 |
+|---|---|---|
+| 帧率 | token 数线性下降，单个最大的旋钮 | 短于采样间隔的事件会整个消失 |
+| 关键帧或镜头切换采样 | 把帧花在画面真正变化的地方 | 链路里多一个检测器，静态画面上会失效 |
+| 空间合并或池化 | 每帧 token 除以 4 或更多 | 小物体和画面上的文字会读不出来 |
+| 相邻帧的时间合并 | 利用相邻帧几乎相同这个事实 | 快速运动会糊 |
+| 按查询检索帧 | 帧只编码一次，只把相关的喂进去 | 每段视频要建索引，检索失败就直接变成错答案 |
+| 用字幕或 ASR 代替帧 | 每秒视频的文本成本低几个数量级 | 视觉上发生但没被说出来的东西全丢了 |
+
+最后一行是候选人最常漏掉的。对讲座、会议录像和大多数教学视频，转写文本加上少量几帧
+每块钱能回答的问题比密集采样多，诚实的系统会把两条路都留着。
+
+**评测里自带一个陷阱。** 如果一个基准的问题从单帧就能答，它会告诉你帧预算是免费的，
+因为对它确实是。[Video-MME](https://arxiv.org/abs/2405.21075) 按时长分成短、中、长
+三档，就是为了让长的那一档把这件事暴露出来；
+[LongVideoBench](https://arxiv.org/abs/2407.15754) 整个是围绕单帧无法满足的指代推理
+搭的。帧预算这个决定要在这两个上测，不要在字幕生成集上测。
+
+**服务端是 prefill，不是 decode。** 一段长视频是一个非常大的 prompt 加一个很短的
+回答，成本几乎全落在 prefill 和视频编码器上，投机解码这类针对 decode 的手段一点忙都
+帮不上。两个后果：帧 embedding 按内容哈希编码一次并缓存，因为同一段视频会被很多请求
+看；编码器放在自己的弹性伸缩组里，它的负载曲线和解码器毫无共同之处。
+
+**出处。** 每帧 token 的这套形状就是 LLaVA 在图像上确立的那套，
+[Video-LLaVA](https://arxiv.org/abs/2311.10122)（2023）和
+[Video-ChatGPT](https://arxiv.org/abs/2306.05424)（2023）把它扩到了视频。动态分辨率
+加空间与时间合并是 Qwen2-VL 这条线，按时长分档的评测来自 Video-MME（2024）。

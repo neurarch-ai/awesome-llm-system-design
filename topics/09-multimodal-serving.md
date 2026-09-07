@@ -92,6 +92,33 @@ multiplies the token count. So expose resolution as a quality-cost knob:
 
 Picking resolution per task, instead of always maxing it, is the senior move.
 
+### Video: frames are the token budget
+
+A video is the image cost multiplied by however many frames you decided to look at,
+which makes the frame budget, not the model, the expensive decision:
+
+$$\text{video tokens} \approx F \cdot \lceil H/p \rceil \cdot \lceil W/p \rceil / r$$
+
+for $F$ sampled frames, patch size $p$, and spatial merge factor $r$. Ten minutes at
+1 fps and 336px with patch 14 is 345,600 tokens. The same clip at 0.5 fps with a 2 by
+2 merge is 43,200, and neither number involved changing models.
+
+The levers, in the order to reach for them: **frame rate** (linear, the biggest
+knob), **keyframe or scene-change sampling**, **spatial merge or pooling** (divides
+per-frame tokens by 4 or more, at the cost of small text), **temporal merge** across
+near-identical neighbours, **frame retrieval by query** (embed once, feed only what
+matches), and **subtitles or ASR instead of frames**, which is orders of magnitude
+cheaper per second and is the right answer for lectures, meetings and most
+instructional video.
+
+Two traps. A benchmark answerable from a single sampled frame will report that your
+frame budget is free; measure the decision on the long split of
+[Video-MME](https://arxiv.org/abs/2405.21075) or on
+[LongVideoBench](https://arxiv.org/abs/2407.15754), which is built so one frame
+cannot answer. And a long video is a huge prompt with a short answer, so the cost is
+prefill and encoding: decode-side tricks buy nothing, while caching frame embeddings
+by content hash buys a lot.
+
 ### Heterogeneous serving
 
 The pipeline has two very different workloads, and stapling them into one server
@@ -120,6 +147,28 @@ Audio fits the same shape: an audio encoder turns sound into features that feed
 the decoder. The pattern (modality encoder, projector, shared decoder) generalizes,
 and the serving lesson is the same: the encoder is a separate batched workload, and
 the encoded tokens land in the decoder's prefill and KV cache.
+
+### Preference alignment for a VLM
+
+An instruction-tuned VLM still describes objects that are not in the image, because
+supervised fine-tuning rewards answers that look good and a fluent answer about a
+plausible object looks good. Text-only preference tuning does not fix it: that
+preference data never had to be checked against a picture.
+
+Three shapes of visually grounded preference data, in rising order of cost:
+generated negatives ([POVID](https://arxiv.org/abs/2402.11411)) corrupt the image or
+inject hallucinated detail to manufacture the dispreferred answer, needing no human
+labels; factually augmented RLHF ([LLaVA-RLHF](https://arxiv.org/abs/2309.14525))
+gives the reward model reference facts so it can tell grounded from fluent; and
+fine-grained correctional feedback ([RLHF-V](https://arxiv.org/abs/2312.00849)) has
+humans correct the hallucinated segment rather than rank whole answers.
+
+The general form of the lesson: a preference signal is only as grounded as what the
+annotator, or the generator, was forced to look at. Measure it with object
+hallucination metrics (POPE, CHAIR) alongside win rate, because a run that improves
+the win rate while CHAIR worsens has traded grounding for fluency. And reach for it
+last: better grounding data, a higher resolution or tiled input for the detail being
+hallucinated around, and a decode-time constraint are all cheaper.
 
 ## 5. Bottlenecks and scaling
 
