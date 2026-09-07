@@ -170,8 +170,15 @@ Answers are collapsed. Attempt each question before opening one.
 - Wayve GAIA-1: [arXiv:2309.17080](https://arxiv.org/abs/2309.17080).
 - OpenVLA: [arXiv:2406.09246](https://arxiv.org/abs/2406.09246).
 - NVIDIA Cosmos: [nvidia.com/en-us/ai/cosmos](https://www.nvidia.com/en-us/ai/cosmos/).
-- WorldArena embodied world-model benchmark: [arXiv:2602.08971](https://arxiv.org/abs/2602.08971).
-- World-action-model reading list: [Awesome-WAM](https://github.com/OpenMOSS/Awesome-WAM).
+- Wayve GAIA-2, controllable and multi-view: [arXiv:2503.20523](https://arxiv.org/abs/2503.20523).
+- Cosmos-Drive-Dreams, the data-engine job made concrete: [arXiv:2506.09042](https://arxiv.org/abs/2506.09042).
+- Genie Envisioner, a world foundation platform for robotic manipulation: [arXiv:2508.05635](https://arxiv.org/abs/2508.05635).
+- iVideoGPT, interactive video prediction as a scalable world model: [arXiv:2405.15223](https://arxiv.org/abs/2405.15223).
+- Matrix-Game 3.5, real-time streaming interactive generation with patch memory: [arXiv:2608.29910](https://arxiv.org/abs/2608.29910).
+- minWM and Nano World Models, minimal full-stack implementations: [arXiv:2605.30263](https://arxiv.org/abs/2605.30263), [arXiv:2605.23993](https://arxiv.org/abs/2605.23993).
+- Evaluation: WorldArena [arXiv:2602.08971](https://arxiv.org/abs/2602.08971), WorldLens for driving [arXiv:2512.10958](https://arxiv.org/abs/2512.10958), SimWorld [arXiv:2503.13952](https://arxiv.org/abs/2503.13952), and stable-worldmodel as a reproducible platform [arXiv:2605.21800](https://arxiv.org/abs/2605.21800).
+- Survey: Understanding World or Predicting Future? [arXiv:2411.14499](https://arxiv.org/abs/2411.14499).
+- Reading lists, both continuously updated: [Awesome-WAM](https://github.com/OpenMOSS/Awesome-WAM) for world-action models and [Awesome-World-Models](https://github.com/knightnemo/Awesome-World-Models) for the broader field, including the game-simulation, driving, embodied and evaluation branches this chapter only samples.
 
 A companion book covers the classic-ML half in the
 [ML System Design Interview](https://github.com/neurarch-ai/awesome-ml-system-design)

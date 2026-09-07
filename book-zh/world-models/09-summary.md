@@ -145,8 +145,15 @@ flowchart TB
 - Wayve GAIA-1：[arXiv:2309.17080](https://arxiv.org/abs/2309.17080)。
 - OpenVLA：[arXiv:2406.09246](https://arxiv.org/abs/2406.09246)。
 - NVIDIA Cosmos：[nvidia.com/en-us/ai/cosmos](https://www.nvidia.com/en-us/ai/cosmos/)。
-- WorldArena 具身世界模型 benchmark：[arXiv:2602.08971](https://arxiv.org/abs/2602.08971)。
-- 世界动作模型阅读清单：[Awesome-WAM](https://github.com/OpenMOSS/Awesome-WAM)。
+- Wayve GAIA-2，可控、多视角：[arXiv:2503.20523](https://arxiv.org/abs/2503.20523)。
+- Cosmos-Drive-Dreams，把"数据引擎"这个任务落到实处：[arXiv:2506.09042](https://arxiv.org/abs/2506.09042)。
+- Genie Envisioner，面向机器人操作的世界基础平台：[arXiv:2508.05635](https://arxiv.org/abs/2508.05635)。
+- iVideoGPT，把可交互视频预测当作可扩展的世界模型：[arXiv:2405.15223](https://arxiv.org/abs/2405.15223)。
+- Matrix-Game 3.5，带 patch memory 的实时流式可交互生成：[arXiv:2608.29910](https://arxiv.org/abs/2608.29910)。
+- minWM 与 Nano World Models，最小的全栈实现：[arXiv:2605.30263](https://arxiv.org/abs/2605.30263)、[arXiv:2605.23993](https://arxiv.org/abs/2605.23993)。
+- 评估：WorldArena [arXiv:2602.08971](https://arxiv.org/abs/2602.08971)、面向驾驶的 WorldLens [arXiv:2512.10958](https://arxiv.org/abs/2512.10958)、SimWorld [arXiv:2503.13952](https://arxiv.org/abs/2503.13952)，以及作为可复现平台的 stable-worldmodel [arXiv:2605.21800](https://arxiv.org/abs/2605.21800)。
+- 综述：Understanding World or Predicting Future？[arXiv:2411.14499](https://arxiv.org/abs/2411.14499)。
+- 两份持续更新的阅读清单：[Awesome-WAM](https://github.com/OpenMOSS/Awesome-WAM)（世界动作模型）和 [Awesome-World-Models](https://github.com/knightnemo/Awesome-World-Models)（更广的领域，含游戏仿真、驾驶、具身和评估几个分支，本章只取样了其中一部分）。
 
 姊妹书覆盖了经典 ML 的那一半，在
 [ML System Design Interview](https://github.com/neurarch-ai/awesome-ml-system-design)
