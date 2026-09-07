@@ -1,10 +1,10 @@
 # Case studies, by industry
 
-The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by industry so you can see which the same LLM problem patterns recur in your domain. 285 case studies across 11 industries.
+The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by industry so you can see which the same LLM problem patterns recur in your domain. 299 case studies across 11 industries.
 
 ---
 
-## Big Tech and cloud (91)
+## Big Tech and cloud (97)
 
 | Company | Case study | Topic |
 | --- | --- | --- |
@@ -36,6 +36,7 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | Google | [Fast inference from transformers via speculative decoding](https://arxiv.org/abs/2211.17192) | Inference Serving At Scale |
 | Google | [Flamingo: a visual language model for few-shot learning](https://arxiv.org/abs/2204.14198) | Multimodal Serving |
 | Google | [GQA: Training Generalized Multi-Query Transformer Models](https://arxiv.org/abs/2305.13245) | Long Context And KV Cache |
+| Google | [Lumiere](https://arxiv.org/abs/2401.12945) | Generation Serving |
 | Google | [On-Policy Distillation of Language Models](https://arxiv.org/abs/2306.13649) | Model Compression |
 | Google | [PaLI-X: on scaling up a multilingual vision-language model](https://arxiv.org/abs/2305.18565) | Multimodal Serving |
 | Google | [RAGO: systematic performance optimization for RAG serving](https://arxiv.org/abs/2503.14649) | RAG Serving |
@@ -49,6 +50,7 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | Hugging Face | [FineWeb: decanting the web for the finest text data at scale](https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1) | Data Curation And Pretraining |
 | Hugging Face | [Introducing Idefics2: a powerful 8B vision-language model](https://huggingface.co/blog/idefics2) | Multimodal Serving |
 | Hugging Face | [Introducing smolagents](https://huggingface.co/blog/smolagents) | Agent Orchestration |
+| Hugging Face | [LCM-LoRA](https://huggingface.co/blog/lcm_lora) | Generation Serving |
 | Hugging Face | [Preference Tuning LLMs with Direct Preference Optimization Methods](https://huggingface.co/blog/pref-tuning) | Post Training Pipeline |
 | Hugging Face | [Unlocking longer generation with KV cache quantization](https://huggingface.co/blog/kv-cache-quantization) | Long Context And KV Cache |
 | IBM | [LLM routing for quality, low-cost responses](https://research.ibm.com/blog/LLM-routers) | Cost Optimization And Model Routing |
@@ -56,11 +58,13 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | Meta | [Chameleon: mixed-modal early-fusion foundation models](https://arxiv.org/abs/2405.09818) | Multimodal Serving |
 | Meta | [Code Llama: Open Foundation Models for Code](https://arxiv.org/abs/2308.12950) | Continued Pretraining And Long Context |
 | Meta | [Embedding-based Retrieval in Facebook Search](https://arxiv.org/abs/2006.11632) | Semantic Search And Embeddings |
+| Meta | [Emu](https://arxiv.org/abs/2309.15807) | Generation Serving |
 | Meta | [Extending Context Window of Large Language Models via Positional Interpolation](https://arxiv.org/abs/2306.15595) | Continued Pretraining And Long Context |
 | Meta | [Faiss: a library for efficient similarity search](https://engineering.fb.com/2017/03/29/data-infrastructure/faiss-a-library-for-efficient-similarity-search/) | Semantic Search And Embeddings |
 | Meta | [How to fine-tune: focus on effective datasets](https://ai.meta.com/blog/how-to-fine-tune-llms-peft-dataset-curation/) | Post Training Pipeline |
 | Meta | [Llama Guard: LLM-based input-output safeguard](https://arxiv.org/abs/2312.06674) | Safety And Guardrails |
 | Meta | [Llama Prompt Guard 2](https://developer.meta.com/ai/docs/model-cards-and-prompt-formats/prompt-guard/) | Safety And Guardrails |
+| Meta | [Movie Gen](https://arxiv.org/abs/2410.13720) | Generation Serving |
 | Meta | [PyTorch FSDP: Experiences on Scaling Fully Sharded Data Parallel](https://arxiv.org/abs/2304.11277) | Data Curation And Pretraining |
 | Meta | [The Llama 3 Herd of Models](https://ai.meta.com/research/publications/the-llama-3-herd-of-models/) | LLM Lifecycle |
 | Meta | [The Llama 3 Herd of Models](https://ai.meta.com/research/publications/the-llama-3-herd-of-models/) | Data Curation And Pretraining |
@@ -84,11 +88,13 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | NVIDIA | [Accelerating VLM inference with TensorRT Edge-LLM](https://developer.nvidia.com/blog/accelerating-llm-and-vlm-inference-for-automotive-and-robotics-with-nvidia-tensorrt-edge-llm/) | Multimodal Serving |
 | NVIDIA | [Compact Language Models via Pruning and Knowledge Distillation](https://arxiv.org/abs/2407.14679) | Model Compression |
 | NVIDIA | [Content Moderation and Safety Checks with NeMo Guardrails](https://developer.nvidia.com/blog/content-moderation-and-safety-checks-with-nvidia-nemo-guardrails/) | Safety And Guardrails |
+| NVIDIA | [Generating images with SDXL on the NVIDIA AI inference platform](https://developer.nvidia.com/blog/generate-stunning-images-with-stable-diffusion-xl-on-the-nvidia-ai-inference-platform/) | Generation Serving |
 | NVIDIA | [How a reranking microservice improves retrieval accuracy and cost](https://developer.nvidia.com/blog/how-using-a-reranking-microservice-can-improve-accuracy-and-costs-of-information-retrieval/) | RAG Serving |
 | NVIDIA | [Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism](https://arxiv.org/abs/1909.08053) | Data Curation And Pretraining |
 | NVIDIA | [NVIDIA Dynamo: a low-latency distributed inference framework](https://developer.nvidia.com/blog/introducing-nvidia-dynamo-a-low-latency-distributed-inference-framework-for-scaling-reasoning-ai-models/) | Inference Serving At Scale |
 | NVIDIA | [NVLM: open frontier-class multimodal LLMs](https://research.nvidia.com/labs/adlr/NVLM-1/) | Multimodal Serving |
 | NVIDIA | [Optimizing inference with NVFP4 KV cache](https://developer.nvidia.com/blog/optimizing-inference-for-long-context-and-large-batch-sizes-with-nvfp4-kv-cache/) | Long Context And KV Cache |
+| NVIDIA | [Optimizing transformer-based diffusion models for video generation](https://developer.nvidia.com/blog/optimizing-transformer-based-diffusion-models-for-video-generation-with-nvidia-tensorrt/) | Generation Serving |
 | NVIDIA | [RULER: What's the Real Context Size of Your Long-Context Language Models?](https://arxiv.org/abs/2404.06654) | Continued Pretraining And Long Context |
 | Red Hat | [llm-compressor](https://github.com/vllm-project/llm-compressor) | Model Compression |
 | Red Hat | [vLLM V1: accelerating multimodal inference](https://developers.redhat.com/articles/2025/02/27/vllm-v1-accelerating-multimodal-inference-large-language-models) | Multimodal Serving |
@@ -100,7 +106,7 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | Vespa | [Billion-scale vector search using hybrid HNSW-IF](https://blog.vespa.ai/vespa-hybrid-billion-scale-vector-search/) | Semantic Search And Embeddings |
 | Vespa | [Embedding Tradeoffs, Quantified](https://blog.vespa.ai/embedding-tradeoffs-quantified/) | RAG Serving |
 
-## AI labs and foundation models (41)
+## AI labs and foundation models (46)
 
 | Company | Case study | Topic |
 | --- | --- | --- |
@@ -136,6 +142,7 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | Nous Research | [YaRN: Efficient Context Window Extension of Large Language Models](https://arxiv.org/abs/2309.00071) | Continued Pretraining And Long Context |
 | OpenAI | [A practical guide to building agents](https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf) | Agent Orchestration |
 | OpenAI | [Aligning language models to follow instructions (InstructGPT)](https://openai.com/index/instruction-following/) | LLM Lifecycle |
+| OpenAI | [Consistency models](https://arxiv.org/abs/2303.01469) | Generation Serving |
 | OpenAI | [HealthBench](https://openai.com/index/healthbench/) | Benchmark Evaluation |
 | OpenAI | [How to implement LLM guardrails](https://developers.openai.com/cookbook/examples/how_to_use_guardrails) | Safety And Guardrails |
 | OpenAI | [Let's Verify Step by Step](https://arxiv.org/abs/2305.20050) | Reasoning And Test Time Compute |
@@ -143,10 +150,14 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | OpenAI | [the reasoning guide](https://platform.openai.com/docs/guides/reasoning) | Reasoning And Test Time Compute |
 | OpenAI | [Updates for developers building with voice](https://developers.openai.com/blog/updates-audio-models) | Realtime Streaming Chat |
 | OpenGVLab | [InternVL 2.5: model, data, and test-time scaling](https://arxiv.org/abs/2412.05271) | Multimodal Serving |
+| Stability AI | [Adversarial diffusion distillation](https://arxiv.org/abs/2311.17042) | Generation Serving |
+| Stability AI | [Scaling rectified flow transformers for high-resolution image synthesis](https://arxiv.org/abs/2403.03206) | Generation Serving |
+| Stability AI | [SDXL: improving latent diffusion models for high-resolution image synthesis](https://arxiv.org/abs/2307.01952) | Generation Serving |
+| Stability AI | [Stable Video Diffusion](https://arxiv.org/abs/2311.15127) | Generation Serving |
 | Thinking Machines Lab | [Defeating Nondeterminism in LLM Inference](https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/) | Benchmark Evaluation |
 | TII | [The RefinedWeb Dataset for Falcon LLM: Outperforming Curated Corpora with Web Data, and Web Data Only](https://arxiv.org/abs/2306.01116) | Data Curation And Pretraining |
 
-## AI infra and developer tools (57)
+## AI infra and developer tools (60)
 
 | Company | Case study | Topic |
 | --- | --- | --- |
@@ -157,6 +168,8 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | Anyscale | [How continuous batching enables 23x throughput in LLM inference](https://www.anyscale.com/blog/continuous-batching-llm-inference) | Inference Serving At Scale |
 | AssemblyAI | [Universal-Streaming: ultra-fast speech-to-text for voice agents](https://www.assemblyai.com/blog/introducing-universal-streaming) | Realtime Streaming Chat |
 | Baseten | [33% faster LLM inference with FP8 quantization](https://www.baseten.co/blog/33-faster-llm-inference-with-fp8-quantization/) | Cost Optimization And Model Routing |
+| Baseten | [40 percent faster SDXL inference with TensorRT](https://www.baseten.co/blog/40-faster-stable-diffusion-xl-inference-with-nvidia-tensorrt/) | Generation Serving |
+| Baseten | [How to benchmark image generation models](https://www.baseten.co/blog/how-to-benchmark-image-generation-models-like-stable-diffusion-xl/) | Generation Serving |
 | Baseten | [How we built BEI: high-throughput embedding, reranker, classifier inference](https://www.baseten.co/blog/how-we-built-bei-high-throughput-embedding-inference/) | Inference Serving At Scale |
 | Baseten | [The Baseten inference stack](https://www.baseten.co/resources/guide/the-baseten-inference-stack/) | Inference Serving At Scale |
 | Cartesia | [Announcing Sonic: a low-latency voice model](https://cartesia.ai/blog/sonic) | Realtime Streaming Chat |
@@ -191,6 +204,7 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by indus
 | llm-d | [KV-Cache wins you can see: prefix caching to distributed scheduling](https://llm-d.ai/blog/kvcache-wins-you-can-see) | Long Context And KV Cache |
 | LMSYS | [RouteLLM: an open framework for cost-effective LLM routing](https://www.lmsys.org/blog/2024-07-01-routellm/) | Cost Optimization And Model Routing |
 | LMSYS / SGLang | [Fast and expressive LLM inference with RadixAttention](https://www.lmsys.org/blog/2024-01-17-sglang/) | Long Context And KV Cache |
+| Modal | [Cold start performance](https://modal.com/docs/guide/cold-start) | Generation Serving |
 | Modal | [High-performance LLM inference](https://modal.com/docs/guide/high-performance-llm-inference) | Inference Serving At Scale |
 | MongoDB | [Taking RAG to Production with the MongoDB Documentation AI Chatbot](https://www.mongodb.com/developer/products/atlas/taking-rag-to-production-documentation-ai-chatbot/) | RAG Serving |
 | Replit | [Enabling Agent 3 to self-test at scale with REPL verification](https://replit.com/blog/automated-self-testing) | Agent Orchestration |
