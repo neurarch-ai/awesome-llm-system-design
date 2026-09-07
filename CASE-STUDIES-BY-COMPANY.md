@@ -1,10 +1,10 @@
 # Case studies, by company
 
-The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by company so you can see how one org approaches the same LLM problem across problems. 244 case studies, 102 companies. Deep teardowns of many of these live in [CASE-TEARDOWNS.md](CASE-TEARDOWNS.md).
+The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by company so you can see how one org approaches the same LLM problem across problems. 299 case studies, 120 companies. Deep teardowns of many of these live in [CASE-TEARDOWNS.md](CASE-TEARDOWNS.md).
 
 ---
 
-### Meta (14)
+### Meta (16)
 
 - [How to fine-tune: focus on effective datasets](https://ai.meta.com/blog/how-to-fine-tune-llms-peft-dataset-curation/) *(Post Training Pipeline)*
 - [Llama Guard: LLM-based input-output safeguard](https://arxiv.org/abs/2312.06674) *(Safety And Guardrails)*
@@ -20,8 +20,28 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Code Llama: Open Foundation Models for Code](https://arxiv.org/abs/2308.12950) *(Continued Pretraining And Long Context)*
 - [Extending Context Window of Large Language Models via Positional Interpolation](https://arxiv.org/abs/2306.15595) *(Continued Pretraining And Long Context)*
 - [Train Short, Test Long: Attention with Linear Biases Enables Input Length Extrapolation (ALiBi)](https://arxiv.org/abs/2108.12409) *(Continued Pretraining And Long Context)*
+- [Movie Gen](https://arxiv.org/abs/2410.13720) *(Generation Serving)*
+- [Emu](https://arxiv.org/abs/2309.15807) *(Generation Serving)*
 
-### Microsoft (12)
+### Google (15)
+
+- [RAGO: systematic performance optimization for RAG serving](https://arxiv.org/abs/2503.14649) *(RAG Serving)*
+- [GQA: Training Generalized Multi-Query Transformer Models](https://arxiv.org/abs/2305.13245) *(Long Context And KV Cache)*
+- [Fast inference from transformers via speculative decoding](https://arxiv.org/abs/2211.17192) *(Inference Serving At Scale)*
+- [ShieldGemma: generative AI content moderation](https://arxiv.org/abs/2407.21772) *(Safety And Guardrails)*
+- [Announcing ScaNN: efficient vector similarity search](https://research.google/blog/announcing-scann-efficient-vector-similarity-search/) *(Semantic Search And Embeddings)*
+- [Flamingo: a visual language model for few-shot learning](https://arxiv.org/abs/2204.14198) *(Multimodal Serving)*
+- [PaLI-X: on scaling up a multilingual vision-language model](https://arxiv.org/abs/2305.18565) *(Multimodal Serving)*
+- [Training Compute-Optimal Large Language Models (Chinchilla)](https://arxiv.org/abs/2203.15556) *(LLM Lifecycle)*
+- [Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer (C4)](https://arxiv.org/abs/1910.10683) *(Data Curation And Pretraining)*
+- [SentencePiece: A simple and language independent subword tokenizer and detokenizer for Neural Text Processing](https://arxiv.org/abs/1808.06226) *(Data Curation And Pretraining)*
+- [Training Compute-Optimal Large Language Models (Chinchilla)](https://arxiv.org/abs/2203.15556) *(Data Curation And Pretraining)*
+- [On-Policy Distillation of Language Models](https://arxiv.org/abs/2306.13649) *(Model Compression)*
+- [Scaling LLM Test-Time Compute Optimally](https://arxiv.org/abs/2408.03314) *(Reasoning And Test Time Compute)*
+- [thinking in the Gemini API](https://ai.google.dev/gemini-api/docs/thinking) *(Reasoning And Test Time Compute)*
+- [Lumiere](https://arxiv.org/abs/2401.12945) *(Generation Serving)*
+
+### Microsoft (14)
 
 - [GraphRAG: unlocking LLM discovery on narrative private data](https://www.microsoft.com/en-us/research/blog/graphrag-unlocking-llm-discovery-on-narrative-private-data/) *(RAG Serving)*
 - [MInference 1.0: accelerating pre-filling via dynamic sparse attention](https://arxiv.org/abs/2407.02490) *(Long Context And KV Cache)*
@@ -35,22 +55,10 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [LLMLingua: prompt compression for LLM efficiency](https://www.microsoft.com/en-us/research/blog/llmlingua-innovating-llm-efficiency-with-prompt-compression/) *(Cost Optimization And Model Routing)*
 - [ZeRO: Memory Optimizations Toward Training Trillion Parameter Models](https://arxiv.org/abs/1910.02054) *(Data Curation And Pretraining)*
 - [LongRoPE: Extending LLM Context Window Beyond 2 Million Tokens](https://arxiv.org/abs/2402.13753) *(Continued Pretraining And Long Context)*
+- [The Era of 1-bit LLMs](https://arxiv.org/abs/2402.17764) *(Model Compression)*
+- [Accuracy is Not All You Need](https://arxiv.org/abs/2407.09141) *(Model Compression)*
 
-### Google (11)
-
-- [RAGO: systematic performance optimization for RAG serving](https://arxiv.org/abs/2503.14649) *(RAG Serving)*
-- [GQA: Training Generalized Multi-Query Transformer Models](https://arxiv.org/abs/2305.13245) *(Long Context And KV Cache)*
-- [Fast inference from transformers via speculative decoding](https://arxiv.org/abs/2211.17192) *(Inference Serving At Scale)*
-- [ShieldGemma: generative AI content moderation](https://arxiv.org/abs/2407.21772) *(Safety And Guardrails)*
-- [Announcing ScaNN: efficient vector similarity search](https://research.google/blog/announcing-scann-efficient-vector-similarity-search/) *(Semantic Search And Embeddings)*
-- [Flamingo: a visual language model for few-shot learning](https://arxiv.org/abs/2204.14198) *(Multimodal Serving)*
-- [PaLI-X: on scaling up a multilingual vision-language model](https://arxiv.org/abs/2305.18565) *(Multimodal Serving)*
-- [Training Compute-Optimal Large Language Models (Chinchilla)](https://arxiv.org/abs/2203.15556) *(LLM Lifecycle)*
-- [Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer (C4)](https://arxiv.org/abs/1910.10683) *(Data Curation And Pretraining)*
-- [SentencePiece: A simple and language independent subword tokenizer and detokenizer for Neural Text Processing](https://arxiv.org/abs/1808.06226) *(Data Curation And Pretraining)*
-- [Training Compute-Optimal Large Language Models (Chinchilla)](https://arxiv.org/abs/2203.15556) *(Data Curation And Pretraining)*
-
-### NVIDIA (9)
+### NVIDIA (12)
 
 - [How a reranking microservice improves retrieval accuracy and cost](https://developer.nvidia.com/blog/how-using-a-reranking-microservice-can-improve-accuracy-and-costs-of-information-retrieval/) *(RAG Serving)*
 - [5x faster time to first token with TensorRT-LLM KV cache early reuse](https://developer.nvidia.com/blog/5x-faster-time-to-first-token-with-nvidia-tensorrt-llm-kv-cache-early-reuse/) *(Long Context And KV Cache)*
@@ -61,6 +69,33 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Accelerating VLM inference with TensorRT Edge-LLM](https://developer.nvidia.com/blog/accelerating-llm-and-vlm-inference-for-automotive-and-robotics-with-nvidia-tensorrt-edge-llm/) *(Multimodal Serving)*
 - [Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism](https://arxiv.org/abs/1909.08053) *(Data Curation And Pretraining)*
 - [RULER: What's the Real Context Size of Your Long-Context Language Models?](https://arxiv.org/abs/2404.06654) *(Continued Pretraining And Long Context)*
+- [Compact Language Models via Pruning and Knowledge Distillation](https://arxiv.org/abs/2407.14679) *(Model Compression)*
+- [Generating images with SDXL on the NVIDIA AI inference platform](https://developer.nvidia.com/blog/generate-stunning-images-with-stable-diffusion-xl-on-the-nvidia-ai-inference-platform/) *(Generation Serving)*
+- [Optimizing transformer-based diffusion models for video generation](https://developer.nvidia.com/blog/optimizing-transformer-based-diffusion-models-for-video-generation-with-nvidia-tensorrt/) *(Generation Serving)*
+
+### Anthropic (9)
+
+- [Prompt caching with Claude](https://claude.com/blog/prompt-caching) *(Long Context And KV Cache)*
+- [Building effective agents](https://www.anthropic.com/research/building-effective-agents) *(Agent Orchestration)*
+- [How we built our multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system) *(Agent Orchestration)*
+- [Writing effective tools for agents, with agents](https://www.anthropic.com/engineering/writing-tools-for-agents) *(Agent Orchestration)*
+- [Code execution with MCP: building more efficient agents](https://www.anthropic.com/engineering/code-execution-with-mcp) *(Agent Orchestration)*
+- [Constitutional Classifiers: defending against universal jailbreaks](https://www.anthropic.com/research/constitutional-classifiers) *(Safety And Guardrails)*
+- [Constitutional AI: Harmlessness from AI Feedback](https://www.anthropic.com/research/constitutional-ai-harmlessness-from-ai-feedback) *(LLM Lifecycle)*
+- [Adding Error Bars to Evals](https://arxiv.org/abs/2411.00640) *(Benchmark Evaluation)*
+- [extended thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking) *(Reasoning And Test Time Compute)*
+
+### OpenAI (9)
+
+- [A practical guide to building agents](https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf) *(Agent Orchestration)*
+- [How to implement LLM guardrails](https://developers.openai.com/cookbook/examples/how_to_use_guardrails) *(Safety And Guardrails)*
+- [Updates for developers building with voice](https://developers.openai.com/blog/updates-audio-models) *(Realtime Streaming Chat)*
+- [Aligning language models to follow instructions (InstructGPT)](https://openai.com/index/instruction-following/) *(LLM Lifecycle)*
+- [simple-evals](https://github.com/openai/simple-evals) *(Benchmark Evaluation)*
+- [HealthBench](https://openai.com/index/healthbench/) *(Benchmark Evaluation)*
+- [Let's Verify Step by Step](https://arxiv.org/abs/2305.20050) *(Reasoning And Test Time Compute)*
+- [the reasoning guide](https://platform.openai.com/docs/guides/reasoning) *(Reasoning And Test Time Compute)*
+- [Consistency models](https://arxiv.org/abs/2303.01469) *(Generation Serving)*
 
 ### LinkedIn (8)
 
@@ -84,16 +119,6 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Uber's GenAI Gateway](https://www.uber.com/blog/genai-gateway/) *(Cost Optimization And Model Routing)*
 - [Genie: Uber's Gen AI On-Call Copilot](https://www.uber.com/us/en/blog/genie-ubers-gen-ai-on-call-copilot/) *(Production Monitoring And Observability)*
 
-### Anthropic (7)
-
-- [Prompt caching with Claude](https://claude.com/blog/prompt-caching) *(Long Context And KV Cache)*
-- [Building effective agents](https://www.anthropic.com/research/building-effective-agents) *(Agent Orchestration)*
-- [How we built our multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system) *(Agent Orchestration)*
-- [Writing effective tools for agents, with agents](https://www.anthropic.com/engineering/writing-tools-for-agents) *(Agent Orchestration)*
-- [Code execution with MCP: building more efficient agents](https://www.anthropic.com/engineering/code-execution-with-mcp) *(Agent Orchestration)*
-- [Constitutional Classifiers: defending against universal jailbreaks](https://www.anthropic.com/research/constitutional-classifiers) *(Safety And Guardrails)*
-- [Constitutional AI: Harmlessness from AI Feedback](https://www.anthropic.com/research/constitutional-ai-harmlessness-from-ai-feedback) *(LLM Lifecycle)*
-
 ### Databricks (7)
 
 - [Creating High Quality RAG Applications with Databricks](https://www.databricks.com/blog/building-high-quality-rag-applications-databricks) *(RAG Serving)*
@@ -104,7 +129,7 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Implementing LLM Guardrails for Safe GenAI Deployment](https://www.databricks.com/blog/implementing-llm-guardrails-safe-and-responsible-generative-ai-deployment-databricks) *(Safety And Guardrails)*
 - [Simple, Fast, Scalable Batch LLM Inference](https://www.databricks.com/blog/introducing-simple-fast-and-scalable-batch-llm-inference-mosaic-ai-model-serving) *(Cost Optimization And Model Routing)*
 
-### Hugging Face (6)
+### Hugging Face (7)
 
 - [Unlocking longer generation with KV cache quantization](https://huggingface.co/blog/kv-cache-quantization) *(Long Context And KV Cache)*
 - [Introducing smolagents](https://huggingface.co/blog/smolagents) *(Agent Orchestration)*
@@ -112,6 +137,7 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Introducing Idefics2: a powerful 8B vision-language model](https://huggingface.co/blog/idefics2) *(Multimodal Serving)*
 - [FineWeb: decanting the web for the finest text data at scale](https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1) *(LLM Lifecycle)*
 - [FineWeb: decanting the web for the finest text data at scale](https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1) *(Data Curation And Pretraining)*
+- [LCM-LoRA](https://huggingface.co/blog/lcm_lora) *(Generation Serving)*
 
 ### Ai2 (5)
 
@@ -129,6 +155,14 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Direct Preference Optimization with Synthetic Data](https://www.anyscale.com/blog/direct-preference-optimization-with-synthetic-data) *(Post Training Pipeline)*
 - [Building an LLM Router for High-Quality and Cost-Effective Responses](https://www.anyscale.com/blog/building-an-llm-router-for-high-quality-and-cost-effective-responses) *(Cost Optimization And Model Routing)*
 
+### Baseten (5)
+
+- [How we built BEI: high-throughput embedding, reranker, classifier inference](https://www.baseten.co/blog/how-we-built-bei-high-throughput-embedding-inference/) *(Inference Serving At Scale)*
+- [The Baseten inference stack](https://www.baseten.co/resources/guide/the-baseten-inference-stack/) *(Inference Serving At Scale)*
+- [33% faster LLM inference with FP8 quantization](https://www.baseten.co/blog/33-faster-llm-inference-with-fp8-quantization/) *(Cost Optimization And Model Routing)*
+- [40 percent faster SDXL inference with TensorRT](https://www.baseten.co/blog/40-faster-stable-diffusion-xl-inference-with-nvidia-tensorrt/) *(Generation Serving)*
+- [How to benchmark image generation models](https://www.baseten.co/blog/how-to-benchmark-image-generation-models-like-stable-diffusion-xl/) *(Generation Serving)*
+
 ### Cloudflare (5)
 
 - [Introducing AutoRAG: managed RAG on Cloudflare](https://blog.cloudflare.com/introducing-autorag-on-cloudflare/) *(RAG Serving)*
@@ -137,6 +171,14 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Durable Objects for WebSockets and auth in AI Gateway](https://blog.cloudflare.com/do-it-again/) *(Realtime Streaming Chat)*
 - [Caching in AI Gateway](https://developers.cloudflare.com/ai-gateway/features/caching/) *(Cost Optimization And Model Routing)*
 
+### DeepSeek (5)
+
+- [DeepSeek-V2: a strong, economical, efficient MoE language model](https://arxiv.org/abs/2405.04434) *(Long Context And KV Cache)*
+- [DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning](https://arxiv.org/abs/2501.12948) *(LLM Lifecycle)*
+- [DeepSeek-V3 Technical Report](https://arxiv.org/abs/2412.19437) *(Data Curation And Pretraining)*
+- [DeepSeek-V3 Technical Report](https://arxiv.org/abs/2412.19437) *(Model Compression)*
+- [DeepSeek-R1](https://arxiv.org/abs/2501.12948) *(Reasoning And Test Time Compute)*
+
 ### GitHub (5)
 
 - [What is retrieval-augmented generation?](https://github.blog/ai-and-ml/generative-ai/what-is-retrieval-augmented-generation-and-what-does-it-do-for-generative-ai/) *(RAG Serving)*
@@ -144,13 +186,6 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Building a faster, smarter Copilot with a custom model](https://github.blog/ai-and-ml/github-copilot/the-road-to-better-completions-building-a-faster-smarter-github-copilot-with-a-new-custom-model/) *(Post Training Pipeline)*
 - [How we evaluate AI models and LLMs for GitHub Copilot](https://github.blog/ai-and-ml/generative-ai/how-we-evaluate-models-for-github-copilot/) *(Evaluation System)*
 - [Inside Copilot's new code embedding model](https://github.blog/news-insights/product-news/copilot-new-embedding-model-vs-code/) *(Semantic Search And Embeddings)*
-
-### OpenAI (4)
-
-- [A practical guide to building agents](https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf) *(Agent Orchestration)*
-- [How to implement LLM guardrails](https://developers.openai.com/cookbook/examples/how_to_use_guardrails) *(Safety And Guardrails)*
-- [Updates for developers building with voice](https://developers.openai.com/blog/updates-audio-models) *(Realtime Streaming Chat)*
-- [Aligning language models to follow instructions (InstructGPT)](https://openai.com/index/instruction-following/) *(LLM Lifecycle)*
 
 ### Pinterest (4)
 
@@ -166,6 +201,20 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Profile-aware LLM-as-a-Judge for Podcasts](https://research.atspotify.com/2025/9/profile-aware-llm-as-a-judge-for-podcasts-a-better-middle-ground-between) *(Evaluation System)*
 - [Introducing Voyager: Spotify new nearest-neighbor search library](https://engineering.atspotify.com/2023/10/introducing-voyager-spotifys-new-nearest-neighbor-search-library) *(Semantic Search And Embeddings)*
 
+### Stability AI (4)
+
+- [SDXL: improving latent diffusion models for high-resolution image synthesis](https://arxiv.org/abs/2307.01952) *(Generation Serving)*
+- [Adversarial diffusion distillation](https://arxiv.org/abs/2311.17042) *(Generation Serving)*
+- [Scaling rectified flow transformers for high-resolution image synthesis](https://arxiv.org/abs/2403.03206) *(Generation Serving)*
+- [Stable Video Diffusion](https://arxiv.org/abs/2311.15127) *(Generation Serving)*
+
+### Stanford (4)
+
+- [FrugalGPT: Using LLMs While Reducing Cost and Improving Performance](https://arxiv.org/abs/2305.05176) *(Cost Optimization And Model Routing)*
+- [HELM](https://crfm.stanford.edu/helm/) *(Benchmark Evaluation)*
+- [s1: Simple test-time scaling](https://arxiv.org/abs/2501.19393) *(Reasoning And Test Time Compute)*
+- [Large Language Monkeys](https://arxiv.org/abs/2407.21787) *(Reasoning And Test Time Compute)*
+
 ### Thomson Reuters (4)
 
 - [Better Customer Support Using Retrieval-Augmented Generation (RAG) at Thomson Reuters](https://medium.com/tr-labs-ml-engineering-blog/better-customer-support-using-retrieval-augmented-generation-rag-at-thomson-reuters-4d140a6044c3) *(RAG Serving)*
@@ -179,23 +228,11 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Qwen2-Audio Technical Report](https://arxiv.org/abs/2407.10759) *(Multimodal Serving)*
 - [Qwen2.5 Technical Report](https://arxiv.org/abs/2412.15115) *(Continued Pretraining And Long Context)*
 
-### Baseten (3)
-
-- [How we built BEI: high-throughput embedding, reranker, classifier inference](https://www.baseten.co/blog/how-we-built-bei-high-throughput-embedding-inference/) *(Inference Serving At Scale)*
-- [The Baseten inference stack](https://www.baseten.co/resources/guide/the-baseten-inference-stack/) *(Inference Serving At Scale)*
-- [33% faster LLM inference with FP8 quantization](https://www.baseten.co/blog/33-faster-llm-inference-with-fp8-quantization/) *(Cost Optimization And Model Routing)*
-
 ### Character.AI (3)
 
 - [Optimizing AI Inference at Character.AI](https://blog.character.ai/optimizing-ai-inference-at-character-ai-2/) *(Long Context And KV Cache)*
 - [Optimizing AI Inference at Character.AI](https://blog.character.ai/optimizing-ai-inference-at-character-ai/) *(Inference Serving At Scale)*
 - [Optimizing AI Inference at Character.AI](https://blog.character.ai/optimizing-ai-inference-at-character-ai-2/) *(LLM Lifecycle)*
-
-### DeepSeek (3)
-
-- [DeepSeek-V2: a strong, economical, efficient MoE language model](https://arxiv.org/abs/2405.04434) *(Long Context And KV Cache)*
-- [DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning](https://arxiv.org/abs/2501.12948) *(LLM Lifecycle)*
-- [DeepSeek-V3 Technical Report](https://arxiv.org/abs/2412.19437) *(Data Curation And Pretraining)*
 
 ### Discord (3)
 
@@ -250,6 +287,11 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Automation Platform v2: improving conversational AI](https://medium.com/airbnb-engineering/automation-platform-v2-improving-conversational-ai-at-airbnb-d86c9386e0cb) *(Agent Orchestration)*
 - [Applying Embedding-Based Retrieval to Airbnb Search](https://arxiv.org/abs/2601.06873) *(Semantic Search And Embeddings)*
 
+### Apple (2)
+
+- [MM1: methods, analysis, and insights from multimodal LLM pre-training](https://arxiv.org/abs/2403.09611) *(Multimodal Serving)*
+- [Apple Intelligence Foundation Language Models](https://arxiv.org/abs/2407.21075) *(Model Compression)*
+
 ### Daily (2)
 
 - [Benchmarking LLMs for voice agent use cases](https://www.daily.co/blog/benchmarking-llms-for-voice-agent-use-cases/) *(Realtime Streaming Chat)*
@@ -259,6 +301,11 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 
 - [Detect hallucinations in your RAG LLM applications](https://www.datadoghq.com/blog/llm-observability-hallucination-detection/) *(Production Monitoring And Observability)*
 - [Detecting hallucinations with LLM-as-a-judge](https://www.datadoghq.com/blog/ai/llm-hallucination-detection/) *(Production Monitoring And Observability)*
+
+### EleutherAI (2)
+
+- [The Pile: An 800GB Dataset of Diverse Text for Language Modeling](https://arxiv.org/abs/2101.00027) *(Data Curation And Pretraining)*
+- [Lessons from the Trenches on Reproducible Evaluation of Language Models](https://arxiv.org/abs/2405.14782) *(Benchmark Evaluation)*
 
 ### Fireworks (2)
 
@@ -275,6 +322,11 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Scaling Catalog Attribute Extraction with Multi-modal LLMs](https://company.instacart.com/tech-innovation/scaling-catalog-attribute-extraction-with-multi-modal-llms) *(Evaluation System)*
 - [How Instacart uses embeddings to improve search relevance](https://company.instacart.com/how-its-made/how-instacart-uses-embeddings-to-improve-search-relevance) *(Semantic Search And Embeddings)*
 
+### KIVI (2)
+
+- [A tuning-free asymmetric 2-bit quantization for KV cache](https://arxiv.org/abs/2402.02750) *(Long Context And KV Cache)*
+- [Asymmetric 2-bit KV cache quantization](https://arxiv.org/abs/2402.02750) *(Model Compression)*
+
 ### LangChain (2)
 
 - [Context Engineering for Agents](https://www.langchain.com/blog/context-engineering-for-agents) *(Agent Orchestration)*
@@ -290,10 +342,30 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Fine-Tuning an LLM to Extract Dynamically Specified Attributes](https://engineering.mercari.com/en/blog/entry/20240913-fine-tuning-an-llm-to-extract-dynamically-specified-attributes/) *(Post Training Pipeline)*
 - [Domain-Aware Text Embeddings for C2C Marketplaces](https://arxiv.org/abs/2512.21021) *(Semantic Search And Embeddings)*
 
+### METR (2)
+
+- [Measuring AI Ability to Complete Long Software Tasks](https://metr.org/blog/2025-03-19-measuring-ai-ability-to-complete-long-tasks/) *(Benchmark Evaluation)*
+- [Measuring AI Ability to Complete Long Software Tasks](https://metr.org/blog/2025-03-19-measuring-ai-ability-to-complete-long-tasks/) *(Reasoning And Test Time Compute)*
+
 ### Mistral (2)
 
 - [Pixtral 12B](https://arxiv.org/abs/2410.07073) *(Multimodal Serving)*
 - [Mistral 7B](https://mistral.ai/news/announcing-mistral-7b/) *(LLM Lifecycle)*
+
+### Modal (2)
+
+- [High-performance LLM inference](https://modal.com/docs/guide/high-performance-llm-inference) *(Inference Serving At Scale)*
+- [Cold start performance](https://modal.com/docs/guide/cold-start) *(Generation Serving)*
+
+### Princeton (2)
+
+- [SWE-bench](https://arxiv.org/abs/2310.06770) *(Benchmark Evaluation)*
+- [Sheared LLaMA](https://arxiv.org/abs/2310.06694) *(Model Compression)*
+
+### Red Hat (2)
+
+- [vLLM V1: accelerating multimodal inference](https://developers.redhat.com/articles/2025/02/27/vllm-v1-accelerating-multimodal-inference-large-language-models) *(Multimodal Serving)*
+- [llm-compressor](https://github.com/vllm-project/llm-compressor) *(Model Compression)*
 
 ### Replit (2)
 
@@ -320,6 +392,11 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 - [Introducing Media Streams](https://www.twilio.com/en-us/blog/media-streams-public-beta) *(Realtime Streaming Chat)*
 - [Instrumenting User Insights for your AI Copilot](https://www.twilio.com/en-us/blog/insights/ai/instrumenting-user-insights-for-your-ai-copilot/) *(Production Monitoring And Observability)*
 
+### UIUC (2)
+
+- [Establishing Best Practices for Building Rigorous Agentic Benchmarks](https://arxiv.org/abs/2507.02825) *(Benchmark Evaluation)*
+- [Establishing Best Practices for Building Rigorous Agentic Benchmarks](https://arxiv.org/abs/2507.02825) *(Reasoning And Test Time Compute)*
+
 ### vLLM (2)
 
 - [Efficient Memory Management for LLM Serving with PagedAttention](https://arxiv.org/abs/2309.06180) *(Long Context And KV Cache)*
@@ -342,13 +419,13 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 
 - [Accelerating Multimodal Inference in vLLM](https://rocm.blogs.amd.com/software-tools-optimization/vllm-dp-vision/README.html) *(Multimodal Serving)*
 
-### Apple (1)
-
-- [MM1: methods, analysis, and insights from multimodal LLM pre-training](https://arxiv.org/abs/2403.09611) *(Multimodal Serving)*
-
 ### AssemblyAI (1)
 
 - [Universal-Streaming: ultra-fast speech-to-text for voice agents](https://www.assemblyai.com/blog/introducing-universal-streaming) *(Realtime Streaming Chat)*
+
+### AWQ (1)
+
+- [Activation-aware weight quantization](https://arxiv.org/abs/2306.00978) *(Model Compression)*
 
 ### Block (1)
 
@@ -366,6 +443,10 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 
 - [Don't Build Multi-Agents](https://cognition.com/blog/dont-build-multi-agents) *(Agent Orchestration)*
 
+### Cohere Labs (1)
+
+- [The Leaderboard Illusion](https://arxiv.org/abs/2504.20879) *(Benchmark Evaluation)*
+
 ### Colfax / Together (1)
 
 - [FlashAttention-3: fast, accurate attention with asynchrony and low precision](https://arxiv.org/abs/2407.08608) *(Long Context And KV Cache)*
@@ -377,10 +458,6 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 ### Elastic (1)
 
 - [RAG pipelines in production](https://www.elastic.co/search-labs/blog/rag-in-production) *(RAG Serving)*
-
-### EleutherAI (1)
-
-- [The Pile: An 800GB Dataset of Diverse Text for Language Modeling](https://arxiv.org/abs/2101.00027) *(Data Curation And Pretraining)*
 
 ### ElevenLabs (1)
 
@@ -402,6 +479,10 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 
 - [Why vector search isn't enough for enterprise RAG](https://www.glean.com/blog/hybrid-vs-rag-vector) *(RAG Serving)*
 
+### GPTQ (1)
+
+- [Accurate post-training quantization for generative pretrained transformers](https://arxiv.org/abs/2210.17323) *(Model Compression)*
+
 ### Grafana (1)
 
 - [Monitor LLMs in production with Grafana Cloud, OpenLIT, and OpenTelemetry](https://grafana.com/blog/ai-observability-llms-in-production/) *(Production Monitoring And Observability)*
@@ -414,17 +495,29 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 
 - [LLM routing for quality, low-cost responses](https://research.ibm.com/blog/LLM-routers) *(Cost Optimization And Model Routing)*
 
-### KIVI (1)
-
-- [A tuning-free asymmetric 2-bit quantization for KV cache](https://arxiv.org/abs/2402.02750) *(Long Context And KV Cache)*
-
 ### Krisp (1)
 
 - [A 6M-weight turn-taking model for voice AI agents](https://krisp.ai/blog/turn-taking-for-voice-ai/) *(Realtime Streaming Chat)*
 
+### LiveBench (1)
+
+- [A challenging, contamination-limited LLM benchmark](https://arxiv.org/abs/2406.19314) *(Benchmark Evaluation)*
+
+### LiveCodeBench (1)
+
+- [Holistic and contamination-free evaluation of code](https://arxiv.org/abs/2403.07974) *(Benchmark Evaluation)*
+
+### llama.cpp (1)
+
+- [the GGUF ecosystem](https://github.com/ggml-org/llama.cpp) *(Model Compression)*
+
 ### llm-d (1)
 
 - [KV-Cache wins you can see: prefix caching to distributed scheduling](https://llm-d.ai/blog/kvcache-wins-you-can-see) *(Long Context And KV Cache)*
+
+### LLM.int8() (1)
+
+- [8-bit Matrix Multiplication for Transformers at Scale](https://arxiv.org/abs/2208.07339) *(Model Compression)*
 
 ### LMSYS (1)
 
@@ -445,10 +538,6 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 ### MIT / Meta (1)
 
 - [Efficient Streaming Language Models with Attention Sinks](https://arxiv.org/abs/2309.17453) *(Long Context And KV Cache)*
-
-### Modal (1)
-
-- [High-performance LLM inference](https://modal.com/docs/guide/high-performance-llm-inference) *(Inference Serving At Scale)*
 
 ### MongoDB (1)
 
@@ -474,13 +563,17 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 
 - [DistServe: disaggregating prefill and decoding](https://arxiv.org/abs/2401.09670) *(Inference Serving At Scale)*
 
-### Red Hat (1)
+### QuaRot (1)
 
-- [vLLM V1: accelerating multimodal inference](https://developers.redhat.com/articles/2025/02/27/vllm-v1-accelerating-multimodal-inference-large-language-models) *(Multimodal Serving)*
+- [Outlier-free 4-bit inference in rotated LLMs](https://arxiv.org/abs/2404.00456) *(Model Compression)*
 
 ### Shinn et al. (1)
 
 - [Reflexion: language agents with verbal reinforcement learning](https://arxiv.org/abs/2303.11366) *(Agent Orchestration)*
+
+### SmoothQuant (1)
+
+- [Accurate and efficient post-training quantization for LLMs](https://arxiv.org/abs/2211.10438) *(Model Compression)*
 
 ### Snap (1)
 
@@ -494,17 +587,25 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 
 - [Agentic Coding: a practical guide for big code](https://sourcegraph.com/blog/agentic-coding) *(Agent Orchestration)*
 
+### SparseGPT (1)
+
+- [Massive language models can be accurately pruned in one shot](https://arxiv.org/abs/2301.00774) *(Model Compression)*
+
+### SpinQuant (1)
+
+- [LLM quantization with learned rotations](https://arxiv.org/abs/2405.16406) *(Model Compression)*
+
 ### Stack Overflow (1)
 
 - [Vector databases in generative AI applications](https://stackoverflow.blog/2023/10/09/from-prototype-to-production-vector-databases-in-generative-ai-applications/) *(Semantic Search And Embeddings)*
 
-### Stanford (1)
-
-- [FrugalGPT: Using LLMs While Reducing Cost and Improving Performance](https://arxiv.org/abs/2305.05176) *(Cost Optimization And Model Routing)*
-
 ### Stripe (1)
 
 - [Can AI agents build real Stripe integrations?](https://stripe.com/blog/can-ai-agents-build-real-stripe-integrations) *(Agent Orchestration)*
+
+### Thinking Machines Lab (1)
+
+- [Defeating Nondeterminism in LLM Inference](https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/) *(Benchmark Evaluation)*
 
 ### TII (1)
 
@@ -513,6 +614,10 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 ### UIUC / Cohere (1)
 
 - [SnapKV: LLM knows what you are looking for before generation](https://arxiv.org/abs/2404.14469) *(Long Context And KV Cache)*
+
+### UK AI Security Institute (1)
+
+- [Inspect](https://inspect.aisi.org.uk/) *(Benchmark Evaluation)*
 
 ### UT Austin / Stanford (1)
 
@@ -533,6 +638,10 @@ The same shipped systems as [CASE-STUDIES.md](CASE-STUDIES.md), pivoted by compa
 ### Walmart (1)
 
 - [Semantic Retrieval at Walmart](https://arxiv.org/abs/2412.04637) *(Semantic Search And Embeddings)*
+
+### Wanda (1)
+
+- [A simple and effective pruning approach for LLMs](https://arxiv.org/abs/2306.11695) *(Model Compression)*
 
 ### Wang et al. (1)
 

@@ -14,11 +14,11 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOTS = ["book", "book-zh"].filter((d) => existsSync(d));
-// papers.md is checked too: it is 130+ external links and nothing else in it, so
-// link rot there is the whole failure mode. The case-study indexes are deliberately
+// papers.md and datasets.md are checked too: they are a couple of hundred external
+// links and nothing else, so link rot there is the whole failure mode. The case-study indexes are deliberately
 // left out; they point at hundreds of company blogs that get reorganized constantly,
 // and one of those going 404 should not turn this job red every month.
-const FILES = ["papers.md"].filter((f) => existsSync(f));
+const FILES = ["papers.md", "datasets.md"].filter((f) => existsSync(f));
 const CONCURRENCY = 12;
 const TIMEOUT_MS = 20000;
 const UA = "Mozilla/5.0 (compatible; neurarch-linkcheck/1.0)";

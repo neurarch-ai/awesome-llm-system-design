@@ -1961,6 +1961,772 @@ _Not reachable: none_
 
 ---
 
+## Model compression
+
+### LLM.int8() and SmoothQuant: the outlier problem, then the way around it ([source](https://arxiv.org/abs/2208.07339))
+
+[LLM.int8()](https://arxiv.org/abs/2208.07339) is the paper that named the obstacle. Past a few billion parameters, a small number of activation channels carry values orders of magnitude larger than everything else and are functionally important, so a single int8 scale wide enough to represent them destroys the resolution of the rest. Its fix is a mixed decomposition: the outlier channels go through a 16-bit matmul, everything else through int8. [SmoothQuant](https://arxiv.org/abs/2211.10438) then makes the difficulty someone else's problem: a per-channel scaling migrates the outlier magnitude from the activations into the weights, where uniform quantization tolerates it, which is what makes fully 8-bit weight-and-activation serving practical.
+
+```mermaid
+flowchart TD
+  ACT["activations with outlier channels"] --> Q{"how do you handle them?"}
+  Q -->|"keep them 16-bit"| SPLIT["decomposed matmul<br/>(LLM.int8)"]
+  Q -->|"move them into the weights"| SMOOTH["per-channel scale s<br/>(SmoothQuant)"]
+  SPLIT --> MEM["memory saved, throughput cost"]
+  SMOOTH --> W8A8["W8A8 matmul, real arithmetic win"]
+```
+
+**Interview questions this design invites**
+- Why do outliers appear at scale, and why can you not just clip them?
+- What does LLM.int8() cost in throughput, and why?
+- Where does SmoothQuant's difficulty go, and why can the weights absorb it?
+- What does a weight-only method buy that a W8A8 method does not, and vice versa?
+- How do you choose the migration strength in practice?
+
+**Tricks and gotchas**
+- Weight-only buys bytes read; activation and compute quantization buys arithmetic. Only the second helps at large batch.
+- The migration strength is a calibration decision: too much and the weights become the hard side.
+- The decomposed path is a real kernel cost, so measure end to end rather than trusting the format.
+- Both need a calibration set that looks like production traffic, not like a benchmark.
+
+**Common mistakes and how to fix them**
+- Clipping outliers to fit the range; fix by keeping them in higher precision or migrating them.
+- Calibrating on public benchmark text; fix by sampling real traffic, with the distribution you actually serve.
+- Quoting an int8 speedup measured at batch one for a high-batch service; fix by measuring at the serving batch size.
+- Assuming W8A8 is always available; fix by checking the kernel support of your serving stack first.
+
+### GPTQ and AWQ: two answers to 4-bit weights ([source](https://arxiv.org/abs/2210.17323))
+
+[GPTQ](https://arxiv.org/abs/2210.17323) treats quantization as an error-compensation problem: quantize the weights of a layer column by column, and after each step adjust the remaining weights using second-order information so the layer's output error stays small. [AWQ](https://arxiv.org/abs/2306.00978) makes a different bet: not all weights matter equally, and the ones that matter are identified by the magnitude of the activations they multiply, so scale those channels to protect them and quantize the rest normally. The two arrive at similar quality by different routes, and AWQ's simpler kernels are a large part of why it is the more deployed of the two.
+
+```mermaid
+flowchart TD
+  W["layer weights, fp16"] --> Q{"which invariant?"}
+  Q -->|"minimize output error"| GPTQ["column-wise rounding<br/>+ Hessian-based compensation"]
+  Q -->|"protect salient channels"| AWQ["per-channel scaling chosen<br/>by activation magnitude"]
+  GPTQ --> G["group-wise int4 weights"]
+  AWQ --> G
+  G --> KERN["needs a fused dequant matmul kernel"]
+```
+
+**Interview questions this design invites**
+- What is actually being minimized in GPTQ, and what is the calibration set for?
+- Why does activation magnitude identify important weights in AWQ?
+- What is group size and why is 4-bit really about 4.125 bits?
+- When does weight-only 4-bit stop paying, and why?
+- What breaks first when the calibration set is mismatched to your traffic?
+
+**Tricks and gotchas**
+- Group size is the accuracy-versus-size knob: 128 is the usual compromise, and it is where the extra 0.125 bits come from.
+- Keep embeddings, the output projection and the first and last blocks at higher precision by default.
+- Calibration mismatch shows up as a specific capability hole, not as a uniform accuracy drop.
+- An unfused dequantize-then-matmul path can be net slower than fp16; verify the kernel, not the format.
+
+**Common mistakes and how to fix them**
+- Reporting 4-bit memory savings without the group overhead; fix by quoting effective bits per weight.
+- Quantizing every layer uniformly; fix by measuring per-layer sensitivity and raising the sensitive ones.
+- Accepting on one aggregate benchmark; fix by a paired per-capability comparison against the parent.
+- Assuming a speedup at high batch; fix by measuring, since the weight read is already amortized there.
+
+### QuaRot and SpinQuant: rotate the outliers away ([source](https://arxiv.org/abs/2404.00456))
+
+The rotation family attacks the outlier problem at its root instead of routing around it. Multiplying activations and weights by a matched pair of orthogonal matrices leaves the layer's function unchanged, but it spreads the outlier energy across channels so that no channel is extreme any more. [QuaRot](https://arxiv.org/abs/2404.00456) uses fixed Hadamard-style rotations fused into the surrounding weights at export, so serving pays nothing extra. [SpinQuant](https://arxiv.org/abs/2405.16406) learns the rotation instead, buying back the accuracy a fixed rotation leaves behind. This family is what made 4-bit activations and a 4-bit KV cache viable, not just 4-bit weights.
+
+```mermaid
+flowchart LR
+  X["activations with outliers"] --> R["rotate: X Q"]
+  W["weights"] --> RT["rotate: Q^T W"]
+  R --> M["matmul is unchanged mathematically"]
+  RT --> M
+  M --> Q4["now quantize activations, weights and KV to 4 bits"]
+  Q4 --> FUSE["rotations fused at export,<br/>no runtime cost"]
+```
+
+**Interview questions this design invites**
+- Why does an orthogonal rotation leave the layer's output unchanged?
+- Why does rotating make the distribution easier to quantize?
+- What has to be fused at export, and what happens if it is not?
+- Why does this family unlock activation and KV quantization rather than just weights?
+- When is learning the rotation worth the extra training step?
+
+**Tricks and gotchas**
+- The rotation must be fused into neighbouring weights, or you pay a matmul per layer at serving time.
+- Residual and normalization placement decides where a rotation can legally be inserted.
+- This composes with weight-only methods rather than replacing them.
+- The KV cache is often the real prize here, because it is what grows with context.
+
+**Common mistakes and how to fix them**
+- Adding rotations as runtime ops; fix by fusing them at export and verifying the graph.
+- Expecting a fixed rotation to match a learned one; fix by measuring, and by budgeting the training step if the gap matters.
+- Applying 4-bit activations without checking kernel support; fix by asserting the numeric path at startup.
+- Treating rotation as a replacement for mixed precision; fix by keeping the usual sensitive layers higher.
+
+### Microsoft Research: BitNet b1.58, when the format has to be trained in ([source](https://arxiv.org/abs/2402.17764))
+
+BitNet's claim is that ternary weights, from the set of minus one, zero and one, can match full-precision quality at scale if the quantizer is present during training rather than applied afterwards. The consequence is architectural: matmuls become additions, which changes what hardware is worth building, and the memory and energy profile is unlike anything post-training quantization can reach. The equally important consequence for an interview answer is the constraint: this is not a lever you can apply to an existing checkpoint, so it belongs in the model design conversation, not the deployment one.
+
+```mermaid
+flowchart TD
+  TRAIN["training with the quantizer in the loop"] --> TERN["ternary weights {-1, 0, 1}"]
+  TERN --> NOMUL["matmul becomes add and subtract"]
+  NOMUL --> HW["memory and energy profile PTQ cannot reach"]
+  EXIST["an existing fp16 checkpoint"] -.->|"not reachable"| TERN
+```
+
+**Interview questions this design invites**
+- Why can a trained-in quantizer reach a bit width post-training methods cannot?
+- What changes about the hardware story when multiplies become additions?
+- What would you need to adopt this, and why is that usually prohibitive?
+- Where does the quality claim come from, and what would you check first?
+- How does this relate to QAT on an existing model?
+
+**Tricks and gotchas**
+- Trained-in quantization is the general escape hatch below 4 bits; BitNet is its extreme point.
+- The win is memory bandwidth and energy, so it shows up most at low batch and on constrained hardware.
+- Kernel and hardware support decide whether the theoretical win is realizable today.
+- Quoted quality is at specific scales; check that the comparison is against a same-token-budget baseline.
+
+**Common mistakes and how to fix them**
+- Proposing it as a compression step for a model you already have; fix by naming it as a pretraining decision.
+- Assuming the arithmetic win transfers to any GPU; fix by checking for kernels that exploit ternary weights.
+- Comparing against an fp16 model trained on different data; fix by insisting on matched budgets.
+- Treating QAT and this as the same thing; fix by separating "simulate the quantizer" from "design for the format".
+
+### KIVI: the cache is the other half of the budget ([source](https://arxiv.org/abs/2402.02750))
+
+Once contexts get long, the KV cache rivals or exceeds the weights, and quantizing weights alone stops helping. KIVI's contribution is the asymmetry: keys are quantized per channel and values per token, because their distributions differ, and this asymmetric choice is what lets 2 bits work with no tuning. The ordering discipline around it matters as much as the method: architectural reduction (GQA or MLA) first, then paging, then quantization, and only then eviction or windowing, because each step after the first discards information the previous one preserved.
+
+```mermaid
+flowchart LR
+  ARCH["GQA or MLA<br/>(fewer or compressed KV heads)"] --> PAGE["paged KV<br/>(no fragmentation)"]
+  PAGE --> QUANT["2-bit KV<br/>(keys per channel, values per token)"]
+  QUANT --> EVICT["eviction or window<br/>(lossy, last resort)"]
+  EVICT --> CAP["capacity at the target context"]
+```
+
+**Interview questions this design invites**
+- Why do keys and values want different quantization granularity?
+- Where does KV quantization sit relative to GQA and paging, and why that order?
+- How much of the cache can you quantize before retrieval-style tasks degrade?
+- What does 2-bit KV do to long-context recall specifically?
+- How would you measure whether the cache or the weights is your binding constraint?
+
+**Tricks and gotchas**
+- Keep a small recent window in higher precision; the newest tokens are the most sensitive.
+- Compute the two terms of the memory budget before choosing a lever; the answer is often not the weights.
+- Quantized KV interacts with prefix caching, so validate cache-hit paths as well as fresh requests.
+- Long-context evals, not short prompts, are what expose KV quantization damage.
+
+**Common mistakes and how to fix them**
+- Quantizing the cache before fixing its shape; fix by adopting GQA or MLA first.
+- Using one granularity for keys and values; fix by following the per-channel and per-token split.
+- Validating on short prompts; fix by evaluating at the context length you actually serve.
+- Jumping to eviction because it is easy; fix by exhausting the lossless and near-lossless steps first.
+
+### SparseGPT and Wanda: one-shot pruning, and the case against complexity ([source](https://arxiv.org/abs/2301.00774))
+
+[SparseGPT](https://arxiv.org/abs/2301.00774) showed that a large model can be pruned to 50 percent sparsity in one shot, with no retraining, by solving a layer-wise reconstruction problem. [Wanda](https://arxiv.org/abs/2306.11695) then reached comparable quality with a criterion that takes a line to state: score each weight by its magnitude times the norm of the input activations it multiplies, and remove the lowest per output row. Reading them as a pair is the point: the second result says most of the benefit came from being activation-aware, not from the solve, which is the kind of finding worth reproducing before adopting anything complicated.
+
+```mermaid
+flowchart TD
+  W["dense layer"] --> CRIT{"selection criterion"}
+  CRIT -->|"reconstruction solve"| SG["SparseGPT"]
+  CRIT -->|"magnitude x activation norm"| WA["Wanda"]
+  SG --> SHAPE{"what shape?"}
+  WA --> SHAPE
+  SHAPE -->|"unstructured"| U["best quality, no dense speedup"]
+  SHAPE -->|"2:4"| S["real speedup on sparse tensor cores"]
+  SHAPE -->|"structured"| ST["genuinely smaller, needs healing"]
+```
+
+**Interview questions this design invites**
+- Why is magnitude alone a weak criterion, and what does the activation norm add?
+- Which sparsity shapes actually make inference faster, and on what hardware?
+- Why does unstructured 50 percent sparsity often buy nothing in production?
+- What does a healing run recover, and when is it required?
+- How would you decide between pruning and quantization for the same target?
+
+**Tricks and gotchas**
+- Quote the shape with the number: 50 percent unstructured, 2:4, and structured are three different results.
+- 2:4 is the shape most current accelerators reward, and it is measurably worse than unstructured at the same ratio.
+- Pruning composes badly with aggressive quantization; re-evaluate after each lever rather than at the end.
+- Calibration data matters here too, since the criterion depends on activations.
+
+**Common mistakes and how to fix them**
+- Reporting a sparsity percentage with no shape; fix by naming the pattern and the kernel that exploits it.
+- Expecting speedups on dense kernels; fix by targeting a sparsity-accelerated path or accepting memory savings only.
+- Composing pruning and quantization untested; fix by evaluating the combination, not the parts.
+- Choosing the complicated method by default; fix by running the simple criterion first as the baseline.
+
+### Sheared LLaMA and Minitron: prune to a shape, then distill ([source](https://arxiv.org/abs/2310.06694))
+
+Both take the position that a smaller model is best obtained from a larger one rather than trained from scratch. [Sheared LLaMA](https://arxiv.org/abs/2310.06694) prunes structurally to a target architecture and then continues pretraining with a dynamic data mixture to recover. [Minitron](https://arxiv.org/abs/2407.14679) turns the same idea into a ladder: one parent, several sizes, each recovered by distillation from the parent, at a small fraction of the tokens a from-scratch run would need. The shared lesson is that structured pruning is the only pruning shape that produces a genuinely smaller model, and that the healing run is part of the method rather than an optional extra.
+
+```mermaid
+flowchart LR
+  PARENT["parent model"] --> PRUNE["structured prune to target shape<br/>(heads, channels, layers)"]
+  PRUNE --> HEAL["continued pretraining<br/>or distillation from the parent"]
+  HEAL --> CHILD["smaller model, real speedup"]
+  CHILD --> LADDER["repeat for a size ladder"]
+```
+
+**Interview questions this design invites**
+- Why does structured pruning need a healing run when unstructured pruning does not?
+- What is the difference between removing width and removing depth?
+- Why is distilling from the parent better than continuing to pretrain on raw data?
+- How much recovery budget should you plan for a 2x size reduction?
+- When would you train from scratch instead?
+
+**Tricks and gotchas**
+- Width degrades gracefully; depth buys more latency per unit removed but damages multi-step reasoning disproportionately.
+- The parent is a teacher you already own, which makes distillation the cheapest recovery signal available.
+- One parent and a ladder amortizes the parent's cost across every deployment size.
+- Layer-importance estimates from a small calibration run are usually enough to choose what to remove.
+
+**Common mistakes and how to fix them**
+- Skipping the healing run and concluding pruning does not work; fix by budgeting the recovery tokens up front.
+- Cutting depth to hit a latency target; fix by checking multi-step tasks specifically, where depth cuts hurt most.
+- Recovering on generic web data; fix by distilling from the parent on a mixture close to the target use.
+- Treating the pruned model as the same model; fix by re-running the whole acceptance suite, since it is a new candidate.
+
+### Apple and DeepSeek: designing for the format instead of compressing afterwards ([source](https://arxiv.org/abs/2407.21075))
+
+These two are the same lesson at opposite ends of the hardware range. [Apple's foundation models](https://arxiv.org/abs/2407.21075) are built for a hard device ceiling shared with the operating system, a short list of formats the NPU runs fast, and batch one: the shipped pattern is a small model, quantized to the device's format, with task adapters over one resident base and a server model for everything else. [DeepSeek-V3](https://arxiv.org/abs/2412.19437) makes the same move at the other extreme, using fp8 through training and serving with an architecture (latent attention, sparse experts) chosen so the cheap format is viable in the first place. Neither is compression applied to a finished model; both are cost decisions made before the weights exist.
+
+```mermaid
+flowchart TD
+  CONSTRAINT["the constraint is known first<br/>(device ceiling, or cost per token)"] --> DESIGN["architecture and format chosen together"]
+  DESIGN --> DEV["on device: small base + adapters,<br/>NPU format, batch one"]
+  DESIGN --> DC["data centre: fp8 end to end,<br/>MLA + MoE"]
+  DEV --> ROUTE["route the rest to a server model"]
+  DC --> SERVE["cost per token stated up front"]
+```
+
+**Interview questions this design invites**
+- What does designing for a format buy that post-training quantization cannot?
+- Why are adapters over one resident base the right on-device shape?
+- What decides which requests stay on device and which go to the server?
+- How do latent attention and sparse experts change the compression conversation?
+- What would you have to give up to adopt fp8 training?
+
+**Tricks and gotchas**
+- On device the ceiling is shared with the OS and other apps, so the usable budget is well below the device total.
+- Adapters let one resident base serve many features without paying for many models.
+- Architecture beats compression when you still control the architecture: MLA shrinks the cache structurally and MoE keeps per-token compute down.
+- An explicit cost per token is what makes an architecture claim checkable.
+
+**Common mistakes and how to fix them**
+- Planning an on-device model against total device memory; fix by budgeting against what the OS actually leaves free.
+- Treating the routing boundary as a fallback; fix by designing it as a product decision with its own quality bar.
+- Assuming fp8 training is a serving decision; fix by placing it in the model design conversation.
+- Comparing a designed-for-cheap model against a compressed one without matching tokens; fix by stating both budgets.
+
+### Microsoft Research India: accuracy is not the acceptance test ([source](https://arxiv.org/abs/2407.09141))
+
+This paper is the one to bring to any conversation about shipping a compressed model. Two checkpoints can score identically on a benchmark and disagree on a large fraction of individual answers, because a mean over items hides a redistribution underneath it. The proposed instrument is flip rate: the share of items where the compressed model changes the parent's verdict, measured per capability. It converts acceptance from "did the average hold" into "how much of the behaviour moved", which is the question a product owner is actually asking.
+
+```mermaid
+flowchart LR
+  PARENT["parent verdicts, per item"] --> CMP["pair on the item"]
+  CHILD["compressed verdicts, per item"] --> CMP
+  CMP --> FLIP["flip rate:<br/>right to wrong, wrong to right"]
+  FLIP --> SLICE["per capability and per slice"]
+  SLICE --> GATE{"acceptable?"}
+  GATE -->|"no"| RAISE["raise precision on the sensitive layers"]
+  GATE -->|"yes"| SHIP["ship as a candidate"]
+```
+
+**Interview questions this design invites**
+- How can two models with the same accuracy behave very differently?
+- What is flip rate, and why measure it in both directions?
+- Why is the comparison paired, and what do you have to store to do it?
+- How would you set a flip-rate threshold for a product?
+- Which slices deserve their own threshold?
+
+**Tricks and gotchas**
+- Keep per-item verdicts from the parent; without them there is no paired comparison later.
+- Report both directions: a compressed model that fixes items is still a behaviour change users will notice.
+- Slice by capability, since damage concentrates rather than spreading evenly.
+- Pair this with a small human review of flipped items; the aggregate number does not say which flips matter.
+
+**Common mistakes and how to fix them**
+- Accepting on a benchmark delta inside the noise; fix by measuring flips, which are far more sensitive.
+- Measuring only net accuracy change; fix by reporting both flip directions separately.
+- Testing on public benchmarks only; fix by including production-shaped traffic in the acceptance set.
+- Shipping a compressed model as an update to the same model; fix by treating it as a new candidate with a full acceptance run.
+
+---
+
+## Reasoning and test-time compute
+
+### DeepSeek: R1, reasoning as a training decision you then have to serve ([source](https://arxiv.org/abs/2501.12948))
+
+R1's method is reinforcement learning against rewards that a program can check, so correctness on math and code drives the update rather than a learned preference model. The result is a model that produces long thinking traces before answering, and the serving consequence is the part an interview cares about: the trace is generated, so it is decode, so it is pure memory-bandwidth work that holds a KV slot for its whole length. A model like this changes your cost model from tokens per answer to tokens per solved task, and it moves your p99 more than your p50.
+
+```mermaid
+flowchart LR
+  RL["RL with verifiable rewards<br/>(math, code)"] --> POL["policy that thinks before answering"]
+  POL --> SERVE["serving: long decode,<br/>KV slot held for the trace"]
+  SERVE --> COST["cost per solved task,<br/>not per request"]
+  SERVE --> TAIL["variance up, p99 up"]
+```
+
+**Interview questions this design invites**
+- Why does verifiable reward avoid the failure modes of a learned reward model?
+- What does a long thinking trace do to batch occupancy and to the tail?
+- Which tasks does this training approach not help, and why?
+- How would you decide whether to serve a reasoning model or add a verifier around a cheaper one?
+- What changes in your capacity plan when average output length triples?
+
+**Tricks and gotchas**
+- Trace length is workload, not a setting: measure the distribution, not the mean, before planning capacity.
+- The trace is bandwidth-bound decode, which is exactly what speculative decoding accelerates.
+- Distilling from long traces transfers the length as well as the skill, so the student inherits the cost.
+- Verifiable-reward training only exists where a checker exists, which is the same constraint as serving-side verification.
+
+**Common mistakes and how to fix them**
+- Planning capacity from mean output length; fix by planning from the length distribution and the cap hit rate.
+- Comparing a reasoning model to a non-reasoning one on score alone; fix by reporting the cost and latency frontier.
+- Assuming thinking helps everywhere; fix by measuring per task type, since recall and extraction do not benefit.
+- Letting traces run unbounded; fix with a hard cap and a forced answer at the boundary.
+
+### Stanford and collaborators: s1, the budget as a prompt-level knob ([source](https://arxiv.org/abs/2501.19393))
+
+s1's result is that you do not need a large training program to get a budget knob. Fine-tuning on a small curated set (about a thousand examples) plus budget forcing at decode time, suppressing the end-of-thinking marker to make the model continue or injecting it to make it stop, produces controllable test-time compute. The value in a system design conversation is that it separates two things people conflate: having a model that can think, and having a mechanism to decide how much it thinks on this request.
+
+```mermaid
+flowchart TD
+  REQ["request"] --> GEN["generate thinking tokens"]
+  GEN --> CHK{"budget reached?"}
+  CHK -->|"no, and model wants to stop"| SUP["suppress end marker,<br/>append a continuation cue"]
+  SUP --> GEN
+  CHK -->|"yes"| INJ["inject end marker,<br/>force the answer"]
+  INJ --> ANS["answer"]
+```
+
+**Interview questions this design invites**
+- What is budget forcing, and why does it work at all?
+- When does forcing a longer budget stop helping, and what does it look like when it hurts?
+- How does this differ from a provider effort parameter in what you can control and observe?
+- What selection do you pair it with, and why is majority vote the usual choice?
+- What would you measure to set the budget per request class?
+
+**Tricks and gotchas**
+- Forcing a budget a model was not trained for degrades output; the knob is not free at either end.
+- Suppression and injection are decode-time interventions, so they compose with any serving stack you control.
+- The end of a forced trace is where malformed answers appear; always parse and validate the final segment.
+- A small curated training set is a real result: the data quality, not the volume, is what carried it.
+
+**Common mistakes and how to fix them**
+- Turning the budget up as a general quality knob; fix by measuring per task type where it actually pays.
+- Truncating instead of forcing; fix by injecting the end marker so the model produces an answer.
+- Assuming the budget transfers across models; fix by re-calibrating per model and per prompt style.
+- Reporting the average gain; fix by reporting the distribution, since gains concentrate on hard items.
+
+### Google DeepMind and UC Berkeley: allocate by difficulty ([source](https://arxiv.org/abs/2408.03314))
+
+This paper asks the budget question properly: given a fixed inference budget, how should it be spent, and when is spending it better than using a larger model. The answer is that the optimal strategy depends on the difficulty of the item, that adaptive allocation beats any fixed setting, and that for easier problems extra test-time compute can substitute for a larger model while for the hardest ones it cannot. In a design conversation this is the result that turns "should we enable thinking" into "what is our allocation policy".
+
+```mermaid
+flowchart TD
+  ITEM["request"] --> EST["difficulty estimate<br/>(predicted or measured)"]
+  EST -->|"easy"| SMALL["small budget, or a smaller model"]
+  EST -->|"medium"| SEQ["longer chain, or a few samples"]
+  EST -->|"hard"| PAR["many samples + strong verifier"]
+  SMALL --> ACCT["record tokens and solved"]
+  SEQ --> ACCT
+  PAR --> ACCT
+  ACCT -.->|"recalibrate"| EST
+```
+
+**Interview questions this design invites**
+- When does test-time compute substitute for a larger model, and when does it not?
+- How do you estimate difficulty without a difficulty classifier?
+- Why does adaptive allocation beat a fixed budget at the same total spend?
+- What is the right objective: accuracy per dollar, or solved tasks per dollar?
+- How would you evaluate the allocation policy itself?
+
+**Tricks and gotchas**
+- A cheap attempt plus a verifier measures difficulty instead of predicting it, and is usually the better classifier.
+- Sequential and parallel spend trade differently: one costs latency, the other costs tokens.
+- The policy needs an outcome log per request or it cannot be recalibrated.
+- Budget policy composes with model routing; the underrated cell is a small model given room to think.
+
+**Common mistakes and how to fix them**
+- One global effort setting; fix with per-class allocation driven by measured outcomes.
+- Estimating difficulty with a model nobody evaluated; fix by evaluating the classifier as its own component.
+- Optimizing accuracy per request; fix by optimizing cost per solved task, which is what the business pays for.
+- Ignoring latency when choosing parallel over sequential; fix by treating the p99 target as a hard constraint.
+
+### Stanford: Large Language Monkeys, coverage is not delivered quality ([source](https://arxiv.org/abs/2407.21787))
+
+The paper's finding is that coverage, the probability that at least one of k samples is correct, keeps rising with k across orders of magnitude, often far beyond where single-sample accuracy plateaus. The second half is the one people forget: that coverage is only realizable if something can pick the right sample. With an executable verifier you keep most of it; with a weak selector you keep a fraction. This is the cleanest statement of why best-of-n is a systems decision about verification rather than a sampling trick.
+
+```mermaid
+flowchart LR
+  K["k samples"] --> COV["coverage = 1 - (1-p)^k"]
+  COV --> SEL{"selector"}
+  SEL -->|"tests / compiler"| STRONG["keeps most of the coverage"]
+  SEL -->|"majority vote"| MID["keeps some"]
+  SEL -->|"weak reward model"| WEAK["keeps little, and can invert at large k"]
+  STRONG --> DEL["delivered quality"]
+  MID --> DEL
+  WEAK --> DEL
+```
+
+**Interview questions this design invites**
+- Derive pass@k, and say what it assumes about sample independence.
+- Why can delivered quality fall as k grows when the selector is a learned reward model?
+- What is the cheapest verifier available for a given task, and how would you test it?
+- When is sampling more worth it than thinking longer?
+- How would you report the result of a best-of-n experiment honestly?
+
+**Tricks and gotchas**
+- Delivered quality is roughly coverage times selector accuracy; both numbers belong in the report.
+- Samples are not independent at low temperature, so measured coverage can fall short of the formula.
+- Sandbox capacity, not model cost, is often the real constraint on k.
+- Best-of-n against a learned reward is optimization against the verifier, which is why quality can peak and then fall.
+
+**Common mistakes and how to fix them**
+- Quoting pass@k as a product metric; fix by quoting what the selector actually delivers.
+- Using majority vote on tasks where the model is confidently wrong; fix by using an executable check where one exists.
+- Raising k without watching for reward hacking; fix by plotting delivered quality against k, not just coverage.
+- Ignoring the tail cost of k parallel generations; fix by measuring the p99 of the slowest sample, which is what the user waits for.
+
+### OpenAI: Let's Verify Step by Step, the verifier as a first-class component ([source](https://arxiv.org/abs/2305.20050))
+
+The result is that supervising the reasoning process, with a label per step, produces a far stronger selector than supervising only the final outcome, and the process reward model then works as the selector in best-of-n. The design lesson generalizes past math: the quality of your selector is what converts sampling into answers, so the verifier deserves the same engineering attention as the generator. The cost is equally real, since a step-level model is expensive to label and its inference can rival the generation it is grading.
+
+```mermaid
+flowchart TD
+  GEN["k candidate solutions"] --> PRM["process reward model<br/>(score each step)"]
+  PRM --> PICK["select the best-scored solution"]
+  PICK --> OUT["answer"]
+  LAB["step-level human labels"] --> PRM
+  ORM["outcome-only reward model"] -.->|"weaker selector"| PICK
+```
+
+**Interview questions this design invites**
+- Why does process supervision beat outcome supervision as a selector?
+- What does step-level labelling cost, and how would you reduce it?
+- When does verification cost more than generation, and what do you do then?
+- How is a process reward model gamed, and how would you detect it?
+- Where does this generalize outside math and code?
+
+**Tricks and gotchas**
+- The verifier is part of the serving cost, so include it in the cost per solved task.
+- A reward model is gameable in both forms; process supervision makes it subtler, not impossible.
+- Executable checks dominate learned scores wherever they exist, so reach for them first.
+- Keep the step scores for debugging: they explain why a wrong sample was chosen.
+
+**Common mistakes and how to fix them**
+- Treating the selector as free; fix by pricing verification into the request.
+- Using an uncertified judge as the accept test; fix by certifying it against labels and pinning its version.
+- Assuming a strong selector transfers across domains; fix by re-measuring on your own tasks.
+- Reporting selection accuracy on the training distribution; fix by holding out items the selector never scored.
+
+### OpenAI, Anthropic and Google: the effort knob as a product surface ([source](https://platform.openai.com/docs/guides/reasoning))
+
+All three providers expose the same idea in different shapes: [OpenAI's reasoning guide](https://platform.openai.com/docs/guides/reasoning) documents an effort setting, [Anthropic's extended thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking) exposes a thinking-token budget, and [Google's Gemini thinking docs](https://ai.google.dev/gemini-api/docs/thinking) expose a budget that can be set to zero. For a caller these are the whole control surface: you choose a level, you pay for tokens you may not be able to inspect, and the tail behaviour is the provider's to manage. Knowing the three shapes and what each hides is a common interview question for anyone building on APIs rather than serving their own models.
+
+```mermaid
+flowchart TD
+  CALLER["your service"] --> KNOB{"provider control"}
+  KNOB -->|"effort level"| E["coarse, opaque token count"]
+  KNOB -->|"thinking token budget"| B["explicit cap, billed"]
+  KNOB -->|"budget with an off switch"| Z["can disable thinking per call"]
+  E --> UNK["tail is the provider's"]
+  B --> UNK
+  Z --> UNK
+  UNK --> MITI["your mitigations: timeouts,<br/>request-level budgets, fallbacks"]
+```
+
+**Interview questions this design invites**
+- What can you control through an effort parameter, and what can you not?
+- How do you enforce a latency SLO on top of a provider you do not schedule?
+- How do you compare two providers whose budget knobs have different units?
+- What do you log per request to make the cost auditable later?
+- When is self-hosting worth it purely for tail control?
+
+**Tricks and gotchas**
+- Thinking tokens are billed and often not returned, so the cost is visible and the content is not.
+- Two effort settings of one model are two candidates for evaluation purposes.
+- A client-side timeout without a server-side budget wastes the tokens already generated.
+- Cache and reuse where possible: prefix caching helps the prompt, never the unique trace.
+
+**Common mistakes and how to fix them**
+- Assuming an effort level maps to a fixed token count; fix by measuring the distribution per task type.
+- Setting one effort level globally; fix with per-class settings driven by measured outcomes.
+- Comparing providers on price per token; fix by comparing cost per solved task at equal quality.
+- Retrying on timeout without a cap; fix with a budget for the whole request, retries included.
+
+### UIUC and collaborators: your verifier is a benchmark and it can be wrong ([source](https://arxiv.org/abs/2507.02825))
+
+This paper audits agentic benchmarks and finds two distinct failures: task validity, where a task cannot be solved as specified, and outcome validity, where the checker accepts a solution that is not correct. Both matter directly to a reasoning stack, because the same checker that scores a benchmark is often the verifier that selects among samples in production. If it accepts wrong answers, best-of-n is optimizing towards them, and the measured gain is partly an artifact of the checker.
+
+```mermaid
+flowchart TD
+  T["task"] --> V1{"task validity:<br/>is it solvable as written?"}
+  V1 -->|"no"| BAD1["scores measure the flaw"]
+  V1 -->|"yes"| SOL["candidate solution"]
+  SOL --> V2{"outcome validity:<br/>does the check reject wrong answers?"}
+  V2 -->|"no"| BAD2["best-of-n optimizes toward the gap"]
+  V2 -->|"yes"| GOOD["a signal you can select on"]
+```
+
+**Interview questions this design invites**
+- What is the difference between task validity and outcome validity?
+- How would you audit a test suite that you are also using as a production verifier?
+- What does a weak verifier do to a best-of-n system specifically?
+- How many trajectories would you read before trusting an agent number?
+- How do you keep a verifier from being gamed by the generator over time?
+
+**Tricks and gotchas**
+- The production verifier and the benchmark checker are usually the same code, so a benchmark audit is also a system audit.
+- Adversarial review beats sampling: ask what a wrong answer that passes would look like, then look for it.
+- Add negative tests to the verifier itself, so it is shown to reject known-bad solutions.
+- Track acceptance rate over time; a rising rate with flat quality is the signature of gaming.
+
+**Common mistakes and how to fix them**
+- Trusting a passing rate with no trajectory review; fix by reading twenty passing runs before publishing.
+- Using the same checker to both select and evaluate; fix by holding out an independent evaluation check.
+- Assuming a test suite that passes for humans is strong enough for an optimizer; fix by adding negative cases.
+- Reporting an agent gain without auditing the verifier; fix by stating the verifier's own error rate next to the gain.
+
+---
+
+## Image and video generation serving
+
+### Stability AI: SDXL, a bigger base and a refiner stage ([source](https://arxiv.org/abs/2307.01952))
+
+SDXL is the design most open image generation still inherits. It scales the UNet, adds a second text encoder, conditions on the original image size and crop parameters so the model stops producing accidentally cropped compositions, and adds a separate refiner model that runs on the last part of the trajectory to clean up detail. For serving, the interesting part is that the refiner is a second model in the path: the pipeline is two loaded checkpoints and two sets of weights in memory, and the refiner's share of the step budget is a tunable that most deployments never tune.
+
+```mermaid
+flowchart LR
+  P["prompt"] --> TE["two text encoders"]
+  TE --> BASE["base UNet<br/>(most of the steps)"]
+  BASE --> REF["refiner UNet<br/>(last fraction of the trajectory)"]
+  REF --> VAE["VAE decode"]
+  COND["size and crop conditioning"] --> BASE
+```
+
+**Interview questions this design invites**
+- Why condition on the original image size and crop, and what artifact does it remove?
+- What does the refiner cost you in memory, and when would you drop it?
+- How would you split the step budget between base and refiner?
+- Why two text encoders, and what would you lose with one?
+- Where does 1024px generation get its affordability from?
+
+**Tricks and gotchas**
+- The refiner is optional at serving time: dropping it frees memory and some latency, and costs fine detail.
+- Size and crop conditioning is a data-side fix expressed as an input, which is worth knowing as a pattern.
+- Two checkpoints resident means the memory plan is for both, plus the VAE and the text encoders.
+- Most of the latency is still the base loop, so tune steps before you tune the refiner split.
+
+**Common mistakes and how to fix them**
+- Budgeting memory for one model; fix by counting base, refiner, VAE and text encoders together.
+- Assuming the refiner is what makes SDXL good; fix by ablating it, since the base carries most of the quality.
+- Serving at a resolution the model was not conditioned for; fix by using the conditioning inputs as intended.
+- Quoting SDXL latency without saying whether the refiner ran; fix by reporting the full pipeline.
+
+### Stability AI: adversarial diffusion distillation, one step that stays sharp ([source](https://arxiv.org/abs/2311.17042))
+
+ADD is the answer to the fact that pure distillation to one step produces soft images. It combines a distillation loss against the teacher's trajectory with an adversarial loss from a discriminator on real images, so the student is pushed both toward the teacher's behaviour and toward realism. The result, SDXL-Turbo, generates in one to four steps, which changes the product: generation becomes interactive at typing speed rather than a request you wait on. The tradeoff is the one every distillation makes, and this paper is unusually direct about it: diversity falls.
+
+```mermaid
+flowchart TD
+  T["teacher trajectory"] --> DL["distillation loss"]
+  R["real images"] --> ADV["adversarial loss<br/>(discriminator)"]
+  DL --> S["student: 1 to 4 steps"]
+  ADV --> S
+  S --> OUT["sharp single-step output,<br/>narrower distribution"]
+```
+
+**Interview questions this design invites**
+- Why does one-step distillation without a discriminator produce soft images?
+- What exactly is lost when a model goes from 30 steps to 1, and how would you measure it?
+- When is a narrow output distribution acceptable, and when is it fatal?
+- How would you route between a distilled and a full model in one product?
+- What does interactive generation change about the product design?
+
+**Tricks and gotchas**
+- Diversity loss shows up on the tail of prompts, not on demo prompts, so the acceptance set has to include hard compositions.
+- One-step generation makes guidance moot, which removes the factor of two as well.
+- Keep both models resident if you route: the distilled path for drafts, the full path for the final render.
+- Latency low enough to run per keystroke changes the UI, and the UI change is usually the point.
+
+**Common mistakes and how to fix them**
+- Accepting a distilled model on a handful of prompts; fix with a paired preference test over a broad set.
+- Reporting the speedup without the diversity cost; fix by reporting both, since an interviewer will ask.
+- Using a distilled model for a creative tool; fix by routing, or by accepting narrower outputs deliberately.
+- Assuming distillation transfers to every base; fix by re-running the acceptance test per checkpoint.
+
+### Latent consistency models and LCM-LoRA: distillation as an adapter ([source](https://arxiv.org/abs/2310.04378))
+
+[LCM](https://arxiv.org/abs/2310.04378) applies consistency distillation in the latent space, reaching high-quality generation in two to eight steps. [LCM-LoRA](https://arxiv.org/abs/2311.05556) is the part that mattered operationally: the distillation is packaged as a LoRA adapter, so it can be applied to an existing fine-tuned checkpoint without redoing the distillation. That turned few-step generation from a research result into something a team could adopt in an afternoon, and it is the clearest example in this topic of packaging deciding adoption.
+
+```mermaid
+flowchart LR
+  BASE["your fine-tuned base"] --> ADAPT["apply LCM-LoRA"]
+  ADAPT --> FEW["2 to 8 step generation"]
+  FEW --> Q{"quality acceptable<br/>on your prompts?"}
+  Q -->|"yes"| SHIP["ship, keep the base for finals"]
+  Q -->|"no"| FULL["fall back to the full model"]
+```
+
+**Interview questions this design invites**
+- Why can a LoRA carry a distillation, and what does that say about what distillation changes?
+- How would you evaluate it against your own fine-tune rather than against the reference base?
+- What happens when you stack a style LoRA and an acceleration LoRA?
+- What is the memory and swap cost of adapters at serving time?
+- When would you distill properly instead of using the adapter?
+
+**Tricks and gotchas**
+- Adapters compose imperfectly: a style LoRA plus an acceleration LoRA can interact, so test the combination you will ship.
+- Quality varies by base checkpoint, so the result on the reference model is not your result.
+- Adapter swapping is cheap enough to do per request, which lets one resident base serve many styles.
+- Few-step models often want a different guidance setting, sometimes none at all.
+
+**Common mistakes and how to fix them**
+- Trusting the reference benchmark; fix by evaluating on your own base and prompt distribution.
+- Holding one full model per style; fix with one base plus adapters.
+- Leaving guidance at the old setting; fix by re-tuning it for the few-step regime.
+- Treating adapter composition as free; fix by testing the exact stack you serve.
+
+### NVIDIA and Baseten: compiled engines, and the cold start they cost ([source](https://www.baseten.co/blog/40-faster-stable-diffusion-xl-inference-with-nvidia-tensorrt/))
+
+Diffusion is the friendly case for ahead-of-time compilation: shapes are fixed from the start, there is no growing KV cache, and the same graph runs every step. [Baseten's writeup](https://www.baseten.co/blog/40-faster-stable-diffusion-xl-inference-with-nvidia-tensorrt/) reports roughly 40 percent faster SDXL inference with TensorRT on H100, sub-two-second latency at 30 steps, and the part worth remembering: cold start goes from about ten seconds to roughly a minute, because the engine has to be loaded and the shapes are baked in. [NVIDIA's own post](https://developer.nvidia.com/blog/generate-stunning-images-with-stable-diffusion-xl-on-the-nvidia-ai-inference-platform/) walks the same optimization stack, and [the video version](https://developer.nvidia.com/blog/optimizing-transformer-based-diffusion-models-for-video-generation-with-nvidia-tensorrt/) does it where attention spans space and time.
+
+```mermaid
+flowchart TD
+  M["model + fixed shapes"] --> C["compile engine<br/>(fused kernels, chosen precision)"]
+  C --> FAST["throughput up, latency down"]
+  C --> COLD["cold start up: ~10s eager to ~1min compiled"]
+  COLD --> Q{"can you keep a warm pool?"}
+  Q -->|"yes"| SCALE["compiled everywhere"]
+  Q -->|"no, spiky traffic"| MIX["warm eager fallback<br/>for the first request"]
+```
+
+**Interview questions this design invites**
+- Why is diffusion easier to compile ahead of time than LLM decode?
+- What does a compiled engine cost you operationally?
+- How many engines do you need if the product exposes three resolutions and two batch sizes?
+- How would you serve spiky traffic that must scale to zero?
+- Where would you measure to prove the speedup is real for your workload?
+
+**Tricks and gotchas**
+- One engine per shape: resolutions and batch sizes multiply, and each engine is a build artifact to version.
+- Throughput and latency answer different questions; benchmark both, and at your real batch size.
+- A warm eager replica behind the compiled pool absorbs the first request after idle.
+- Precision changes hide inside compilation, so include them in the acceptance test rather than assuming parity.
+
+**Common mistakes and how to fix them**
+- Adopting compilation without measuring cold start; fix by measuring it as a first-class number.
+- Building an engine per shape by hand; fix by generating them in CI and versioning them with the model.
+- Comparing compiled latency to eager throughput; fix by comparing like for like.
+- Assuming quality is unchanged; fix with a paired preference test after any precision change.
+
+### Modal: cold start as the product problem ([source](https://modal.com/docs/guide/cold-start))
+
+Modal's cold-start guide is the operational counterpart to the compilation decision, from a platform whose whole business is that problem. The techniques generalize: keep the container image small, load weights from a fast shared volume rather than pulling them at start, snapshot memory after initialization so the expensive setup happens once, and keep a small warm pool sized to the arrival rate rather than to peak. For a generation service where weights are several gigabytes and the engine build is minutes, these decide whether the cost floor is zero or one always-on GPU.
+
+```mermaid
+flowchart LR
+  REQ["first request after idle"] --> PULL["container + weights"]
+  PULL --> INIT["init: load model, build or load engine"]
+  INIT --> READY["ready"]
+  SNAP["memory snapshot after init"] -.skips.-> INIT
+  VOL["weights on a fast volume"] -.shortens.-> PULL
+  POOL["warm pool sized to arrival rate"] -.avoids entirely.-> REQ
+```
+
+**Interview questions this design invites**
+- What are the components of a cold start for a generation service, in seconds?
+- Which of them can be removed entirely, and which only shortened?
+- How would you size a warm pool from an arrival-rate distribution?
+- What does scale-to-zero cost the user, and when is that acceptable?
+- How does this interact with the decision to compile?
+
+**Tricks and gotchas**
+- Weight loading usually dominates image pull, so a fast volume beats a smaller image.
+- Snapshotting after initialization turns a per-start cost into a one-time cost.
+- Warm-pool sizing is a queueing problem, not a guess: the arrival rate and the start time set it.
+- Cold start and p99 are the same conversation once traffic is spiky.
+
+**Common mistakes and how to fix them**
+- Optimizing the container image while the weights dominate; fix by measuring the phases separately.
+- Sizing a warm pool for peak; fix by sizing for the arrival rate and letting the queue absorb bursts.
+- Ignoring cold start until launch; fix by making it a tracked metric from the first deployment.
+- Treating scale-to-zero as free; fix by pricing the first-request latency it imposes.
+
+### Stability AI: Stable Video Diffusion, where the paper is mostly about data ([source](https://arxiv.org/abs/2311.15127))
+
+The notable thing about the SVD report is its ordering: most of it is the video data pipeline, not the architecture. Cut detection to avoid training across scene boundaries, captioning at multiple levels, optical-flow filtering to drop static clips, aesthetic and text-presence filters, then a three-stage recipe of image pretraining, video pretraining on the curated set, and high-quality fine-tuning. For an interview, this is the evidence for the claim that in video generation the data pipeline is the system.
+
+```mermaid
+flowchart LR
+  RAW["raw video"] --> CUT["cut detection<br/>(no clips across scene changes)"]
+  CUT --> CAP["multi-level captioning"]
+  CAP --> FILT["motion, aesthetic, text-presence filters"]
+  FILT --> SET["curated video set"]
+  SET --> S1["stage 1: image pretraining"]
+  S1 --> S2["stage 2: video pretraining"]
+  S2 --> S3["stage 3: high-quality finetune"]
+```
+
+**Interview questions this design invites**
+- Why does cut detection matter before anything else?
+- What does a static-clip filter protect the model from learning?
+- Why start from an image model rather than training video from scratch?
+- What would you measure to know the curation worked?
+- Where do the licensing questions sit in this pipeline?
+
+**Tricks and gotchas**
+- Training across a scene change teaches the model to hallucinate cuts, which is a visible artifact.
+- Motion filtering by optical flow removes both static clips and camera-shake noise.
+- Image pretraining first is what makes the video stage affordable.
+- Curation decisions are more reproducible than architecture ones, which is why the report spends its pages there.
+
+**Common mistakes and how to fix them**
+- Scraping video and training; fix by budgeting the curation pipeline as the main work.
+- Ignoring caption quality; fix by captioning at several granularities and measuring prompt adherence later.
+- Treating licensing as a later problem; fix by naming it as a constraint on the source list.
+- Comparing video models without stating clip length and resolution; fix by quoting both with every number.
+
+### Google and Meta: whole-clip generation, and the scale it takes ([source](https://arxiv.org/abs/2401.12945))
+
+[Lumiere](https://arxiv.org/abs/2401.12945) makes one architectural argument: generate the entire clip in a single pass through a space-time network, rather than producing distant keyframes and interpolating between them, because the interpolation seam is where temporal consistency fails. [Movie Gen](https://arxiv.org/abs/2410.13720) is the other end of the same problem, a family of media models with the training and inference scale stated, which is what makes it citable when someone asks what a production video system actually costs. Together they set the expectation for the topic: video generation is minutes of GPU time per clip and belongs in a queue.
+
+```mermaid
+flowchart TD
+  A["keyframes + interpolation"] --> SEAM["consistency fails at the seams"]
+  B["space-time UNet or transformer,<br/>whole clip at once"] --> COST["cost superlinear in clip length"]
+  SEAM --> CHOICE{"which failure can you live with?"}
+  COST --> CHOICE
+  CHOICE --> CHUNK["in practice: chunks with overlap<br/>conditioned on previous frames"]
+```
+
+**Interview questions this design invites**
+- Why does keyframe interpolation produce inconsistency, and where does it show?
+- What makes cost superlinear in clip length?
+- How would you generate a clip longer than the model's native window?
+- Why is quality worse further from the conditioning frame?
+- What is the right latency contract for a video feature?
+
+**Tricks and gotchas**
+- Chunked generation with overlap is the practical compromise, and its quality decays with distance from the conditioning frame.
+- Quote a clip-length limit rather than implying unbounded generation.
+- A low-resolution, low-frame-rate preview tier is how these products stay affordable.
+- Cost per second of output video is the metric; cost per request means nothing here.
+
+**Common mistakes and how to fix them**
+- Serving video from a request-response endpoint; fix with a queued job and a progress channel.
+- Promising arbitrary length; fix by exposing the chunking and its quality decay honestly.
+- Comparing clips at different resolutions and frame rates; fix by fixing both before measuring.
+- Budgeting video like images; fix by pricing per second of output at the target resolution.
+
+---
+
 ## Realtime streaming chat
 
 ### LinkedIn: end-to-end streaming generative AI assistant with progressive parsing ([source](https://www.linkedin.com/blog/engineering/generative-ai/musings-on-building-a-generative-ai-product))
@@ -3769,6 +4535,303 @@ flowchart TD
 - Multiple-comparison false wins across segments: apply false-discovery-rate control.
 
 _Not reachable: DoorDash (simulation and evaluation flywheel), Booking.com_
+
+---
+
+## Benchmarking a model
+
+### EleutherAI: the LM Evaluation Harness, and why two labs disagree ([source](https://arxiv.org/abs/2405.14782))
+
+The harness maintainers wrote down what years of running other people's benchmarks taught them: the number is produced by the protocol, and almost nobody publishes enough of the protocol to reproduce it. Their answer is a versioned task config that pins prompt rendering, few-shot construction, the scoring mode (log-likelihood over choices versus generative), and the answer parser, plus the discipline of storing the rendered string rather than the template. The headline observation is that formatting alone can move a model between near-random and competent on the same items, which reframes benchmark disagreement as a protocol diff rather than a model result.
+
+```mermaid
+flowchart TD
+  TASK["versioned task config"] --> RENDER["render prompt<br/>(template, shots, format instruction)"]
+  RENDER --> SCORE{"scoring mode"}
+  SCORE -->|"log-likelihood over options"| LL["open weights only"]
+  SCORE -->|"generative + parser"| GEN["any model, parse rate matters"]
+  LL --> AGG["aggregate"]
+  GEN --> AGG
+  AGG --> REPORT["number + config hash"]
+```
+
+**Interview questions this design invites**
+- Why does a chat template change a benchmark score at all, and by how much?
+- When is log-likelihood scoring available, and when must you use generative scoring?
+- What do you store so that a scoring change does not require re-running the models?
+- How do you compare a number you produced against one published in a paper?
+- Which knobs must be identical across candidates, and which may vary?
+
+**Tricks and gotchas**
+- Render from the model's own chat template; a hand-written prompt silently changes the task.
+- Pin the few-shot pool by seed, not just the shot count, because order matters too.
+- Store the rendered prompt and the raw completion, so a parser fix is not a model re-run.
+- Report the parse-failure rate; a score without it quietly includes extraction errors.
+
+**Common mistakes and how to fix them**
+- Comparing two numbers from different harness versions; fix by pinning the version and the task config hash in the report.
+- Mixing scoring modes across candidates; fix by choosing one per benchmark and reporting which.
+- Treating a disagreement as a model finding; fix by diffing the protocols first, which usually ends the argument.
+- Leaving max output tokens at a default; fix by setting it from the observed length distribution and reporting the truncation rate.
+
+### Stanford CRFM: HELM, the report as the artifact ([source](https://crfm.stanford.edu/helm/))
+
+HELM's argument is that a single accuracy number is not a measurement of a model, it is a projection of one. The design answer is a matrix: many scenarios crossed with many metrics (accuracy, calibration, robustness, fairness, bias, toxicity, efficiency), all run under one standardized protocol so cells are comparable. What it buys is that a model cannot be summarized by its best cell, and what it costs is real money per full run, which is why most teams borrow the shape rather than the whole suite.
+
+```mermaid
+flowchart LR
+  SC["scenarios<br/>(task, domain, who it serves)"] --> RUN["one standardized protocol"]
+  MET["metrics<br/>(accuracy, calibration, robustness,<br/>bias, efficiency)"] --> RUN
+  RUN --> GRID["scenario x metric grid"]
+  GRID --> READ["read across the row,<br/>not down one column"]
+```
+
+**Interview questions this design invites**
+- What does a multi-metric report catch that a leaderboard rank cannot?
+- How would you choose scenarios for a product rather than for a paper?
+- Which metrics are cheap to add once the runs exist, and which need new items?
+- How do you keep a matrix report from being ignored in favour of one number?
+- What does efficiency belong in the same grid as accuracy?
+
+**Tricks and gotchas**
+- Most of the cost is generation, so adding a metric computed from stored completions is nearly free.
+- A grid makes headroom visible: a saturated scenario cannot separate two candidates.
+- Weighting the cells is a product decision and should be written down before the run, not after.
+- Publishing the protocol next to the grid is what makes an external number comparable.
+
+**Common mistakes and how to fix them**
+- Collapsing the grid to an index that hides the movement; fix by normalizing explicitly, weighting on purpose, and dropping saturated scenarios.
+- Running every scenario because the suite has them; fix by selecting for the decision the number drives.
+- Comparing your cells against published cells from a different protocol; fix by re-running the baseline yourself.
+- Adding metrics that nobody will act on; fix by naming the decision each metric changes.
+
+### UK AI Security Institute: Inspect, standardizing the environment ([source](https://inspect.aisi.org.uk/))
+
+For an agent, most of the variance is not in the model. It is in the loop: how many steps are allowed, which tools exist, what the sandbox permits, how errors are surfaced back, and when the episode is declared over. Inspect is the argument that this scaffolding is part of the instrument and therefore has to be specified and shared. The framework fixes the solver loop, the tool interface and the sandbox, so two agent scores differ because of the agents rather than because one had a more forgiving environment.
+
+```mermaid
+flowchart TD
+  DS["dataset of tasks"] --> SOLVER["solver loop<br/>(steps, retries, termination)"]
+  TOOLS["tool set + sandbox<br/>(filesystem, network, timeouts)"] --> SOLVER
+  SOLVER --> TRACE["full trajectory stored"]
+  TRACE --> SCORER["scorer<br/>(tests, checker, model grader)"]
+  SCORER --> RESULT["score + trajectory for audit"]
+```
+
+**Interview questions this design invites**
+- Which parts of an agent score belong to the model and which to the scaffold?
+- How do you keep a step limit from being the thing your benchmark actually measures?
+- What must the sandbox forbid for a coding benchmark to mean anything?
+- How do you audit an agent result after the fact?
+- What is the right way to report an agent number so someone else can match it?
+
+**Tricks and gotchas**
+- Store the whole trajectory, not just the verdict; agent failures are only legible in the trace.
+- A step or token limit is a protocol parameter and belongs in the report next to the score.
+- Network access inside the sandbox can turn a reasoning benchmark into a retrieval benchmark.
+- Tool error messages are part of the prompt, so their wording changes behaviour.
+
+**Common mistakes and how to fix them**
+- Comparing agents built on different scaffolds; fix by holding the loop and tools fixed and varying only the model.
+- Trusting a passing rate with no trajectory review; fix by reading twenty passing runs before publishing.
+- Letting the sandbox reach the internet; fix by denying network by default and allowlisting per task.
+- Treating a timeout as a wrong answer without saying so; fix by reporting timeouts as their own category.
+
+### OpenAI: simple-evals and HealthBench, two halves of one argument ([source](https://github.com/openai/simple-evals))
+
+These two artifacts make opposite bets that fit together. simple-evals publishes prompts and parsers as small readable code on the position that a protocol nobody can replicate is not a measurement, and deliberately keeps coverage narrow so that the code stays legible. [HealthBench](https://openai.com/index/healthbench/) goes the other way on an open-ended domain: instead of a holistic judge score, physicians write per-item rubric criteria, each nearly binary, and the score is the weighted sum of criteria met. The common thread is that reproducibility comes from decomposing the judgment, either into code or into criteria.
+
+```mermaid
+flowchart TD
+  OPEN["open-ended answer"] --> DEC{"can the judgment<br/>be decomposed?"}
+  DEC -->|"into code"| CODE["published prompt + parser<br/>(simple-evals)"]
+  DEC -->|"into criteria"| RUB["expert rubric items<br/>(HealthBench)"]
+  CODE --> REPRO["another team can match the number"]
+  RUB --> GRADE["grade each criterion<br/>(model, certified against experts)"]
+  GRADE --> REPRO
+```
+
+**Interview questions this design invites**
+- Why does a rubric of near-binary criteria reproduce better than a holistic score?
+- Who writes the criteria, and what does that cost?
+- How would you certify the model that grades the criteria?
+- When is publishing the parser more valuable than publishing the dataset?
+- What kind of task cannot be decomposed this way?
+
+**Tricks and gotchas**
+- Near-binary criteria are what models and humans actually agree on; holistic scores are where they diverge.
+- Criteria weights encode a domain judgment, so they belong with the domain expert, not the engineer.
+- A published parser lets an outsider reproduce the number without your infrastructure.
+- Narrow, readable evals get run; large opaque suites get cited.
+
+**Common mistakes and how to fix them**
+- Asking a judge for a 1 to 10 score; fix by asking for a list of criteria met.
+- Writing rubrics without domain experts; fix by budgeting expert time as the main cost of the benchmark.
+- Treating the grading model as neutral infrastructure; fix by certifying it and pinning its version.
+- Publishing scores without the prompts; fix by shipping the harness code alongside.
+
+### Anthropic: adding error bars, and what a score actually is ([source](https://arxiv.org/abs/2411.00640))
+
+The argument is that eval reporting borrowed the vocabulary of measurement without the statistics. A benchmark score is an estimate from a finite sample of questions, so it has a standard error, and the questions are usually not independent. The practical recommendations are the ones to be able to recite: report standard errors, compare candidates paired on the same items rather than as two independent proportions, account for clustered items, and resample across seeds where generation is stochastic. The consequence is uncomfortable and correct: many published gaps on small suites are not resolvable at all.
+
+```mermaid
+flowchart LR
+  RUN["per-item verdicts<br/>for both candidates"] --> PAIR["pair on the item"]
+  PAIR --> MCN["McNemar: b wins, c losses"]
+  MCN --> DELTA["delta and its SE"]
+  DELTA --> CALL{"interval excludes zero?"}
+  CALL -->|"no"| NOCALL["report as not resolvable"]
+  CALL -->|"yes"| REPORT["report the gap with the interval"]
+```
+
+**Interview questions this design invites**
+- How many items do you need to call a 2-point gap?
+- Why is a paired comparison stronger than comparing two proportions?
+- What are clustered items and how do they change the interval?
+- How many seeds do you run on a reasoning benchmark, and why?
+- What do you report when the interval includes zero?
+
+**Tricks and gotchas**
+- Pairing needs per-item verdicts from both candidates, which means the run store is a prerequisite.
+- On a 200-item suite the 95 percent half-width is around 7 points, which is larger than most claimed gaps.
+- Single-run swings on reasoning suites routinely exceed the effect being claimed; seeds are not optional there.
+- A grid of models by benchmarks needs false-discovery control, or something will look significant.
+
+**Common mistakes and how to fix them**
+- Reporting a gap without an interval; fix by making the interval a required field of the report card.
+- Comparing unpaired proportions; fix by using McNemar on the paired verdicts.
+- Adding items until the gap becomes significant; fix by sizing before the run from the effect you need to resolve.
+- Ignoring item clustering; fix by clustering the standard error at the group level.
+
+### LiveBench and LiveCodeBench: contamination handled by construction ([source](https://arxiv.org/abs/2406.19314))
+
+Both benchmarks accept that contamination detection is weak and change the construction instead. [LiveBench](https://arxiv.org/abs/2406.19314) refreshes items on a schedule from recent sources so that a model's training cutoff sits before the questions exist. [LiveCodeBench](https://arxiv.org/abs/2403.07974) does the same for code by scoring only problems published inside a release window after the model's cutoff. The design cost is comparability: two windows are two benchmarks, so a time series across windows is not a like-for-like trend.
+
+```mermaid
+flowchart TD
+  SRC["recent sources<br/>(new problems, new releases)"] --> WIN["release window"]
+  WIN --> GATE{"model cutoff<br/>before the window?"}
+  GATE -->|"yes"| SCORE["eligible: score it"]
+  GATE -->|"no"| SKIP["not comparable on this window"]
+  SCORE --> TREND["compare within a window,<br/>not across windows"]
+```
+
+**Interview questions this design invites**
+- Why is a time gate stronger evidence than deduplication?
+- What breaks when you compare scores from two different windows?
+- How do you handle a model whose cutoff is unknown or misreported?
+- What is a functional twin, and when is it worth building one instead?
+- Which contamination types does a time gate still not catch?
+
+**Tricks and gotchas**
+- The cutoff is a claim by the provider, so treat it as an input with error, not a fact.
+- Distillation from a contaminated teacher passes a time gate; the twin is what catches that family.
+- Automatic refresh means the benchmark ages out, so pin the window in any reported number.
+- A time-gated suite is usually smaller, so its interval is wider; size before you claim a gap.
+
+**Common mistakes and how to fix them**
+- Quoting a live benchmark score without its window; fix by making the window part of the score's identity.
+- Assuming a fresh benchmark is contamination-free forever; fix by re-checking as models train on the new data.
+- Using it as the only eval; fix by pairing it with a private internal set for the capabilities you care about.
+- Concluding contamination from a single drop; fix by comparing difficulty-matched pre-cutoff and post-cutoff slices.
+
+### Cohere Labs and LMArena: auditing the board itself ([source](https://arxiv.org/abs/2504.20879))
+
+[The Leaderboard Illusion](https://arxiv.org/abs/2504.20879) is a teardown of a measurement system rather than of a model. Its claims are structural: private variants tested before release plus the freedom to publish only the best result creates a selection effect, and unequal sampling and deprecation change who is measured against whom. [LMArena's response](https://lmarena.ai/blog/our-response/) disputes parts of it, and both are worth reading together, because the useful skill in an interview is being able to say precisely which properties of a board can be gamed and which cannot.
+
+```mermaid
+flowchart TD
+  MANY["many private variants tested"] --> PICK["publish the best one"]
+  PICK --> BOARD["public rank"]
+  SAMP["unequal battle sampling"] --> BOARD
+  DEP["deprecation of old models"] --> BOARD
+  BOARD --> BIAS["rank reflects selection<br/>as well as capability"]
+  BIAS --> FIX["mitigations: disclose variant counts,<br/>equalize sampling, publish retractions"]
+```
+
+**Interview questions this design invites**
+- What is selection leakage, and how does it apply to a public board?
+- Why does the number of unpublished variants change the meaning of a rank?
+- What would you require from a board before trusting it for a procurement decision?
+- How do human preference scores differ from capability measurements?
+- What is the internal version of this failure, inside your own team?
+
+**Tricks and gotchas**
+- The same effect happens privately: choosing a checkpoint by looking at the test set many times is selection leakage.
+- A sealed slice with a logged query budget is the internal control that bounds it.
+- Preference boards measure aggregate taste, which is a real signal but not the same as task capability.
+- Read the operator's reply with the audit; a one-sided reading is the trap here.
+
+**Common mistakes and how to fix them**
+- Citing a rank as a capability claim; fix by naming the construct the board measures.
+- Treating your own leaderboard climb as progress; fix by holding out a slice you look at once.
+- Comparing models measured on different battle volumes; fix by reporting intervals, which widen for the rarely sampled.
+- Ignoring deprecation; fix by pinning the comparison set when you quote a historical rank.
+
+### Princeton NLP: SWE-bench, an executable benchmark ([source](https://arxiv.org/abs/2310.06770))
+
+SWE-bench takes real issues from real repositories and scores a proposed patch with the project's own test suite. That single decision replaces a judge with an executor, which is why it became the reference for agent claims: the verifier is ground truth on the tested behaviour, and it is only gameable by overfitting to the tests. Its weaknesses are equally instructive, and the later work on rigorous agentic benchmarks documents them: environments drift, some tests are too weak to reject a wrong patch, and some tasks are underspecified in ways that make them unsolvable rather than hard.
+
+```mermaid
+flowchart LR
+  ISSUE["real repository issue"] --> AGENT["agent produces a patch"]
+  AGENT --> ENV["pinned environment<br/>(repo state, deps)"]
+  ENV --> TESTS["run the project's own tests"]
+  TESTS -->|"pass"| SOLVED["counted as solved"]
+  TESTS -->|"fail"| UNSOLVED["counted as unsolved"]
+  SOLVED --> AUDIT["read the diff:<br/>did it solve it or satisfy it?"]
+```
+
+**Interview questions this design invites**
+- Why is an executable verifier stronger than a model judge here?
+- How can a patch pass the tests and still be wrong?
+- What has to be pinned for a repository benchmark to be reproducible in a year?
+- Why do the Verified and full variants report different numbers?
+- What does pass@k mean on this benchmark, and what does the user actually get?
+
+**Tricks and gotchas**
+- Environment pinning is most of the engineering: dependency drift silently changes the score.
+- A weak test suite accepts an incorrect patch, so a passing rate needs a trajectory and diff audit.
+- Retrieval of the right files is a large share of the difficulty and is often the real thing being measured.
+- Report which variant and which harness; the numbers are not interchangeable.
+
+**Common mistakes and how to fix them**
+- Quoting a resolved rate without the scaffold; fix by reporting the agent, the tools and the step budget together.
+- Assuming test pass equals correct; fix by sampling passing diffs for review.
+- Comparing against a number from a different harness version; fix by re-running the baseline.
+- Reporting pass@k as reliability; fix by reporting pass^k when the user gets one attempt.
+
+### METR: task length as the capability axis ([source](https://metr.org/blog/2025-03-19-measuring-ai-ability-to-complete-long-tasks/))
+
+METR's move is to change the unit rather than the suite. Instead of a percentage on a benchmark, they measure the length of task, in human time, that a model can complete with some success rate, calibrated against human baselines on the same tasks. The result is a number a non-specialist can act on, and a trend line whose units do not change when the benchmark saturates. The cost is that human baselines are expensive to collect and the tasks have to be genuinely comparable across the range.
+
+```mermaid
+flowchart TD
+  TASKS["tasks with human time baselines"] --> RUN["model attempts"]
+  RUN --> FIT["fit success rate<br/>against task length"]
+  FIT --> POINT["length at 50 percent success"]
+  POINT --> TREND["trend over model releases"]
+  TREND --> DECIDE["a number a business can act on"]
+```
+
+**Interview questions this design invites**
+- What does a time-denominated capability number let you decide that a percentage does not?
+- How do you collect human baselines without biasing them?
+- Why does this axis survive benchmark saturation?
+- What are the failure modes of comparing tasks across very different lengths?
+- How would you build a small internal version of this for your own product?
+
+**Tricks and gotchas**
+- Reporting the length at a stated success rate keeps the number honest; the rate is part of the unit.
+- Human baselines drift with tooling, so they are re-collected, not reused forever.
+- Long tasks have high variance, so the intervals here are wide and must be shown.
+- The axis makes cost comparisons natural: tokens and dollars per completed task of a given length.
+
+**Common mistakes and how to fix them**
+- Quoting a length without the success rate; fix by writing both, always together.
+- Assuming the trend extrapolates; fix by treating it as a measurement, not a forecast.
+- Using tasks the humans found trivially automatable; fix by sampling tasks from real work.
+- Ignoring variance across runs; fix by multiple attempts per task with intervals.
 
 ---
 

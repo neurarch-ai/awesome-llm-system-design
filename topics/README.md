@@ -15,7 +15,7 @@ shape, mirroring the [answer framework](../framework/answer-framework.md):
 
 ## Topics by pipeline stage
 
-All eighteen topics are written. They are grouped by where they sit in a production LLM
+All nineteen topics are written. They are grouped by where they sit in a production LLM
 system, in narrative order from building the model to watching it in production. To
 navigate by use case instead, start from the
 [question bank](../questions.md).
@@ -35,6 +35,7 @@ eight papers.
 - [11 - Cost optimization and model routing](11-cost-optimization-and-model-routing.md)
 - [17 - Model compression](17-model-compression.md)
 - [18 - Reasoning models and test-time compute](18-reasoning-and-test-time-compute.md)
+- [19 - Image and video generation serving](19-generation-serving.md)
 - [10 - Realtime streaming chat](10-realtime-streaming-chat.md)
 
 **Retrieval and knowledge**

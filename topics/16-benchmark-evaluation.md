@@ -228,17 +228,19 @@ standardize and what they treat as the threat.
 
 ### The systems
 
-- **EleutherAI** [Lessons from the Trenches on Reproducible Evaluation of Language Models](https://arxiv.org/abs/2405.14782)
-- **Stanford CRFM** [HELM](https://crfm.stanford.edu/helm/)
-- **UK AI Security Institute** [Inspect](https://inspect.aisi.org.uk/)
-- **OpenAI** [simple-evals](https://github.com/openai/simple-evals) and [HealthBench](https://openai.com/index/healthbench/)
-- **Anthropic** [Adding Error Bars to Evals](https://arxiv.org/abs/2411.00640)
-- **Cohere Labs and collaborators** [The Leaderboard Illusion](https://arxiv.org/abs/2504.20879), with [LMArena's response](https://lmarena.ai/blog/our-response/)
-- **METR** [Measuring AI Ability to Complete Long Software Tasks](https://metr.org/blog/2025-03-19-measuring-ai-ability-to-complete-long-tasks/)
-- **LiveBench** [paper](https://arxiv.org/abs/2406.19314) and **LiveCodeBench** [paper](https://arxiv.org/abs/2403.07974)
-- **UIUC and collaborators** [Establishing Best Practices for Building Rigorous Agentic Benchmarks](https://arxiv.org/abs/2507.02825)
-- **Princeton NLP** [SWE-bench](https://arxiv.org/abs/2310.06770)
-- **Thinking Machines Lab** [Defeating Nondeterminism in LLM Inference](https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/)
+- **EleutherAI** [Lessons from the Trenches on Reproducible Evaluation of Language Models](https://arxiv.org/abs/2405.14782): The LM Evaluation Harness maintainers on why two labs get different numbers from the same weights, and the versioned task configs that fix it. *(eval bar)*
+- **Stanford CRFM** [HELM](https://crfm.stanford.edu/helm/): A multi-scenario, multi-metric reporting matrix, built on the position that one headline number cannot stand in for a model. *(eval bar)*
+- **UK AI Security Institute** [Inspect](https://inspect.aisi.org.uk/): An open framework that standardizes the agent loop and the tool sandbox, so an agent score measures the agent rather than the environment. *(systems)*
+- **OpenAI** [simple-evals](https://github.com/openai/simple-evals): Prompts and parsers published as runnable code, on the argument that a protocol nobody can replicate is not a measurement. *(eval bar)*
+- **OpenAI** [HealthBench](https://openai.com/index/healthbench/): Physician-written per-item rubric criteria instead of a holistic score, which is what makes an expert judgment reproduce. *(eval bar)*
+- **Anthropic** [Adding Error Bars to Evals](https://arxiv.org/abs/2411.00640): A score is an estimate. Standard errors, paired comparison, clustered items, and the resampling that stops a gap inside the noise from being reported as a gap. *(eval bar)*
+- **Cohere Labs and collaborators** [The Leaderboard Illusion](https://arxiv.org/abs/2504.20879): Private variants and selective reporting distort a public board, with [LMArena's response](https://lmarena.ai/blog/our-response/) as the other half of the argument. *(eval bar)*
+- **METR** [Measuring AI Ability to Complete Long Software Tasks](https://metr.org/blog/2025-03-19-measuring-ai-ability-to-complete-long-tasks/): Task length with human baselines as the capability axis, so the number carries a business meaning. *(eval bar)*
+- **LiveBench** [A challenging, contamination-limited LLM benchmark](https://arxiv.org/abs/2406.19314): Items refreshed on a schedule from recent sources, which makes contamination a property of the construction rather than a detection problem. *(eval bar)*
+- **LiveCodeBench** [Holistic and contamination-free evaluation of code](https://arxiv.org/abs/2403.07974): Release-window scoring, so a model is judged only on problems published after its cutoff. *(eval bar)*
+- **Princeton NLP** [SWE-bench](https://arxiv.org/abs/2310.06770): Real repository issues scored by the project's own tests, the benchmark that made agent claims falsifiable. *(eval bar)*
+- **UIUC and collaborators** [Establishing Best Practices for Building Rigorous Agentic Benchmarks](https://arxiv.org/abs/2507.02825): Task validity and outcome validity as separate failures, and how many published agent benchmarks fail one of them. *(eval bar)*
+- **Thinking Machines Lab** [Defeating Nondeterminism in LLM Inference](https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/): Batch-dependent kernel reductions make the same prompt score differently run to run, which is a measurement bug before it is a serving bug. *(systems)*
 
 ## Trace the architectures
 

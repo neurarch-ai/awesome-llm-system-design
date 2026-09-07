@@ -18,7 +18,10 @@ being hired to own.
 A paper appears under two topics when both interviews genuinely assume it. That
 repetition is deliberate: this is a study list per topic, not a bibliography.
 
-Not on this page: engineering blog posts and first-party writeups. Those are the
+Not on this page: the data. Corpora, instruction sets, preference data and benchmarks
+are in [datasets.md](datasets.md), organized the same way and under the same cap.
+
+Also not on this page: engineering blog posts and first-party writeups. Those are the
 **Seen in production** section of every topic, rolled up in
 [CASE-STUDIES.md](CASE-STUDIES.md) (with per-system
 [teardowns](CASE-TEARDOWNS.md)), and for several topics they carry more of the real
@@ -256,6 +259,40 @@ routing, caching and right-sizing writeups in
   Budget forcing with 1k examples. The "you can do this cheaply" data point.
 - **[DeepSeek-R1](https://arxiv.org/abs/2501.12948)** (2025). RL with verifiable
   rewards, and what a long thinking trace does to your serving cost model.
+
+### [Image and video generation serving](topics/19-generation-serving.md)
+
+- **[High-Resolution Image Synthesis with Latent Diffusion Models](https://arxiv.org/abs/2112.10752)**
+  (2021). Run diffusion in a compressed latent space and decode once. The 8x
+  downsample is why 1024px generation is affordable at all.
+- **[Denoising Diffusion Implicit Models](https://arxiv.org/abs/2010.02502)** (2020).
+  A deterministic sampler that skips steps consistently, taking generation from
+  hundreds of evaluations to tens with no retraining.
+- **[Classifier-Free Diffusion Guidance](https://arxiv.org/abs/2207.12598)** (2022).
+  The prompt-adherence knob, and the reason every guided step costs two forward
+  evaluations rather than one. Know this before you quote any latency number.
+- **[SDXL](https://arxiv.org/abs/2307.01952)** (2023). The base-plus-refiner design
+  and the conditioning tricks that most open image generation still inherits.
+- **[Scalable Diffusion Models with Transformers](https://arxiv.org/abs/2212.09748)**
+  (2022). DiT. Replaces the UNet with a transformer over latent patches, which is
+  what current image and video systems are built on and what makes their cost
+  reason like an LLM's.
+- **[Consistency Models](https://arxiv.org/abs/2303.01469)** (2023). Map any point
+  on the trajectory straight to its endpoint, the origin of one-step generation.
+- **[Latent Consistency Models](https://arxiv.org/abs/2310.04378)** (2023) and
+  **[LCM-LoRA](https://arxiv.org/abs/2311.05556)** (2023). The same in latent space,
+  packaged as an adapter, which is why few-step generation spread so fast.
+- **[Adversarial Diffusion Distillation](https://arxiv.org/abs/2311.17042)** (2023).
+  SDXL-Turbo. One to four steps with a discriminator keeping it sharp, and the
+  clearest statement of what step distillation costs you in diversity.
+
+For the video axis add **[Stable Video Diffusion](https://arxiv.org/abs/2311.15127)**
+(2023) for the data curation, **[Lumiere](https://arxiv.org/abs/2401.12945)** (2024)
+for generating a clip in one pass rather than as keyframes plus interpolation, and
+**[Movie Gen](https://arxiv.org/abs/2410.13720)** (2024) for the scale a current
+system actually runs at. The objective shift underneath all of them is
+**[flow matching](https://arxiv.org/abs/2210.02747)** (2022), applied at scale in
+**[SD3](https://arxiv.org/abs/2403.03206)** (2024).
 
 ### [Realtime streaming chat](topics/10-realtime-streaming-chat.md) · [book chapter](book/streaming-chat/)
 

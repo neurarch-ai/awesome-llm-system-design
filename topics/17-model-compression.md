@@ -202,18 +202,24 @@ precision, and gate on a paired comparison against the uncompressed model.
 
 ### The systems
 
-- **LLM.int8()** [8-bit Matrix Multiplication for Transformers at Scale](https://arxiv.org/abs/2208.07339)
-- **SmoothQuant** [paper](https://arxiv.org/abs/2211.10438), **GPTQ** [paper](https://arxiv.org/abs/2210.17323), **AWQ** [paper](https://arxiv.org/abs/2306.00978)
-- **QuaRot** [paper](https://arxiv.org/abs/2404.00456) and **SpinQuant** [paper](https://arxiv.org/abs/2405.16406)
-- **Microsoft Research** [The Era of 1-bit LLMs](https://arxiv.org/abs/2402.17764)
-- **KIVI** [asymmetric 2-bit KV cache quantization](https://arxiv.org/abs/2402.02750)
-- **SparseGPT** [paper](https://arxiv.org/abs/2301.00774) and **Wanda** [paper](https://arxiv.org/abs/2306.11695)
-- **Princeton** [Sheared LLaMA](https://arxiv.org/abs/2310.06694), **NVIDIA** [Compact Language Models via Pruning and Knowledge Distillation](https://arxiv.org/abs/2407.14679)
-- **Google DeepMind** [On-Policy Distillation of Language Models](https://arxiv.org/abs/2306.13649)
-- **Apple** [Apple Intelligence Foundation Language Models](https://arxiv.org/abs/2407.21075)
-- **DeepSeek** [DeepSeek-V3 Technical Report](https://arxiv.org/abs/2412.19437)
-- **Microsoft Research India** [Accuracy is Not All You Need](https://arxiv.org/abs/2407.09141)
-- **Red Hat AI and vLLM** [llm-compressor](https://github.com/vllm-project/llm-compressor), **llama.cpp** [GGUF ecosystem](https://github.com/ggml-org/llama.cpp)
+- **LLM.int8()** [8-bit Matrix Multiplication for Transformers at Scale](https://arxiv.org/abs/2208.07339): Keep the outlier channels in 16-bit and the rest in int8. The paper that defined the problem every method below is working around. *(deployment)*
+- **SmoothQuant** [Accurate and efficient post-training quantization for LLMs](https://arxiv.org/abs/2211.10438): Migrate the activation outliers into the weights so both sides can be 8-bit, which is what makes W8A8 serving practical. *(deployment)*
+- **GPTQ** [Accurate post-training quantization for generative pretrained transformers](https://arxiv.org/abs/2210.17323): Layer-wise second-order rounding that compensates its own error, the first credible one-shot path to 3 and 4 bits. *(deployment)*
+- **AWQ** [Activation-aware weight quantization](https://arxiv.org/abs/2306.00978): Protect the salient weight channels, identified from activations rather than from weight magnitude. The most deployed weight-only method. *(deployment)*
+- **QuaRot** [Outlier-free 4-bit inference in rotated LLMs](https://arxiv.org/abs/2404.00456): An orthogonal rotation fused at export removes the outliers instead of working around them, which is what unlocked 4-bit activations and KV. *(deployment)*
+- **SpinQuant** [LLM quantization with learned rotations](https://arxiv.org/abs/2405.16406): Learn the rotation rather than fixing it, trading a short training step for the accuracy the fixed rotation leaves behind. *(deployment)*
+- **Microsoft Research** [The Era of 1-bit LLMs](https://arxiv.org/abs/2402.17764): Ternary weights trained from scratch. The frontier of the format axis, and a reminder that it is not a post-training option. *(training decision)*
+- **KIVI** [Asymmetric 2-bit KV cache quantization](https://arxiv.org/abs/2402.02750): Keys quantized per channel, values per token, with no tuning. The asymmetry is the finding. *(deployment)*
+- **SparseGPT** [Massive language models can be accurately pruned in one shot](https://arxiv.org/abs/2301.00774): Reconstruction-based one-shot pruning to 50 percent with no retraining. *(deployment)*
+- **Wanda** [A simple and effective pruning approach for LLMs](https://arxiv.org/abs/2306.11695): The same result from weight magnitude times input activation norm, with no solve at all. Read it as the argument against complexity in this area. *(deployment)*
+- **Princeton** [Sheared LLaMA](https://arxiv.org/abs/2310.06694): Structured pruning to a target shape followed by continued pretraining, a smaller model derived from a parent instead of trained from scratch. *(training decision)*
+- **NVIDIA** [Compact Language Models via Pruning and Knowledge Distillation](https://arxiv.org/abs/2407.14679): Minitron. One parent, a size ladder, and the distillation budget each rung actually costs. *(training decision)*
+- **Google DeepMind** [On-Policy Distillation of Language Models](https://arxiv.org/abs/2306.13649): The student generates and the teacher scores, so it learns on its own mistakes rather than on the teacher's transcript. *(training decision)*
+- **Apple** [Apple Intelligence Foundation Language Models](https://arxiv.org/abs/2407.21075): A hard device ceiling, a short list of fast formats, and task adapters over one resident base. The shipped on-device pattern. *(deployment)*
+- **DeepSeek** [DeepSeek-V3 Technical Report](https://arxiv.org/abs/2412.19437): fp8 end to end by design rather than compression applied afterwards, with the training cost stated. *(training decision)*
+- **Microsoft Research India** [Accuracy is Not All You Need](https://arxiv.org/abs/2407.09141): Two models at equal benchmark accuracy can disagree on half of their answers. Flip rate is the acceptance test. *(eval bar)*
+- **Red Hat AI and vLLM** [llm-compressor](https://github.com/vllm-project/llm-compressor): The path from a recipe to a served checkpoint, which is where kernel support stops being theoretical. *(systems)*
+- **llama.cpp** [the GGUF ecosystem](https://github.com/ggml-org/llama.cpp): Quantization formats as a distribution channel, and the reason a k-quant name is the first thing a local deployment argues about. *(systems)*
 
 ## Trace the architectures
 

@@ -130,3 +130,68 @@ and
 [CLIP ViT-B/32](https://www.neurarch.com/?import=https://raw.githubusercontent.com/neurarch-ai/awesome-llm-model-zoo/main/architectures/clip-vit-b32/model.json)
 let you trace the encoder, projector, and the point where image tokens join text
 tokens in the decoder at real dimensions.
+
+## Video: frames are the token budget
+
+An image costs its tokens once. A video costs them per sampled frame, so the
+arithmetic from the start of this section is multiplied by however many frames you
+decided to look at, and that decision, not the model, is what makes video expensive.
+
+$$
+\text{video tokens} \approx F \cdot \left\lceil \frac{H}{p} \right\rceil \cdot \left\lceil \frac{W}{p} \right\rceil \cdot \frac{1}{r}
+$$
+
+with $F$ sampled frames, patch size $p$, and $r$ the spatial merge factor (a 2 by 2
+merge is $r = 4$). Put the numbers in and the problem is obvious:
+
+```python
+def video_tokens(seconds, fps, h, w, patch, merge=1):
+    frames = int(seconds * fps)                       # what you chose to look at
+    per_frame = (h // patch) * (w // patch) // merge  # what each one costs
+    return frames * per_frame
+
+# 10 minutes at 1 fps, 336x336, patch 14, no merging
+# video_tokens(600, 1.0, 336, 336, 14) -> 345600
+# the same clip at 0.5 fps with a 2x2 merge
+# video_tokens(600, 0.5, 336, 336, 14, merge=4) -> 43200
+```
+
+345,600 tokens is not a long context problem, it is a bill. The eight-times
+reduction on the second line came from two decisions that have nothing to do with
+the model, which is why the frame budget is the first thing to design.
+
+**The levers, in the order to reach for them.**
+
+| Lever | What it does | What it costs |
+|---|---|---|
+| Frame rate | Linear in tokens, the largest single knob | Events shorter than the sampling interval disappear |
+| Keyframe or scene-change sampling | Spends frames where the video changes | A detector in the path, and a failure mode on static scenes |
+| Spatial merge or pooling | Divides per-frame tokens by 4 or more | Small objects and on-screen text stop being readable |
+| Temporal merge across adjacent frames | Exploits the fact that neighbouring frames are nearly identical | Fast motion smears |
+| Frame retrieval by query | Embed frames once, feed only the relevant ones | An index per video, and a retrieval failure becomes a wrong answer |
+| Subtitles or ASR instead of frames | Text is orders of magnitude cheaper per second of video | Anything visual and unspoken is lost |
+
+The last row is the one candidates miss. For a lecture, a meeting recording or most
+instructional video, the transcript plus a handful of frames answers more questions
+per dollar than dense sampling does, and the honest system offers both paths.
+
+**Evaluation has a trap built into it.** A benchmark whose questions can be answered
+from one sampled frame will report that your frame budget is free, because it is,
+for that benchmark. [Video-MME](https://arxiv.org/abs/2405.21075) splits by duration
+(short, medium, long) precisely so that the long split can expose this, and
+[LongVideoBench](https://arxiv.org/abs/2407.15754) is built around referring
+reasoning that a single frame cannot satisfy. Measure the frame-budget decision on
+those, not on a captioning set.
+
+**Serving is prefill, not decode.** A long video is a very large prompt and a short
+answer, so the cost lands almost entirely in prefill and the video encoder, and
+decode-side tricks such as speculative decoding buy you nothing. Two consequences:
+encode once and cache the frame embeddings keyed by a content hash, since the same
+video is watched by many requests, and put the encoder on its own autoscaling group
+because its load profile has nothing in common with the decoder's.
+
+**Provenance.** The per-frame-tokens shape is the same one LLaVA established for
+images, extended to video by [Video-LLaVA](https://arxiv.org/abs/2311.10122) (2023)
+and [Video-ChatGPT](https://arxiv.org/abs/2306.05424) (2023). Dynamic resolution
+with spatial and temporal merging is the Qwen2-VL line, and the duration-split
+evaluation is Video-MME (2024).

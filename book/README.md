@@ -59,6 +59,7 @@ Ordered the way a model comes to life: build it, serve it, ground it, compose it
 | [Cost Optimization and Model Routing](cost-optimization/) | Routing, cascades, semantic caching, prompt compression, the quality-cost frontier |
 | [Model Compression](model-compression/) | Quantization formats and the outlier problem, pruning shapes the hardware can use, distillation, on-device serving, and how to accept a compressed model |
 | [Reasoning and Test-Time Compute](reasoning-serving/) | Serving models that think: budgets and the latency tail, effort routing and cascades, verifiers, cost per solved task |
+| [Image and Video Generation Serving](generation-serving/) | Forward evaluations as the cost unit, samplers and step distillation, compiled engines and cold start, video as an extra axis |
 | [Real-Time Streaming Chat](streaming-chat/) | Token streaming, transport, session memory, backpressure, voice pipelines |
 
 ### Retrieval and knowledge
